@@ -8,11 +8,13 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "start": "nodemon ./src/index.js"
+    "start": "nodemon --env-file=.env ./src/index.js"
   },
   "dependencies": {
     "@apollo/server": "^4.11.3",
+    "dotenv": "^16.4.7",
     "graphql": "^16.10.0",
+    "stripe": "^17.7.0",
     "uuid": "^11.1.0"
   }
 }

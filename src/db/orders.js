@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { readFile, writeFile } from "../utils/fileUtils.js";
+import { getCustomer } from "./payment.js";
 const FILE_PATH = "../data/orders.json";
 
 export const getOrders = (filter) => {
@@ -24,11 +25,11 @@ export const createOrder = (input) => {
   return newOrder;
 };
 
-export const updateOrder = (input) => {
+export const updateOrder = async (input) => {
   const orders = getOrders(null);
   const existingOrder = orders.find((order) => order.id === input.id);
   if (existingOrder) {
-    existingOrder.customer = getCustomer(input.customer);
+    existingOrder.customer = await getCustomer(input.customer);
     saveOrders(orders);
     return existingOrder;
   }
@@ -46,13 +47,6 @@ export const cancelOrder = (input) => {
   return true;
 };
 
-export const getCustomer = (customer) => {
-  return {
-    id: uuidv4(),
-    email: customer.email,
-    name: customer.name,
-  };
-};
 export const saveOrders = (data) => {
   writeFile(FILE_PATH, data, () => {});
 };
