@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { readFile, writeFile } from "../utils/fileUtils.js";
-import { getCustomer } from "./payment.js";
+import { getCart } from "./cart.js";
+import { cancelPayment, getCustomer } from "./payment.js";
 const FILE_PATH = "../data/orders.json";
 
 export const getOrders = (filter) => {
@@ -11,12 +12,28 @@ export const getOrders = (filter) => {
   return orders;
 };
 
+export const getOrderTotals = (id) => {
+  const cart = getCart({ field: "cartId", value: id });
+  const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
+  const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
+  const taxes = Math.floor(subtotal * 0.16);
+
+  return {
+    currency: "MXN",
+    items: cart.length,
+    units: units,
+    subTotal: subtotal,
+    taxes: taxes,
+    discount: 0,
+    total: subtotal + taxes,
+  };
+};
+
 export const createOrder = (input) => {
   const orders = getOrders(null);
   const newOrder = {
     id: uuidv4(),
     customer: null,
-    payment: "",
     cart: input.cartId,
     status: "INCOMPLETE",
   };
@@ -36,13 +53,14 @@ export const updateOrder = async (input) => {
   return undefined;
 };
 
-export const cancelOrder = (input) => {
+export const cancelOrder = async (input) => {
   const orders = getOrders(null);
   const order = orders.find((order) => order.id === input.id);
   if (!order) {
     return false;
   }
   order.status = "CANCELLED";
+  await cancelPayment(order.id);
   saveOrders(orders);
   return true;
 };

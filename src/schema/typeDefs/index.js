@@ -1,5 +1,6 @@
 import cartTypes from "./cartTypes.js";
 import orderTypes from "./orderTypes.js";
+import paymentTypes from "./paymentTypes.js";
 import productTypes from "./productTypes.js";
 
 const rootTypes = `#graphql
@@ -27,7 +28,8 @@ const rootTypes = `#graphql
     createOrder(input: CreateOrder!): CreateOrderResponse!
     updateOrder(input: UpdateOrder!): UpdateOrderResponse!
     cancelOrder(input: CancelOrder!): CancelOrderResponse!
+    createOrderPayment(input: CreateOrderPayment!): CreateOrderPaymentResponse!
   }
 `;
 
-export default [rootTypes, cartTypes, productTypes, orderTypes];
+export default [rootTypes, cartTypes, productTypes, paymentTypes, orderTypes];

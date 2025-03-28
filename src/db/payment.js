@@ -24,15 +24,56 @@ export const getCustomer = async (input) => {
 };
 
 export const createPayment = async (orderId, amount, customerId) => {
-  const paymentIntent = await stripeClient.paymentIntents.create({
-    currency: "MXN",
-    customer: customerId,
-    amount: amount,
-    payment_method_types: ["card"],
-    metadata: {
-      order_id: orderId,
-    },
-  });
+  const response = await searchPayment(orderId);
+  let paymentIntent;
+  if (!response || response === null) {
+    paymentIntent = await stripeClient.paymentIntents.create({
+      currency: "MXN",
+      customer: customerId,
+      amount: amount,
+      payment_method_types: ["card"],
+      metadata: {
+        order_id: orderId,
+      },
+    });
+  } else {
+    paymentIntent = response;
+  }
 
-  return paymentIntent;
+  const ephemeralKey = await stripeClient.ephemeralKeys.create(
+    { customer: customerId },
+    { apiVersion: "2024-11-20.acacia" }
+  );
+
+  return {
+    paymentId: paymentIntent.id,
+    clientSecret: paymentIntent.client_secret,
+    ephimeralKey: ephemeralKey.secret,
+  };
+};
+
+export const searchPayment = async (orderId) => {
+  const { data } = await stripeClient.paymentIntents.search({
+    query: `metadata["order_id"]: "${orderId}"`,
+  });
+  if (data.length === 0) {
+    return null;
+  }
+  return data[0];
+};
+
+export const cancelPayment = async (orderId) => {
+  const payment = await searchPayment(orderId);
+  if (payment && payment !== null) {
+    await stripeClient.paymentIntents.cancel(payment.id);
+    return true;
+  }
+};
+
+export const searchPaymentMethod = async (paymentMethodId) => {
+  const { data } = await stripeClient.paymentMethods.retrieve(paymentMethodId);
+  if (data.length === 0) {
+    return null;
+  }
+  return data[0];
 };

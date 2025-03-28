@@ -21,6 +21,13 @@ export const updateOrderValidator = (input) => {
   return true;
 };
 
+export const createOrderPaymentValidator = (input) => {
+  if (!input || !input.orderId || input.orderId === "") {
+    return false;
+  }
+  return true;
+};
+
 export const cancelOrderValidator = (input) => {
   if (!input || !input.id || input.id === "") {
     return false;

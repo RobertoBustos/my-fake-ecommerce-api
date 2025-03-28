@@ -17,19 +17,13 @@ const orderTypes = `#graphql
         total: Int!
     }
 
-    type Customer {
-        id: String!
-        name: String!
-        email: String!
-    }
-
     type Order {
         id: ID!
         customer: Customer
-        payment: String!
+        payment: Payment
         cart: String!
         totals: Totals!
-        status: Status
+        status: Status!
         details: [CartItem!]!
     }
 
@@ -69,6 +63,17 @@ const orderTypes = `#graphql
         code: String!
         success: Boolean!
         message: String!
+    }
+
+    input CreateOrderPayment {
+        orderId: String!
+    }
+
+    type CreateOrderPaymentResponse implements MutationResponse{
+        code: String!
+        success: Boolean!
+        message: String!
+        data: PaymentCreated
     }
 `;
 

@@ -2,15 +2,20 @@ import { GraphQLError } from "graphql";
 import {
   addToCart,
   cancelOrder,
+  createPayment,
   getCart,
+  getOrderTotals,
   getOrders,
   getProducts,
   removeFromCart,
+  searchPayment,
+  searchPaymentMethod,
   updateOrder,
 } from "../db/index.js";
 import {
   addToCartValidator,
   cancelOrderValidator,
+  createOrderPaymentValidator,
   createOrderValidator,
   removeFromCartValidator,
   updateOrderValidator,
@@ -51,7 +56,7 @@ const resolvers = {
       if (!product) {
         throw new GraphQLError("Product not found", {
           extensions: {
-            code: "GRAPHQL_VALIDATION_FAILED",
+            code: "NOT_FOUND",
             invalidArgument: "productId",
           },
         });
@@ -101,7 +106,7 @@ const resolvers = {
       if (!cart || cart.length === 0) {
         throw new GraphQLError("Cart not found", {
           extensions: {
-            code: "GRAPHQL_VALIDATION_FAILED",
+            code: "NOT_FOUND",
             invalidArgument: "cartId",
           },
         });
@@ -130,7 +135,7 @@ const resolvers = {
       if (!order || order.length === 0) {
         throw new GraphQLError("Order not found", {
           extensions: {
-            code: "GRAPHQL_VALIDATION_FAILED",
+            code: "NOT_FOUND",
             invalidArgument: "cartId",
           },
         });
@@ -172,8 +177,49 @@ const resolvers = {
           : "There was an error cancelling the order",
       };
     },
+    createOrderPayment: async (_, { input }) => {
+      const validation = createOrderPaymentValidator(input);
+      if (!validation) {
+        throw new GraphQLError(
+          "One or more parameters sent have an invalid value",
+          {
+            extensions: {
+              code: "BAD_REQUEST",
+            },
+          }
+        );
+      }
+      const order = getOrders({ field: "id", value: input.orderId });
+      if (!order || order.length === 0) {
+        throw new GraphQLError("Order not found", {
+          extensions: {
+            code: "NOT_FOUND",
+            invalidArgument: "orderId",
+          },
+        });
+      }
+      if (!order[0].customer || !order[0].customer === null) {
+        throw new GraphQLError("Order has no customer information", {
+          extensions: {
+            code: "NOT_FOUND",
+            invalidArgument: "order.customer",
+          },
+        });
+      }
+      const totals = getOrderTotals(order[0].cart);
+      const payment = createPayment(
+        order[0].id,
+        totals.total,
+        order[0].customer.id
+      );
+      return {
+        code: 200,
+        success: true,
+        message: "Payment created",
+        data: payment,
+      };
+    },
   },
-
   CartItem: {
     product: async (parent) => {
       const product = getProducts({ field: "id", value: parent.productId });
@@ -182,24 +228,22 @@ const resolvers = {
   },
   Order: {
     totals: async (parent) => {
-      const cart = getCart({ field: "id", value: parent.cartId });
-      const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
-      const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
-      const taxes = Math.floor(subtotal * 0.16);
-
-      return {
-        currency: "MXN",
-        items: cart.length,
-        units: units,
-        subTotal: subtotal,
-        taxes: taxes,
-        discount: 0,
-        total: subtotal + taxes,
-      };
+      const totals = getOrderTotals(parent.cart);
+      return totals;
     },
     details: async (parent) => {
       const cart = getCart({ field: "cartId", value: parent.cart });
       return cart;
+    },
+    payment: async (parent) => {
+      const payment = await searchPayment(parent.id);
+      return payment;
+    },
+  },
+  Payment: {
+    payment_method: async (parent) => {
+      const paymentMethod = await searchPaymentMethod(parent.payment_method);
+      return paymentMethod;
     },
   },
 };
