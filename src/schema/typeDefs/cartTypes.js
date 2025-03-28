@@ -10,23 +10,27 @@ const cartTypes = `#graphql
     product: Product!
   }
 
+  input AddToCart {
+    productId: String!
+    quantity: Int!
+    cartId: String!
+  }
+
   type AddToCartResponse implements MutationResponse {
     code: String!
     success: Boolean!
     message: String!
-    data: CartItem
+    data: CartItem!
+  }
+
+  input RemoveFromCart {
+    id: String!
   }
 
   type RemoveFromCartResponse implements MutationResponse {
     code: String!
     success: Boolean!
     message: String!
-  }
-
-  input AddToCartInput {
-    productId: String!
-    quantity: Int!
-    cartId: String!
   }
 `;
 

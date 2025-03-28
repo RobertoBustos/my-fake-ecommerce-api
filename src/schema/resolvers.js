@@ -1,40 +1,36 @@
 import { GraphQLError } from "graphql";
-import { v4 as uuidv4 } from "uuid";
-import cart from "../data/cart.js";
-import products from "../data/products.js";
-import fakePromise from "../utils/fakePromise.js";
-
-let cartItems = cart;
+import {
+  addToCart,
+  cancelOrder,
+  getCart,
+  getCartById,
+  getOrderById,
+  getOrders,
+  getProductById,
+  getProducts,
+  removeFromCart,
+} from "../db/index.js";
+import {
+  addToCartValidator,
+  cancelOrderValidator,
+  cartValidator,
+  createOrderValidator,
+  orderValidator,
+  productValidator,
+  removeFromCartValidator,
+} from "./validators/index.js";
 
 const resolvers = {
   Query: {
-    products: async (_, __, contextValue) => {
-      await fakePromise();
+    products: async () => {
+      const products = getProducts();
       return products;
     },
-    product: async (_, args, contextValue) => {
-      await fakePromise();
-      const product = products.find((product) => {
-        return product.id == args.id;
-      });
-      return product;
-    },
-    cartItems: async (_, __, contextValue) => {
-      await fakePromise();
-      return cartItems;
-    },
-  },
-
-  Mutation: {
-    addToCart: async (_, { input }, contextValue) => {
-      console.log("input", input);
-      if (
-        input.cartId === "" ||
-        input.productId === "" ||
-        input.quantity === 0
-      ) {
+    product: async (_, args) => {
+      const validation = productValidator(args);
+      if (!validation) {
         throw new GraphQLError(
-          "One or more parameter sent have an invalid value",
+          "One or more parameters sent have an invalid value",
           {
             extensions: {
               code: "BAD_REQUEST",
@@ -42,7 +38,83 @@ const resolvers = {
           }
         );
       }
-      await fakePromise();
+      const product = getProductById(args.id);
+      if (!product) {
+        throw new GraphQLError("Product not found", {
+          extensions: {
+            code: "NOT_FOUND",
+          },
+        });
+      }
+      return product;
+    },
+    carts: async () => {
+      const cart = getCart();
+      return cart;
+    },
+    cart: async (_, args) => {
+      const validation = cartValidator(args);
+      if (!validation) {
+        throw new GraphQLError(
+          "One or more parameters sent have an invalid value",
+          {
+            extensions: {
+              code: "BAD_REQUEST",
+            },
+          }
+        );
+      }
+      const cart = getCartById(args.id);
+      if (!cart) {
+        throw new GraphQLError("Cart not found", {
+          extensions: {
+            code: "NOT_FOUND",
+          },
+        });
+      }
+      return cart;
+    },
+    orders: async () => {
+      const orders = getOrders();
+      return orders;
+    },
+    order: async (_, args) => {
+      const validation = orderValidator(args);
+      if (!validation) {
+        throw new GraphQLError(
+          "One or more parameters sent have an invalid value",
+          {
+            extensions: {
+              code: "BAD_REQUEST",
+            },
+          }
+        );
+      }
+      const order = getOrderById(args.id);
+      if (!order) {
+        throw new GraphQLError("Order not found", {
+          extensions: {
+            code: "NOT_FOUND",
+          },
+        });
+      }
+      return order;
+    },
+  },
+
+  Mutation: {
+    addToCart: async (_, { input }) => {
+      const validation = addToCartValidator(input);
+      if (!validation) {
+        throw new GraphQLError(
+          "One or more parameters sent have an invalid value",
+          {
+            extensions: {
+              code: "BAD_REQUEST",
+            },
+          }
+        );
+      }
       const product = products.find(
         (product) => product.id === input.productId
       );
@@ -54,58 +126,113 @@ const resolvers = {
           },
         });
       }
-      const existingItem = cartItems.find(
-        (item) => item.productId === input.productId
-      );
-      if (existingItem) {
-        existingItem.quantity += input.quantity;
-        existingItem.subtotal += product.unitPrice * input.quantity;
-        return {
-          code: 200,
-          success: true,
-          message: "Product added to cart",
-          data: existingItem,
-        };
-      }
-      const newItem = {
-        id: uuidv4(),
-        cartId: input.cartId,
-        productId: input.productId,
-        quantity: input.quantity,
-        unitPrice: product.unitPrice,
-        subtotal: product.unitPrice * input.quantity,
-      };
-      cartItems.push(newItem);
+      const cartItem = addToCart(product, input);
       return {
         code: 200,
         success: true,
-        message: "Product added to cart",
-        data: newItem,
+        message: "Product added",
+        data: cartItem,
       };
     },
-    removeFromCart: async (_, args, contextValue) => {
-      await fakePromise();
-      const cartItem = cartItems.find((item) => item.id == args.id);
-      if (!cartItem) {
-        throw new GraphQLError("Product not found", {
+    removeFromCart: async (_, { input }) => {
+      const validation = removeFromCartValidator(input);
+      if (!validation) {
+        throw new GraphQLError(
+          "One or more parameters sent have an invalid value",
+          {
+            extensions: {
+              code: "BAD_REQUEST",
+            },
+          }
+        );
+      }
+      const result = removeFromCart(input);
+      return {
+        code: 200,
+        success: result,
+        message: result
+          ? "Item Removed"
+          : "There was an error removing the item",
+      };
+    },
+    createOrder: async (_, { input }) => {
+      const validation = createOrderValidator(input);
+      if (!validation) {
+        throw new GraphQLError(
+          "One or more parameters sent have an invalid value",
+          {
+            extensions: {
+              code: "BAD_REQUEST",
+            },
+          }
+        );
+      }
+      const cart = getCartById(input.cartId);
+      if (!cart || cart.length === 0) {
+        throw new GraphQLError("Cart not found", {
           extensions: {
             code: "GRAPHQL_VALIDATION_FAILED",
-            invalidArgument: "id",
+            invalidArgument: "cartId",
           },
         });
       }
-      cartItems = cartItems.filter((item) => item.id != args.id);
+      const order = createOrder(input);
       return {
         code: 200,
         success: true,
-        message: "Item Removed Successfully",
+        message: "Order created",
+        data: order,
+      };
+    },
+    cancelOrder: async (_, { input }) => {
+      const validation = cancelOrderValidator(input);
+      if (!validation) {
+        throw new GraphQLError(
+          "One or more parameters sent have an invalid value",
+          {
+            extensions: {
+              code: "BAD_REQUEST",
+            },
+          }
+        );
+      }
+      const result = cancelOrder(input);
+      return {
+        code: 200,
+        success: result,
+        message: result
+          ? "Order cancelled"
+          : "There was an error cancelling the order",
       };
     },
   },
 
   CartItem: {
-    product: async (parent, args, contextValue, info) => {
-      return products.find((product) => product.id === parent.productId);
+    product: async (parent) => {
+      const product = getProductById(parent.productId);
+      return product;
+    },
+  },
+  Order: {
+    totals: async (parent) => {
+      const cart = getCartById(parent.cart);
+      const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
+      const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
+      const taxes = Math.floor(subtotal * 0.16);
+
+      return {
+        currency: "MXN",
+        items: cart.length,
+        units: units,
+        subTotal: subtotal,
+        taxes: taxes,
+        discount: 0,
+        total: subtotal + taxes,
+      };
+    },
+    details: async (parent) => {
+      const cart = getCartById(parent.cart);
+      return cart;
     },
   },
 };

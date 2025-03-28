@@ -1,0 +1,16 @@
+[
+  {
+    "id": "19c3787a-cc94-4962-8617-43dcaffbad2d",
+    "customer": "",
+    "payment": "",
+    "cart": "Roberto's cart",
+    "status": "INCOMPLETE"
+  },
+  {
+    "id": "8d9b50b8-6692-4379-86c1-6c122abcf94f",
+    "customer": "",
+    "payment": "",
+    "cart": "Pedro's cart",
+    "status": "CANCELLED"
+  }
+]

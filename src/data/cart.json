@@ -1,0 +1,18 @@
+[
+  {
+    "id": "afbc0bfc-eec4-4653-a1e7-6b3d3b46bc38",
+    "cartId": "Roberto's cart",
+    "productId": "15",
+    "quantity": 10,
+    "unitPrice": 5699,
+    "subtotal": 56990
+  },
+  {
+    "id": "7938ab45-9bf4-4aa7-804e-67326aef67bd",
+    "cartId": "Pedro's cart",
+    "productId": "20",
+    "quantity": 50,
+    "unitPrice": 1299,
+    "subtotal": 64950
+  }
+]

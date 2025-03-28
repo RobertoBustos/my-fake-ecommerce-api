@@ -1,4 +1,5 @@
 import cartTypes from "./cartTypes.js";
+import orderTypes from "./orderTypes.js";
 import productTypes from "./productTypes.js";
 
 const rootTypes = `#graphql
@@ -6,7 +7,10 @@ const rootTypes = `#graphql
   type Query {
     products: [Product!]!
     product(id: ID!): Product
-    cartItems: [CartItem!]!
+    carts:[CartItem!]!
+    cart(id: ID!): [CartItem!]!
+    orders: [Order!]!
+    order(id: ID!): Order
   }
 
   interface MutationResponse {
@@ -16,9 +20,12 @@ const rootTypes = `#graphql
   }
 
   type Mutation {
-    addToCart(input: AddToCartInput): AddToCartResponse!
-    removeFromCart(id: ID!): RemoveFromCartResponse!
+    addToCart(input: AddToCart): AddToCartResponse!
+    removeFromCart(input: RemoveFromCart): RemoveFromCartResponse!
+    createOrder(input: CreateOrder): CreateOrderResponse!
+    updateOrder(input: UpdateOrder): UpdateOrderResponse!
+    cancelOrder(input: CancelOrder): CancelOrderResponse!
   }
 `;
 
-export default [rootTypes, cartTypes, productTypes];
+export default [rootTypes, cartTypes, productTypes, orderTypes];
