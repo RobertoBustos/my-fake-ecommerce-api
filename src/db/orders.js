@@ -11,10 +11,10 @@ export const getOrders = (filter) => {
 };
 
 export const createOrder = (input) => {
-  const orders = getOrders();
+  const orders = getOrders(null);
   const newOrder = {
     id: uuidv4(),
-    customer: "",
+    customer: null,
     payment: "",
     cart: input.cartId,
     status: "INCOMPLETE",
@@ -24,8 +24,19 @@ export const createOrder = (input) => {
   return newOrder;
 };
 
+export const updateOrder = (input) => {
+  const orders = getOrders(null);
+  const existingOrder = orders.find((order) => order.id === input.id);
+  if (existingOrder) {
+    existingOrder.customer = getCustomer(input.customer);
+    saveOrders(orders);
+    return existingOrder;
+  }
+  return undefined;
+};
+
 export const cancelOrder = (input) => {
-  const orders = getOrders();
+  const orders = getOrders(null);
   const order = orders.find((order) => order.id === input.id);
   if (!order) {
     return false;
@@ -35,6 +46,13 @@ export const cancelOrder = (input) => {
   return true;
 };
 
+export const getCustomer = (customer) => {
+  return {
+    id: uuidv4(),
+    email: customer.email,
+    name: customer.name,
+  };
+};
 export const saveOrders = (data) => {
-  writeFile(FILE_PATH, data);
+  writeFile(FILE_PATH, data, () => {});
 };

@@ -1,14 +1,18 @@
 [
   {
     "id": "19c3787a-cc94-4962-8617-43dcaffbad2d",
-    "customer": "",
+    "customer": {
+      "id": "2c9ba4a5-55b2-495d-acaa-060e31a14e1d",
+      "email": "betobhdez@gmail.com",
+      "name": "Roberto Bustos"
+    },
     "payment": "",
     "cart": "Roberto's cart",
     "status": "INCOMPLETE"
   },
   {
     "id": "8d9b50b8-6692-4379-86c1-6c122abcf94f",
-    "customer": "",
+    "customer": null,
     "payment": "",
     "cart": "Pedro's cart",
     "status": "CANCELLED"

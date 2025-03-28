@@ -5,6 +5,22 @@ export const createOrderValidator = (input) => {
   return true;
 };
 
+export const updateOrderValidator = (input) => {
+  if (
+    !input ||
+    !input.id ||
+    input.id === "" ||
+    !input.customer ||
+    !input.customer.email ||
+    input.customer.email === "" ||
+    !input.customer.name ||
+    input.customer.name === ""
+  ) {
+    return false;
+  }
+  return true;
+};
+
 export const cancelOrderValidator = (input) => {
   if (!input || !input.id || input.id === "") {
     return false;

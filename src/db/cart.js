@@ -11,7 +11,7 @@ export const getCart = (filter) => {
 };
 
 export const addToCart = (product, input) => {
-  const carts = getCart();
+  const carts = getCart(null);
   const existingItem = carts.find((cart) => cart.productId === input.productId);
   if (existingItem) {
     existingItem.quantity += input.quantity;
@@ -33,7 +33,7 @@ export const addToCart = (product, input) => {
 };
 
 export const removeFromCart = (input) => {
-  const carts = getCart();
+  const carts = getCart(null);
   const existingItem = carts.find((cart) => cart.id === input.id);
   if (!existingItem) {
     return false;
@@ -44,5 +44,5 @@ export const removeFromCart = (input) => {
 };
 
 export const saveCart = (data) => {
-  writeFile(FILE_PATH, data);
+  writeFile(FILE_PATH, data, () => {});
 };

@@ -6,12 +6,14 @@ import {
   getOrders,
   getProducts,
   removeFromCart,
+  updateOrder,
 } from "../db/index.js";
 import {
   addToCartValidator,
   cancelOrderValidator,
   createOrderValidator,
   removeFromCartValidator,
+  updateOrderValidator,
 } from "./validators/index.js";
 
 const resolvers = {
@@ -110,6 +112,43 @@ const resolvers = {
         success: true,
         message: "Order created",
         data: order,
+      };
+    },
+    updateOrder: async (_, { input }) => {
+      const validation = updateOrderValidator(input);
+      if (!validation) {
+        throw new GraphQLError(
+          "One or more parameters sent have an invalid value",
+          {
+            extensions: {
+              code: "BAD_REQUEST",
+            },
+          }
+        );
+      }
+      const order = getOrders({ field: "id", value: input.id });
+      if (!order || order.length === 0) {
+        throw new GraphQLError("Order not found", {
+          extensions: {
+            code: "GRAPHQL_VALIDATION_FAILED",
+            invalidArgument: "cartId",
+          },
+        });
+      }
+      const newOrder = updateOrder(input);
+      if (!newOrder) {
+        return {
+          code: 200,
+          success: false,
+          message: "There was an error updating the order",
+          data: null,
+        };
+      }
+      return {
+        code: 200,
+        success: true,
+        message: "Order updated",
+        data: newOrder,
       };
     },
     cancelOrder: async (_, { input }) => {

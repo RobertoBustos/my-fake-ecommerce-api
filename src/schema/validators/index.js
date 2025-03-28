@@ -5,6 +5,7 @@ import {
 import {
   cancelOrderValidator,
   createOrderValidator,
+  updateOrderValidator,
 } from "./orderValidators.js";
 
 export {
@@ -12,4 +13,5 @@ export {
   cancelOrderValidator,
   createOrderValidator,
   removeFromCartValidator,
+  updateOrderValidator,
 };

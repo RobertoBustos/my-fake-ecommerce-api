@@ -22,11 +22,11 @@ const rootTypes = `#graphql
   }
 
   type Mutation {
-    addToCart(input: AddToCart): AddToCartResponse!
-    removeFromCart(input: RemoveFromCart): RemoveFromCartResponse!
-    createOrder(input: CreateOrder): CreateOrderResponse!
-    updateOrder(input: UpdateOrder): UpdateOrderResponse!
-    cancelOrder(input: CancelOrder): CancelOrderResponse!
+    addToCart(input: AddToCart!): AddToCartResponse!
+    removeFromCart(input: RemoveFromCart!): RemoveFromCartResponse!
+    createOrder(input: CreateOrder!): CreateOrderResponse!
+    updateOrder(input: UpdateOrder!): UpdateOrderResponse!
+    cancelOrder(input: CancelOrder!): CancelOrderResponse!
   }
 `;
 

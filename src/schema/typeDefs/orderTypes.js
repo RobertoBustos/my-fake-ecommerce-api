@@ -17,9 +17,15 @@ const orderTypes = `#graphql
         total: Int!
     }
 
+    type Customer {
+        id: String!
+        name: String!
+        email: String!
+    }
+
     type Order {
         id: ID!
-        customer: String!
+        customer: Customer
         payment: String!
         cart: String!
         totals: Totals!
@@ -38,16 +44,21 @@ const orderTypes = `#graphql
         data: Order!
     }
 
+    input CustomerInput{
+        email: String!
+        name: String!
+    }
+
     input UpdateOrder {
         id: String!
-        customer: String!
+        customer: CustomerInput
     }
 
     type UpdateOrderResponse implements MutationResponse {
         code: String!
         success: Boolean!
         message: String!
-        data: Order!
+        data: Order
     }
 
     input CancelOrder {
