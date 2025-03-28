@@ -3,102 +3,30 @@ import {
   addToCart,
   cancelOrder,
   getCart,
-  getCartById,
-  getOrderById,
   getOrders,
-  getProductById,
   getProducts,
   removeFromCart,
 } from "../db/index.js";
 import {
   addToCartValidator,
   cancelOrderValidator,
-  cartValidator,
   createOrderValidator,
-  orderValidator,
-  productValidator,
   removeFromCartValidator,
 } from "./validators/index.js";
 
 const resolvers = {
   Query: {
-    products: async () => {
-      const products = getProducts();
+    products: async (_, args) => {
+      const products = getProducts(args.filter);
       return products;
     },
-    product: async (_, args) => {
-      const validation = productValidator(args);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const product = getProductById(args.id);
-      if (!product) {
-        throw new GraphQLError("Product not found", {
-          extensions: {
-            code: "NOT_FOUND",
-          },
-        });
-      }
-      return product;
-    },
-    carts: async () => {
-      const cart = getCart();
+    carts: async (_, args) => {
+      const cart = getCart(args.filter);
       return cart;
     },
-    cart: async (_, args) => {
-      const validation = cartValidator(args);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const cart = getCartById(args.id);
-      if (!cart) {
-        throw new GraphQLError("Cart not found", {
-          extensions: {
-            code: "NOT_FOUND",
-          },
-        });
-      }
-      return cart;
-    },
-    orders: async () => {
-      const orders = getOrders();
+    orders: async (_, args) => {
+      const orders = getOrders(args.filter);
       return orders;
-    },
-    order: async (_, args) => {
-      const validation = orderValidator(args);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const order = getOrderById(args.id);
-      if (!order) {
-        throw new GraphQLError("Order not found", {
-          extensions: {
-            code: "NOT_FOUND",
-          },
-        });
-      }
-      return order;
     },
   },
 
@@ -167,7 +95,7 @@ const resolvers = {
           }
         );
       }
-      const cart = getCartById(input.cartId);
+      const cart = getCart({ field: "id", value: input.cartId });
       if (!cart || cart.length === 0) {
         throw new GraphQLError("Cart not found", {
           extensions: {
@@ -209,13 +137,13 @@ const resolvers = {
 
   CartItem: {
     product: async (parent) => {
-      const product = getProductById(parent.productId);
-      return product;
+      const product = getProducts({ field: "id", value: parent.productId });
+      return product[0];
     },
   },
   Order: {
     totals: async (parent) => {
-      const cart = getCartById(parent.cart);
+      const cart = getCart({ field: "id", value: parent.cartId });
       const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
       const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
       const taxes = Math.floor(subtotal * 0.16);
@@ -231,7 +159,7 @@ const resolvers = {
       };
     },
     details: async (parent) => {
-      const cart = getCartById(parent.cart);
+      const cart = getCart({ field: "cartId", value: parent.cart });
       return cart;
     },
   },

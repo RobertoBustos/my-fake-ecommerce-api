@@ -1,10 +1,3 @@
-export const cartValidator = (input) => {
-  if (!input || !input.id || input.id === "") {
-    return false;
-  }
-  return true;
-};
-
 export const addToCartValidator = (input) => {
   if (
     !input ||

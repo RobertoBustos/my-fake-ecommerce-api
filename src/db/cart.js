@@ -2,13 +2,12 @@ import { v4 as uuidv4 } from "uuid";
 import { readFile, writeFile } from "../utils/fileUtils.js";
 const FILE_PATH = "../data/cart.json";
 
-export const getCart = () => {
-  return readFile(FILE_PATH);
-};
-
-export const getCartById = (id) => {
-  const carts = getCart();
-  return carts.filter((cart) => cart.cartId === id);
+export const getCart = (filter) => {
+  const cart = readFile(FILE_PATH);
+  if (filter !== null) {
+    return cart.filter((item) => item[filter.field] == filter.value);
+  }
+  return cart;
 };
 
 export const addToCart = (product, input) => {
@@ -45,8 +44,5 @@ export const removeFromCart = (input) => {
 };
 
 export const saveCart = (data) => {
-  writeFile(FILE_PATH, data, (err, data) => {
-    console.log("err", err);
-    console.log("data", data);
-  });
+  writeFile(FILE_PATH, data);
 };
