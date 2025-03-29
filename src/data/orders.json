@@ -99,6 +99,6 @@
       "test_clock": null
     },
     "cart": "b3a965bc-fa6b-46fd-adc6-9dce3bac35bd",
-    "status": "PAYMENT_PENDING"
+    "status": "CANCELLED"
   }
 ]
