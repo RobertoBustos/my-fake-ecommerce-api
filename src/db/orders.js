@@ -1,19 +1,21 @@
 import { v4 as uuidv4 } from "uuid";
+import { fakePromise } from "../utils/fakePromise.js";
 import { readFile, writeFile } from "../utils/fileUtils.js";
 import { getCart } from "./cart.js";
 import { cancelPayment, getCustomer } from "./payment.js";
+
 const FILE_PATH = "../data/orders.json";
 
-export const getOrders = (filter) => {
-  const orders = readFile(FILE_PATH);
+export const getOrders = async (filter) => {
+  const orders = await readFile(FILE_PATH);
   if (filter !== null) {
     return orders.filter((order) => order[filter.field] == filter.value);
   }
   return orders;
 };
 
-export const getOrderTotals = (id) => {
-  const cart = getCart({ field: "cartId", value: id });
+export const getOrderTotals = async (id) => {
+  const cart = await getCart({ field: "cartId", value: id });
   const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
   const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
   const taxes = Math.floor(subtotal * 0.16);
@@ -29,15 +31,15 @@ export const getOrderTotals = (id) => {
   };
 };
 
-export const getIncompleteOrders = () => {
-  const orders = getOrders(null);
+export const getIncompleteOrders = async () => {
+  const orders = await getOrders(null);
   return orders.filter(
     (order) => order.status !== "COMPLETE" && order.status !== "CANCELLED"
   );
 };
 
-export const createOrder = (input) => {
-  const orders = getOrders(null);
+export const createOrder = async (input) => {
+  const orders = await getOrders(null);
   const newOrder = {
     id: uuidv4(),
     customer: null,
@@ -45,12 +47,12 @@ export const createOrder = (input) => {
     status: "INCOMPLETE",
   };
   orders.push(newOrder);
-  saveOrders(orders);
+  await saveOrders(orders);
   return newOrder;
 };
 
 export const updateOrder = async (input) => {
-  const orders = getOrders(null);
+  const orders = await getOrders(null);
   const existingOrder = orders.find((order) => order.id === input.id);
   if (existingOrder) {
     if (input.customer !== null) {
@@ -59,24 +61,25 @@ export const updateOrder = async (input) => {
     if (input.status !== null) {
       existingOrder.status = input.status;
     }
-    saveOrders(orders);
+    await saveOrders(orders);
     return existingOrder;
   }
   return undefined;
 };
 
 export const cancelOrder = async (input) => {
-  const orders = getOrders(null);
+  const orders = await getOrders(null);
   const order = orders.find((order) => order.id === input.id);
   if (!order) {
     return false;
   }
   order.status = "CANCELLED";
   await cancelPayment(order.id);
-  saveOrders(orders);
+  await saveOrders(orders);
   return true;
 };
 
-export const saveOrders = (data) => {
-  writeFile(FILE_PATH, data, () => {});
+export const saveOrders = async (data) => {
+  await writeFile(FILE_PATH, data);
+  await fakePromise(3000);
 };

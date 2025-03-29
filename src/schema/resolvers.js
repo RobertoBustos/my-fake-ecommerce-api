@@ -26,19 +26,19 @@ import {
 const resolvers = {
   Query: {
     products: async (_, args) => {
-      const products = getProducts(args.filter);
+      const products = await getProducts(args.filter);
       return products;
     },
     carts: async (_, args) => {
-      const cart = getCart(args.filter);
+      const cart = await getCart(args.filter);
       return cart;
     },
     orders: async (_, args) => {
-      const orders = getOrders(args.filter);
+      const orders = await getOrders(args.filter);
       return orders;
     },
     incompleteOrders: async () => {
-      const incompleteOrders = getIncompleteOrders();
+      const incompleteOrders = await getIncompleteOrders();
       return incompleteOrders;
     },
   },
@@ -56,7 +56,10 @@ const resolvers = {
           }
         );
       }
-      const product = getProducts({ field: "id", value: input.productId });
+      const product = await getProducts({
+        field: "id",
+        value: input.productId,
+      });
       if (!product || product.length === 0) {
         throw new GraphQLError("Product not found", {
           extensions: {
@@ -65,7 +68,7 @@ const resolvers = {
           },
         });
       }
-      const cartItem = addToCart(product[0], input);
+      const cartItem = await addToCart(product[0], input);
       return {
         code: 200,
         success: true,
@@ -85,7 +88,7 @@ const resolvers = {
           }
         );
       }
-      const result = removeFromCart(input);
+      const result = await removeFromCart(input);
       return {
         code: 200,
         success: result,
@@ -106,7 +109,7 @@ const resolvers = {
           }
         );
       }
-      const cart = getCart({ field: "cartId", value: input.cartId });
+      const cart = await getCart({ field: "cartId", value: input.cartId });
       if (!cart || cart.length === 0) {
         throw new GraphQLError("Cart not found", {
           extensions: {
@@ -115,7 +118,7 @@ const resolvers = {
           },
         });
       }
-      const order = createOrder(input);
+      const order = await createOrder(input);
       return {
         code: 200,
         success: true,
@@ -135,7 +138,7 @@ const resolvers = {
           }
         );
       }
-      const order = getOrders({ field: "id", value: input.id });
+      const order = await getOrders({ field: "id", value: input.id });
       if (!order || order.length === 0) {
         throw new GraphQLError("Order not found", {
           extensions: {
@@ -144,7 +147,7 @@ const resolvers = {
           },
         });
       }
-      const newOrder = updateOrder(input);
+      const newOrder = await updateOrder(input);
       if (!newOrder) {
         return {
           code: 200,
@@ -172,7 +175,7 @@ const resolvers = {
           }
         );
       }
-      const result = cancelOrder(input);
+      const result = await cancelOrder(input);
       return {
         code: 200,
         success: result,
@@ -193,7 +196,7 @@ const resolvers = {
           }
         );
       }
-      const order = getOrders({ field: "id", value: input.orderId });
+      const order = await getOrders({ field: "id", value: input.orderId });
       if (!order || order.length === 0) {
         throw new GraphQLError("Order not found", {
           extensions: {
@@ -210,8 +213,8 @@ const resolvers = {
           },
         });
       }
-      const totals = getOrderTotals(order[0].cart);
-      const payment = createPayment(
+      const totals = await getOrderTotals(order[0].cart);
+      const payment = await createPayment(
         order[0].id,
         totals.total,
         order[0].customer.id
@@ -226,17 +229,20 @@ const resolvers = {
   },
   CartItem: {
     product: async (parent) => {
-      const product = getProducts({ field: "id", value: parent.productId });
+      const product = await getProducts({
+        field: "id",
+        value: parent.productId,
+      });
       return product[0];
     },
   },
   Order: {
     totals: async (parent) => {
-      const totals = getOrderTotals(parent.cart);
+      const totals = await getOrderTotals(parent.cart);
       return totals;
     },
     details: async (parent) => {
-      const cart = getCart({ field: "cartId", value: parent.cart });
+      const cart = await getCart({ field: "cartId", value: parent.cart });
       return cart;
     },
     payment: async (parent) => {

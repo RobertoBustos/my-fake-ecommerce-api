@@ -1,14 +1,30 @@
 import fs from "fs";
 
 export const readFile = (path) => {
-  const fileContent = fs.readFileSync(new URL(path, import.meta.url), "utf8");
-  return JSON.parse(fileContent);
+  return new Promise((resolve, reject) => {
+    fs.readFile(new URL(path, import.meta.url), "utf8", (err, data) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(JSON.parse(data));
+    });
+  });
 };
 
-export const writeFile = (path, content, callback) => {
-  return fs.writeFile(
-    new URL(path, import.meta.url),
-    JSON.stringify(content),
-    callback
-  );
+export const writeFile = (path, content) => {
+  return new Promise((resolve, reject) => {
+    fs.writeFile(
+      new URL(path, import.meta.url),
+      JSON.stringify(content),
+      (err) => {
+        console.log("err", err);
+        if (err) {
+          reject(false);
+          return;
+        }
+        resolve(true);
+      }
+    );
+  });
 };

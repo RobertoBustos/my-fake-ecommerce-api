@@ -1,22 +1,23 @@
 import { v4 as uuidv4 } from "uuid";
+import { fakePromise } from "../utils/fakePromise.js";
 import { readFile, writeFile } from "../utils/fileUtils.js";
 const FILE_PATH = "../data/cart.json";
 
-export const getCart = (filter) => {
-  const cart = readFile(FILE_PATH);
+export const getCart = async (filter) => {
+  const cart = await readFile(FILE_PATH);
   if (filter !== null) {
     return cart.filter((item) => item[filter.field] == filter.value);
   }
   return cart;
 };
 
-export const addToCart = (product, input) => {
-  const carts = getCart(null);
+export const addToCart = async (product, input) => {
+  const carts = await getCart(null);
   const existingItem = carts.find((cart) => cart.productId === input.productId);
   if (existingItem) {
     existingItem.quantity += input.quantity;
     existingItem.subtotal += product.unitPrice * input.quantity;
-    saveCart(carts);
+    await saveCart(carts);
     return existingItem;
   }
   const newItem = {
@@ -28,21 +29,22 @@ export const addToCart = (product, input) => {
     subtotal: product.unitPrice * input.quantity,
   };
   carts.push(newItem);
-  saveCart(carts);
+  await saveCart(carts);
   return newItem;
 };
 
-export const removeFromCart = (input) => {
-  const carts = getCart(null);
+export const removeFromCart = async (input) => {
+  const carts = await getCart(null);
   const existingItem = carts.find((cart) => cart.id === input.id);
   if (!existingItem) {
     return false;
   }
   const newCart = carts.filter((cart) => cart.id !== input.id);
-  saveCart(newCart);
+  await saveCart(newCart);
   return true;
 };
 
-export const saveCart = (data) => {
-  writeFile(FILE_PATH, data, () => {});
+export const saveCart = async (data) => {
+  await writeFile(FILE_PATH, data);
+  await fakePromise(3000);
 };
