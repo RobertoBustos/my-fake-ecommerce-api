@@ -14,7 +14,6 @@ import {
   searchPaymentMethod,
   updateOrder,
 } from "../db/index.js";
-import { fakePromise } from "../utils/fakePromise.js";
 import {
   addToCartValidator,
   cancelOrderValidator,
@@ -46,7 +45,6 @@ const resolvers = {
 
   Mutation: {
     addToCart: async (_, { input }) => {
-      await fakePromise(5000);
       const validation = addToCartValidator(input);
       if (!validation) {
         throw new GraphQLError(

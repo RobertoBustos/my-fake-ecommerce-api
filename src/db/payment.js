@@ -37,7 +37,13 @@ export const createPayment = async (orderId, amount, customerId) => {
       },
     });
   } else {
-    paymentIntent = response;
+    if (response.amount !== amount) {
+      paymentIntent = await stripeClient.paymentIntents.update(response.id, {
+        amount: amount,
+      });
+    } else {
+      paymentIntent = response;
+    }
   }
 
   const ephemeralKey = await stripeClient.ephemeralKeys.create(
