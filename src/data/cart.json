@@ -16,14 +16,6 @@
     "subtotal": 64950
   },
   {
-    "id": "eedad4d0-1374-4654-a14f-9a95c30c9b72",
-    "cartId": "b3a965bc-fa6b-46fd-adc6-9dce3bac35bd",
-    "productId": "1",
-    "quantity": 1,
-    "unitPrice": 10995,
-    "subtotal": 10995
-  },
-  {
     "id": "d5a2f1ca-3017-45cc-9123-1defe36f8d09",
     "cartId": "b3a965bc-fa6b-46fd-adc6-9dce3bac35bd",
     "productId": "2",
@@ -46,5 +38,13 @@
     "quantity": 1,
     "unitPrice": 1599,
     "subtotal": 1599
+  },
+  {
+    "id": "3c6e9e3e-4f67-480b-937c-50fe6a65a6e3",
+    "cartId": "b3a965bc-fa6b-46fd-adc6-9dce3bac35bd",
+    "productId": "5",
+    "quantity": 5,
+    "unitPrice": 69500,
+    "subtotal": 347500
   }
 ]

@@ -251,7 +251,7 @@ const resolvers = {
     },
   },
   Payment: {
-    payment_method: async (parent) => {
+    paymentDetails: async (parent) => {
       if (parent.payment_method === null) return;
       const paymentMethod = await searchPaymentMethod(parent.payment_method);
       return paymentMethod;

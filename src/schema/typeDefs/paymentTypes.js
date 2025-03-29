@@ -1,12 +1,21 @@
 const paymentTypes = `#graphql
-    type Customer {
-        id: String!
-        name: String!
-        email: String!
+    type Checks {
+        cvc_check: String!
+    }
+
+    type Card {
+        brand: String!
+        checks: Checks
+        display_brand: String!
+        exp_month: Int!
+        exp_year: Int!
+        fingerprint: String!
+        last4: String!
     }
 
     type PaymentMethod {
         id: String!
+        card: Card!
     }
 
     type Payment {
@@ -14,7 +23,14 @@ const paymentTypes = `#graphql
         amount: Int!
         status: String!
         customer: String!
-        payment_method: PaymentMethod
+        payment_method: String!
+        paymentDetails: PaymentMethod
+    }
+
+    type Customer {
+        id: String!
+        name: String!
+        email: String!
     }
 
     type PaymentCreated {

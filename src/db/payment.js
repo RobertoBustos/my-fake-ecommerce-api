@@ -77,9 +77,6 @@ export const cancelPayment = async (orderId) => {
 };
 
 export const searchPaymentMethod = async (paymentMethodId) => {
-  const { data } = await stripeClient.paymentMethods.retrieve(paymentMethodId);
-  if (data.length === 0) {
-    return null;
-  }
-  return data[0];
+  const response = await stripeClient.paymentMethods.retrieve(paymentMethodId);
+  return response;
 };
