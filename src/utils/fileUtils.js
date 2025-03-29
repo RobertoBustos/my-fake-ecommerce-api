@@ -5,7 +5,6 @@ export const readFile = (path) => {
     fs.readFile(new URL(path, import.meta.url), "utf8", (err, data) => {
       if (err) {
         reject(err);
-        return;
       }
       resolve(JSON.parse(data));
     });
@@ -18,10 +17,8 @@ export const writeFile = (path, content) => {
       new URL(path, import.meta.url),
       JSON.stringify(content),
       (err) => {
-        console.log("err", err);
-        if (err) {
+        if (err && err !== null) {
           reject(false);
-          return;
         }
         resolve(true);
       }

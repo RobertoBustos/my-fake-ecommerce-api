@@ -1,8 +1,11 @@
-export const fakePromise = (miliseconds = 0) => {
-  return new Promise((resolve) => {
+export const fakePromise = (miliseconds = 500, forceReject = false) => {
+  return new Promise((resolve, reject) => {
     setTimeout(() => {
-      resolve();
-    }, miliseconds);
+      if (forceReject) {
+        reject(false);
+      }
+      resolve(true);
+    }, 1000);
   });
 };
 

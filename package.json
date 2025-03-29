@@ -8,7 +8,7 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "start": "nodemon --env-file=.env ./src/index.js"
+    "start": "node --env-file=.env ./src/index.js"
   },
   "dependencies": {
     "@apollo/server": "^4.11.3",
