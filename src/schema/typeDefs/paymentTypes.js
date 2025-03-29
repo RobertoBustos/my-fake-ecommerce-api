@@ -23,14 +23,8 @@ const paymentTypes = `#graphql
         amount: Int!
         status: String!
         customer: String!
-        payment_method: String!
+        payment_method: String
         paymentDetails: PaymentMethod
-    }
-
-    type Customer {
-        id: String!
-        name: String!
-        email: String!
     }
 
     type PaymentCreated {

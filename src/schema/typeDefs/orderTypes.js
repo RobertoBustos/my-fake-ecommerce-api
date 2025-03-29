@@ -17,9 +17,21 @@ const orderTypes = `#graphql
         total: Int!
     }
 
+    type Customer {
+        id: String!
+        name: String!
+        email: String!
+    }
+
+    type Address {
+        address: String!
+        zipCode: String!
+    }
+
     type Order {
         id: ID!
         customer: Customer
+        address: Address
         payment: Payment
         cart: String!
         totals: Totals!
@@ -43,9 +55,15 @@ const orderTypes = `#graphql
         name: String!
     }
 
+    input AddressInput{
+        address: String!
+        zipCode: String!
+    }
+
     input UpdateOrder {
         id: String!
         customer: CustomerInput
+        address: AddressInput
         status: Status
     }
 

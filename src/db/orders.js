@@ -43,6 +43,7 @@ export const createOrder = async (input) => {
   const newOrder = {
     id: uuidv4(),
     customer: null,
+    address: null,
     cart: input.cartId,
     status: "INCOMPLETE",
   };
@@ -57,6 +58,9 @@ export const updateOrder = async (input) => {
   if (existingOrder) {
     if (input.customer !== null) {
       existingOrder.customer = await getCustomer(input.customer);
+    }
+    if (input.address !== null) {
+      existingOrder.address = input.address;
     }
     if (input.status !== null) {
       existingOrder.status = input.status;
