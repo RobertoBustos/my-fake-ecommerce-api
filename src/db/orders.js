@@ -15,7 +15,7 @@ export const getOrders = async (filter) => {
 };
 
 export const getOrderTotals = async (id) => {
-  const cart = await getCart({ field: "cartId", value: id });
+  const cart = await getCart({ field: "orderId", value: id });
   const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
   const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
   const taxes = Math.floor(subtotal * 0.16);

@@ -2,6 +2,7 @@ const cartTypes = `#graphql
   # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
   type CartItem {
     id: ID!
+    orderId: String
     cartId: String!
     productId: String!
     quantity: Int!
@@ -14,6 +15,7 @@ const cartTypes = `#graphql
     productId: String!
     quantity: Int!
     cartId: String!
+    orderId: String
   }
 
   type AddToCartResponse implements MutationResponse {

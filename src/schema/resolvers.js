@@ -12,6 +12,7 @@ import {
   removeFromCart,
   searchPayment,
   searchPaymentMethod,
+  updateCartItems,
   updateOrder,
 } from "../db/index.js";
 import {
@@ -119,6 +120,7 @@ const resolvers = {
         });
       }
       const order = await createOrder(input);
+      await updateCartItems(input.cartId, order.id);
       return {
         code: 200,
         success: true,
@@ -213,7 +215,7 @@ const resolvers = {
           },
         });
       }
-      const totals = await getOrderTotals(order[0].cart);
+      const totals = await getOrderTotals(order[0].id);
       const payment = await createPayment(
         order[0].id,
         totals.total,
@@ -238,11 +240,11 @@ const resolvers = {
   },
   Order: {
     totals: async (parent) => {
-      const totals = await getOrderTotals(parent.cart);
+      const totals = await getOrderTotals(parent.id);
       return totals;
     },
     details: async (parent) => {
-      const cart = await getCart({ field: "cartId", value: parent.cart });
+      const cart = await getCart({ field: "orderId", value: parent.id });
       return cart;
     },
     payment: async (parent) => {

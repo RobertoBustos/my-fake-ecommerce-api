@@ -1,4 +1,4 @@
-import { addToCart, getCart, removeFromCart } from "./cart.js";
+import { addToCart, getCart, removeFromCart, updateCartItems } from "./cart.js";
 import {
   cancelOrder,
   createOrder,
@@ -31,5 +31,6 @@ export {
   removeFromCart,
   searchPayment,
   searchPaymentMethod,
+  updateCartItems,
   updateOrder,
 };

@@ -13,7 +13,10 @@ export const getCart = async (filter) => {
 
 export const addToCart = async (product, input) => {
   const carts = await getCart(null);
-  const existingItem = carts.find((cart) => cart.productId === input.productId);
+  const existingItem = carts.find(
+    (cart) =>
+      cart.productId === input.productId && cart.orderId === input.orderId
+  );
   if (existingItem) {
     existingItem.quantity += input.quantity;
     existingItem.subtotal += product.unitPrice * input.quantity;
@@ -23,6 +26,7 @@ export const addToCart = async (product, input) => {
   const newItem = {
     id: uuidv4(),
     cartId: input.cartId,
+    orderId: null,
     productId: input.productId,
     quantity: input.quantity,
     unitPrice: product.unitPrice,
@@ -40,6 +44,18 @@ export const removeFromCart = async (input) => {
     return false;
   }
   const newCart = carts.filter((cart) => cart.id !== input.id);
+  await saveCart(newCart);
+  return true;
+};
+
+export const updateCartItems = async (cartId, orderId) => {
+  const cart = await getCart(null);
+  const newCart = cart.map((item) => {
+    if (item.orderId === null && item.cartId === cartId) {
+      item.orderId = orderId;
+    }
+    return item;
+  });
   await saveCart(newCart);
   return true;
 };
