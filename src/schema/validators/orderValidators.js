@@ -10,11 +10,8 @@ export const updateOrderValidator = (input) => {
     !input ||
     !input.id ||
     input.id === "" ||
-    !input.customer ||
-    !input.customer.email ||
-    input.customer.email === "" ||
-    !input.customer.name ||
-    input.customer.name === ""
+    (!input.customer && !input.status) ||
+    (input.status && input.status === "")
   ) {
     return false;
   }

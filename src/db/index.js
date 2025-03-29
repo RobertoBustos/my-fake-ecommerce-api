@@ -2,6 +2,7 @@ import { addToCart, getCart, removeFromCart } from "./cart.js";
 import {
   cancelOrder,
   createOrder,
+  getIncompleteOrders,
   getOrderTotals,
   getOrders,
   updateOrder,
@@ -23,6 +24,7 @@ export {
   createPayment,
   getCart,
   getCustomer,
+  getIncompleteOrders,
   getOrderTotals,
   getOrders,
   getProducts,

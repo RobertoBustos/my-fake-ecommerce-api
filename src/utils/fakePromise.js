@@ -1,4 +1,4 @@
-const fakePromise = (miliseconds = 0) => {
+export const fakePromise = (miliseconds = 0) => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -6,4 +6,4 @@ const fakePromise = (miliseconds = 0) => {
   });
 };
 
-export default fakePromise;
+export default {};

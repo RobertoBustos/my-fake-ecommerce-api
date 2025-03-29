@@ -2,8 +2,10 @@ import { GraphQLError } from "graphql";
 import {
   addToCart,
   cancelOrder,
+  createOrder,
   createPayment,
   getCart,
+  getIncompleteOrders,
   getOrderTotals,
   getOrders,
   getProducts,
@@ -12,6 +14,7 @@ import {
   searchPaymentMethod,
   updateOrder,
 } from "../db/index.js";
+import { fakePromise } from "../utils/fakePromise.js";
 import {
   addToCartValidator,
   cancelOrderValidator,
@@ -35,10 +38,15 @@ const resolvers = {
       const orders = getOrders(args.filter);
       return orders;
     },
+    incompleteOrders: async () => {
+      const incompleteOrders = getIncompleteOrders();
+      return incompleteOrders;
+    },
   },
 
   Mutation: {
     addToCart: async (_, { input }) => {
+      await fakePromise(5000);
       const validation = addToCartValidator(input);
       if (!validation) {
         throw new GraphQLError(
@@ -50,10 +58,8 @@ const resolvers = {
           }
         );
       }
-      const product = products.find(
-        (product) => product.id === input.productId
-      );
-      if (!product) {
+      const product = getProducts({ field: "id", value: input.productId });
+      if (!product || product.length === 0) {
         throw new GraphQLError("Product not found", {
           extensions: {
             code: "NOT_FOUND",
@@ -61,7 +67,7 @@ const resolvers = {
           },
         });
       }
-      const cartItem = addToCart(product, input);
+      const cartItem = addToCart(product[0], input);
       return {
         code: 200,
         success: true,
@@ -102,7 +108,7 @@ const resolvers = {
           }
         );
       }
-      const cart = getCart({ field: "id", value: input.cartId });
+      const cart = getCart({ field: "cartId", value: input.cartId });
       if (!cart || cart.length === 0) {
         throw new GraphQLError("Cart not found", {
           extensions: {

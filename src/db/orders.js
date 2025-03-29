@@ -29,6 +29,13 @@ export const getOrderTotals = (id) => {
   };
 };
 
+export const getIncompleteOrders = () => {
+  const orders = getOrders(null);
+  return orders.filter(
+    (order) => order.status !== "COMPLETE" && order.status !== "CANCELLED"
+  );
+};
+
 export const createOrder = (input) => {
   const orders = getOrders(null);
   const newOrder = {
@@ -46,7 +53,12 @@ export const updateOrder = async (input) => {
   const orders = getOrders(null);
   const existingOrder = orders.find((order) => order.id === input.id);
   if (existingOrder) {
-    existingOrder.customer = await getCustomer(input.customer);
+    if (input.customer !== null) {
+      existingOrder.customer = await getCustomer(input.customer);
+    }
+    if (input.status !== null) {
+      existingOrder.status = input.status;
+    }
     saveOrders(orders);
     return existingOrder;
   }

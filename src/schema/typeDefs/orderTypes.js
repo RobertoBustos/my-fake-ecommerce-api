@@ -46,6 +46,7 @@ const orderTypes = `#graphql
     input UpdateOrder {
         id: String!
         customer: CustomerInput
+        status: Status
     }
 
     type UpdateOrderResponse implements MutationResponse {

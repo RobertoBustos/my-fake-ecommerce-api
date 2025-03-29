@@ -20,7 +20,7 @@ const paymentTypes = `#graphql
     type PaymentCreated {
         paymentId: String!
         clientSecret: String!
-        ephimeralKey: String
+        ephimeralKey: String!
     }
 `;
 
