@@ -58,10 +58,9 @@ export const createPayment = async (orderId, amount, customerId) => {
   };
 };
 
-export const searchPayment = async (orderId) => {
-  const { data } = await stripeClient.paymentIntents.search({
-    query: `metadata["order_id"]: "${orderId}"`,
-  });
+export const searchPayment = async (paymentId) => {
+  const { data } = await stripeClient.paymentIntents.retrieve(paymentId);
+  console.log("payment searched", data);
   if (data.length === 0) {
     return null;
   }

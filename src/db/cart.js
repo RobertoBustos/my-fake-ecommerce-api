@@ -62,5 +62,5 @@ export const updateCartItems = async (cartId, orderId) => {
 
 export const saveCart = async (data) => {
   await writeFile(FILE_PATH, data);
-  await fakePromise(3000);
+  await fakePromise(1500);
 };

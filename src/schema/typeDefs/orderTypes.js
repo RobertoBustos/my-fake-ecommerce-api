@@ -30,12 +30,13 @@ const orderTypes = `#graphql
 
     type Order {
         id: ID!
-        customer: Customer
-        address: Address
-        payment: Payment
         cart: String!
         totals: Totals!
         status: Status!
+        paymentId: String
+        customer: Customer
+        address: Address
+        payment: Payment
         details: [CartItem!]!
     }
 

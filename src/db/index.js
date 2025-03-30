@@ -5,6 +5,7 @@ import {
   getIncompleteOrders,
   getOrderTotals,
   getOrders,
+  setOrderPayment,
   updateOrder,
 } from "./orders.js";
 import {
@@ -31,6 +32,7 @@ export {
   removeFromCart,
   searchPayment,
   searchPaymentMethod,
+  setOrderPayment,
   updateCartItems,
   updateOrder,
 };

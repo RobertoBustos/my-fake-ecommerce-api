@@ -44,6 +44,7 @@ export const createOrder = async (input) => {
     id: uuidv4(),
     customer: null,
     address: null,
+    paymentId: null,
     cart: input.cartId,
     status: "INCOMPLETE",
   };
@@ -83,7 +84,18 @@ export const cancelOrder = async (input) => {
   return true;
 };
 
+export const setOrderPayment = async (orderId, paymentId) => {
+  const orders = await getOrders(null);
+  const order = orders.find((order) => order.id === orderId);
+  if (!order) {
+    return false;
+  }
+  order.paymentId = paymentId;
+  await saveOrders(orders);
+  return true;
+};
+
 export const saveOrders = async (data) => {
   await writeFile(FILE_PATH, data);
-  await fakePromise(3000);
+  await fakePromise(1500);
 };
