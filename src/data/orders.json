@@ -245,5 +245,40 @@
     },
     "cart": "b3a965bc-fa6b-46fd-adc6-9dce3bac35bd",
     "status": "COMPLETE"
+  },
+  {
+    "id": "3b2d0cb4-fceb-49be-9f78-222dfee334d1",
+    "customer": {
+      "id": "cus_RtUals7GUkjJ93",
+      "object": "customer",
+      "address": null,
+      "balance": 0,
+      "created": 1741279743,
+      "currency": null,
+      "default_source": null,
+      "delinquent": false,
+      "description": null,
+      "discount": null,
+      "email": "Betobhdez@gmail.com",
+      "invoice_prefix": "F595E60E",
+      "invoice_settings": {
+        "custom_fields": null,
+        "default_payment_method": null,
+        "footer": null,
+        "rendering_options": null
+      },
+      "livemode": false,
+      "metadata": {},
+      "name": "Roberto Bustos Hernández",
+      "next_invoice_sequence": 1,
+      "phone": null,
+      "preferred_locales": [],
+      "shipping": null,
+      "tax_exempt": "none",
+      "test_clock": null
+    },
+    "address": { "address": "Las Aguilas 86 Laguna Real", "zipCode": "91808" },
+    "cart": "b3a965bc-fa6b-46fd-adc6-9dce3bac35bd",
+    "status": "COMPLETE"
   }
 ]

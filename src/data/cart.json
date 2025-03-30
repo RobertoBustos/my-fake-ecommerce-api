@@ -88,5 +88,14 @@
     "quantity": 1,
     "unitPrice": 10995,
     "subtotal": 10995
+  },
+  {
+    "id": "a23bda2c-b5dd-47d9-a45e-657e1649bc4b",
+    "cartId": "b3a965bc-fa6b-46fd-adc6-9dce3bac35bd",
+    "orderId": "3b2d0cb4-fceb-49be-9f78-222dfee334d1",
+    "productId": "5",
+    "quantity": 6,
+    "unitPrice": 69500,
+    "subtotal": 417000
   }
 ]
