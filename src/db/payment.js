@@ -24,7 +24,7 @@ export const getCustomer = async (input) => {
 };
 
 export const createPayment = async (orderId, amount, customerId) => {
-  const response = await searchPayment(orderId);
+  const response = await searchPayment("order", orderId);
   let paymentIntent;
   if (!response || response === null) {
     paymentIntent = await stripeClient.paymentIntents.create({
@@ -58,17 +58,27 @@ export const createPayment = async (orderId, amount, customerId) => {
   };
 };
 
-export const searchPayment = async (paymentId) => {
-  const { data } = await stripeClient.paymentIntents.retrieve(paymentId);
-  console.log("payment searched", data);
-  if (data.length === 0) {
-    return null;
+export const searchPayment = async (searchBy, value) => {
+  let response;
+  if (searchBy === "id") {
+    response = await stripeClient.paymentIntents.retrieve(value);
+    if (!response) {
+      return null;
+    }
+    return response;
+  } else if (searchBy === "order") {
+    response = await stripeClient.paymentIntents.search({
+      query: `metadata["order_id"]: "${value}"`,
+    });
+    if (response.data.length === 0) {
+      return null;
+    }
+    return response.data[0];
   }
-  return data[0];
 };
 
 export const cancelPayment = async (orderId) => {
-  const payment = await searchPayment(orderId);
+  const payment = await searchPayment("id", orderId);
   if (payment && payment !== null) {
     await stripeClient.paymentIntents.cancel(payment.id);
     return true;

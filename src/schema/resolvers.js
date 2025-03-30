@@ -222,7 +222,7 @@ const resolvers = {
         totals.total,
         order[0].customer.id
       );
-      await setOrderPayment(order[0].id, payment.id);
+      await setOrderPayment(order[0].id, payment.paymentId);
       return {
         code: 200,
         success: true,
@@ -251,7 +251,7 @@ const resolvers = {
     },
     payment: async (parent) => {
       if (parent.paymentId === null) return;
-      const payment = await searchPayment(parent.paymentId);
+      const payment = await searchPayment("id", parent.paymentId);
       return payment;
     },
   },
