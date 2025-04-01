@@ -31,8 +31,16 @@ export const getOrderTotals = async (id) => {
   };
 };
 
-export const getIncompleteOrders = async () => {
+export const getIncompleteOrders = async (filter) => {
   const orders = await getOrders(null);
+  if (filter !== null) {
+    return orders.filter(
+      (order) =>
+        order.status !== "COMPLETE" &&
+        order.status !== "CANCELLED" &&
+        order[filter.field] == filter.value
+    );
+  }
   return orders.filter(
     (order) => order.status !== "COMPLETE" && order.status !== "CANCELLED"
   );

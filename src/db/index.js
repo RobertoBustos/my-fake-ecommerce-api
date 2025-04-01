@@ -1,4 +1,10 @@
-import { addToCart, getCart, removeFromCart, updateCartItems } from "./cart.js";
+import {
+  addToCart,
+  getCart,
+  getCartWithoutOrder,
+  removeFromCart,
+  updateCartItems,
+} from "./cart.js";
 import {
   cancelOrder,
   createOrder,
@@ -24,6 +30,7 @@ export {
   createOrder,
   createPayment,
   getCart,
+  getCartWithoutOrder,
   getCustomer,
   getIncompleteOrders,
   getOrderTotals,

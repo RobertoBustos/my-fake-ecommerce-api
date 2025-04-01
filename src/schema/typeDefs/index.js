@@ -14,7 +14,7 @@ const rootTypes = `#graphql
     products(filter: Filter): [Product!]!
     carts(filter: Filter):[CartItem!]!
     orders(filter: Filter): [Order!]!
-    incompleteOrders: [Order!]!
+    incompleteOrders(filter: Filter): [Order!]!
   }
 
   interface MutationResponse {

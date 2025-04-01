@@ -5,6 +5,7 @@ import {
   createOrder,
   createPayment,
   getCart,
+  getCartWithoutOrder,
   getIncompleteOrders,
   getOrderTotals,
   getOrders,
@@ -32,15 +33,15 @@ const resolvers = {
       return products;
     },
     carts: async (_, args) => {
-      const cart = await getCart(args.filter);
+      const cart = await getCartWithoutOrder(args.filter);
       return cart;
     },
     orders: async (_, args) => {
       const orders = await getOrders(args.filter);
       return orders;
     },
-    incompleteOrders: async () => {
-      const incompleteOrders = await getIncompleteOrders();
+    incompleteOrders: async (_, args) => {
+      const incompleteOrders = await getIncompleteOrders(args.filter);
       return incompleteOrders;
     },
   },
