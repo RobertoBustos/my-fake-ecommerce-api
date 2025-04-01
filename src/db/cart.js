@@ -6,7 +6,9 @@ const FILE_PATH = "../data/cart.json";
 export const getCart = async (filter) => {
   const cart = await readFile(FILE_PATH);
   if (filter !== null) {
-    return cart.filter((item) => item[filter.field] == filter.value);
+    return cart.filter(
+      (item) => item[filter.field] == filter.value && item.orderId === null
+    );
   }
   return cart;
 };
