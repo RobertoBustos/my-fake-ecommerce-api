@@ -1432,5 +1432,77 @@
     "paymentId": "pi_3R98yvRuz88TwqBD1TEcWQSh",
     "cart": "0ccfd7bd-2017-4f4a-9163-3ce5ef66bd35",
     "status": "COMPLETE"
+  },
+  {
+    "id": "20b53d92-c18c-49f9-a183-62c5f180e4a5",
+    "customer": {
+      "id": "cus_RtUals7GUkjJ93",
+      "object": "customer",
+      "address": null,
+      "balance": 0,
+      "created": 1741279743,
+      "currency": null,
+      "default_source": null,
+      "delinquent": false,
+      "description": null,
+      "discount": null,
+      "email": "Betobhdez@gmail.com",
+      "invoice_prefix": "F595E60E",
+      "invoice_settings": {
+        "custom_fields": null,
+        "default_payment_method": null,
+        "footer": null,
+        "rendering_options": null
+      },
+      "livemode": false,
+      "metadata": {},
+      "name": "Roberto Bustos Hernández",
+      "next_invoice_sequence": 1,
+      "phone": null,
+      "preferred_locales": [],
+      "shipping": null,
+      "tax_exempt": "none",
+      "test_clock": null
+    },
+    "address": { "address": "Main Street", "zipCode": "12345" },
+    "paymentId": "pi_3R9s3kRuz88TwqBD1nfcD1XH",
+    "cart": "244b675e-f3cf-40b0-baac-73680d1ced4c",
+    "status": "COMPLETE"
+  },
+  {
+    "id": "2d028105-c59c-4baf-bfde-e262ca7215da",
+    "customer": {
+      "id": "cus_RtUals7GUkjJ93",
+      "object": "customer",
+      "address": null,
+      "balance": 0,
+      "created": 1741279743,
+      "currency": null,
+      "default_source": null,
+      "delinquent": false,
+      "description": null,
+      "discount": null,
+      "email": "Betobhdez@gmail.com",
+      "invoice_prefix": "F595E60E",
+      "invoice_settings": {
+        "custom_fields": null,
+        "default_payment_method": null,
+        "footer": null,
+        "rendering_options": null
+      },
+      "livemode": false,
+      "metadata": {},
+      "name": "Roberto Bustos Hernández",
+      "next_invoice_sequence": 1,
+      "phone": null,
+      "preferred_locales": [],
+      "shipping": null,
+      "tax_exempt": "none",
+      "test_clock": null
+    },
+    "address": { "address": "Main street", "zipCode": "12345" },
+    "paymentId": "pi_3R9sEGRuz88TwqBD04g0vSlF",
+    "cart": "df9f02c7-7fa0-4a7e-a692-b7c920456ceb",
+    "status": "COMPLETE"
   }
 ]
