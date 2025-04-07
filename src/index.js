@@ -1,9 +1,10 @@
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
+import env from "./config/env.js";
 import resolvers from "./schema/resolvers.js";
 import typeDefs from "./schema/typeDefs/index.js";
-const PORT = 5252;
-const HOST = "192.168.100.35";
+const PORT = env.PORT;
+const HOST = env.HOST;
 
 const server = new ApolloServer({
   typeDefs,
@@ -11,6 +12,7 @@ const server = new ApolloServer({
   status400ForVariableCoercionErrors: true,
   includeStacktraceInErrorResponses: false,
   formatError: (formattedError, error) => {
+    // here we can catch errors and do stuff with them like send analytics or send email
     return formattedError;
   },
 });

@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from "uuid";
-import { fakePromise } from "../utils/fakePromise.js";
 import { readFile, writeFile } from "../utils/fileUtils.js";
 import { getCart } from "./cart.js";
 import { cancelPayment, getCustomer } from "./payment.js";
@@ -105,5 +104,4 @@ export const setOrderPayment = async (orderId, paymentId) => {
 
 export const saveOrders = async (data) => {
   await writeFile(FILE_PATH, data);
-  await fakePromise(1500);
 };
