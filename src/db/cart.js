@@ -24,7 +24,9 @@ export const addToCart = async (product, input) => {
   const carts = await getCart(null);
   const existingItem = carts.find(
     (cart) =>
-      cart.productId === input.productId && cart.orderId === input.orderId
+      cart.productId === input.productId &&
+      cart.orderId === input.orderId &&
+      cart.cartId === input.cartId
   );
   if (existingItem) {
     existingItem.quantity += input.quantity;
