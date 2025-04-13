@@ -70,6 +70,9 @@ export const updateOrder = async (input) => {
     if (input.address !== null) {
       existingOrder.address = input.address;
     }
+    if (existingOrder.customer !== null && existingOrder.address !== null) {
+      input.status = "PAYMENT_PENDING";
+    }
     if (input.status !== null) {
       existingOrder.status = input.status;
     }

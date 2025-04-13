@@ -1,7 +1,7 @@
 import stripeClient from "../config/stripe.js";
 
 export const getCustomer = async (input) => {
-  const { email, name } = input;
+  const { email, name, phone } = input;
   let customer;
   const customers = await stripeClient.customers.search({
     query: `email:'${email}'`,
@@ -9,11 +9,17 @@ export const getCustomer = async (input) => {
   //the customer was found
   if (customers.data.length > 0) {
     customer = customers.data[0];
+    if (customer.phone === null) {
+      customer = await stripeClient.customers.update(customer.id, {
+        phone: phone,
+      });
+    }
   } else {
     // i will create a customer
     customer = await stripeClient.customers.create({
       name: name,
       email: email,
+      phone: phone,
     });
   }
   if (!customer) {

@@ -21,6 +21,7 @@ const orderTypes = `#graphql
         id: String!
         name: String!
         email: String!
+        phone: String!
     }
 
     type Address {
@@ -54,6 +55,7 @@ const orderTypes = `#graphql
     input CustomerInput{
         email: String!
         name: String!
+        phone: String!
     }
 
     input AddressInput{
