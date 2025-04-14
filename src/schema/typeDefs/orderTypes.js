@@ -24,9 +24,17 @@ const orderTypes = `#graphql
         phone: String!
     }
 
+    type Coords {
+        latitude: Float!
+        longitude: Float!
+        latitudeDelta: Float!
+        longitudeDelta: Float!
+    }
+
     type Address {
         address: String!
         zipCode: String!
+        coords: Coords!
     }
 
     type Order {
@@ -58,9 +66,17 @@ const orderTypes = `#graphql
         phone: String!
     }
 
+    input CoordsInput {
+        latitude: Float!
+        longitude: Float!
+        latitudeDelta: Float!
+        longitudeDelta: Float!
+    }
+
     input AddressInput{
         address: String!
         zipCode: String!
+        coords: CoordsInput!
     }
 
     input UpdateOrder {
