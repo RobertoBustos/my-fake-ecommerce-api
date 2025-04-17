@@ -71,10 +71,11 @@ export const updateOrder = async (input) => {
       existingOrder.address = input.address;
     }
     if (existingOrder.customer !== null && existingOrder.address !== null) {
-      input.status = "PAYMENT_PENDING";
-    }
-    if (input.status !== null) {
-      existingOrder.status = input.status;
+      if (input.status === null) {
+        existingOrder.status = "PAYMENT_PENDING";
+      } else {
+        existingOrder.status = input.status;
+      }
     }
     await saveOrders(orders);
     return existingOrder;
