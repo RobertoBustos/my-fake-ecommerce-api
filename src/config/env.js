@@ -1,5 +1,2 @@
-// `npm start` carga .env con el flag nativo de Node (--env-file=.env), así
-// que process.env ya está listo cuando este archivo se importa. No hace
-// falta una segunda carga con dotenv: dos mecanismos para lo mismo es
-// justo el hallazgo H12 (configuración duplicada y frágil).
+// npm start ya carga .env con --env-file (H12: antes había dos mecanismos para esto).
 export default process.env;

@@ -1,5 +1,4 @@
-// Carga .env en local; en CI, STRIPE_SECRET_KEY ya viene como variable de entorno
-// y dotenv simplemente no encuentra el archivo, sin fallar.
+// Carga .env en local; en CI ya viene por variable de entorno.
 import "dotenv/config";
 
 import { describe, it, expect } from "vitest";
