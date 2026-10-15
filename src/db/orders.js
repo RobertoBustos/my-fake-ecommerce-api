@@ -6,14 +6,23 @@ import { cancelPayment, getCustomer } from "./payment.js";
 const COLLECTION = "orders";
 const toOrder = (doc) => ({ id: doc.id, ...doc.data() });
 
-export const getOrders = async ({ id, cart, status } = {}) => {
+export const getOrders = async ({ id, cart, status, userId } = {}) => {
   if (id !== undefined) {
     const doc = await db.collection(COLLECTION).doc(id).get();
-    return doc.exists ? [toOrder(doc)] : [];
+    if (!doc.exists) {
+      return [];
+    }
+    const order = toOrder(doc);
+    // H2: un usuario nunca ve una orden que no es suya, ni por id directo.
+    if (userId !== undefined && order.userId !== userId) {
+      return [];
+    }
+    return [order];
   }
   let query = db.collection(COLLECTION);
   if (cart !== undefined) query = query.where("cart", "==", cart);
   if (status !== undefined) query = query.where("status", "==", status);
+  if (userId !== undefined) query = query.where("userId", "==", userId);
   const snapshot = await query.get();
   return snapshot.docs.map(toOrder);
 };
@@ -23,14 +32,14 @@ export const getOrderTotals = async (id) => {
   return computeOrderTotals(cart);
 };
 
-export const getIncompleteOrders = async ({ cart } = {}) => {
-  const orders = await getOrders({ cart });
+export const getIncompleteOrders = async ({ cart, userId } = {}) => {
+  const orders = await getOrders({ cart, userId });
   return orders.filter(
     (order) => order.status !== "COMPLETE" && order.status !== "CANCELLED"
   );
 };
 
-export const createOrder = async (input) => {
+export const createOrder = async (input, userId = null) => {
   const docRef = db.collection(COLLECTION).doc();
   const newOrder = {
     customer: null,
@@ -38,6 +47,7 @@ export const createOrder = async (input) => {
     paymentId: null,
     cart: input.cartId,
     status: "INCOMPLETE",
+    userId,
   };
   await docRef.set(newOrder);
   return { id: docRef.id, ...newOrder };
