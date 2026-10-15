@@ -71,8 +71,10 @@ export const updateOrder = async (input) => {
   }
   const resultingCustomer = updates.customer ?? existingOrder.customer;
   const resultingAddress = updates.address ?? existingOrder.address;
+  // El status ya no lo manda el cliente (H3): solo lo deriva el servidor al
+  // completarse los datos de envío, nunca por un valor que llegue en input.
   if (resultingCustomer !== null && resultingAddress !== null) {
-    updates.status = input.status == null ? "PAYMENT_PENDING" : input.status;
+    updates.status = "PAYMENT_PENDING";
   }
   await docRef.update(updates);
   return { ...existingOrder, ...updates };
