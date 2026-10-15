@@ -92,7 +92,9 @@ export const cancelOrder = async (input) => {
     return false;
   }
   order.status = "CANCELLED";
-  await cancelPayment(order.paymentId);
+  if (order.paymentId) {
+    await cancelPayment(order.paymentId);
+  }
   await saveOrders(orders);
   return true;
 };
