@@ -147,7 +147,7 @@ const resolvers = {
         throw new GraphQLError("Order not found", {
           extensions: {
             code: "NOT_FOUND",
-            invalidArgument: "cartId",
+            invalidArgument: "id",
           },
         });
       }
@@ -209,7 +209,7 @@ const resolvers = {
           },
         });
       }
-      if (!order[0].customer || !order[0].customer === null) {
+      if (!order[0].customer) {
         throw new GraphQLError("Order has no customer information", {
           extensions: {
             code: "NOT_FOUND",
