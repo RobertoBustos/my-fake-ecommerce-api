@@ -8,7 +8,9 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "start": "node --env-file=.env ./src/index.js"
+    "start": "node --env-file=.env ./src/index.js",
+    "lint": "echo \"TODO: ESLint llega en ECOMAPI-10\" && exit 0",
+    "test": "echo \"TODO: Vitest llega en ECOMAPI-10\" && exit 0"
   },
   "dependencies": {
     "@apollo/server": "^4.11.3",
