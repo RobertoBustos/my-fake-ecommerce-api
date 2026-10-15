@@ -2,6 +2,7 @@ import { GraphQLError } from "graphql";
 import {
   addToCart as addToCartDb,
   getProducts,
+  InsufficientStockError,
   removeFromCart as removeFromCartDb,
 } from "../db/index.js";
 import {
@@ -44,7 +45,20 @@ export const addToCart = async (input) => {
       }
     );
   }
-  const cartItem = await addToCartDb(product[0], input);
+  let cartItem;
+  try {
+    cartItem = await addToCartDb(product[0], input);
+  } catch (err) {
+    if (err instanceof InsufficientStockError) {
+      throw new GraphQLError("Not enough stock available for this quantity", {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "quantity",
+        },
+      });
+    }
+    throw err;
+  }
   return {
     code: 200,
     success: true,
