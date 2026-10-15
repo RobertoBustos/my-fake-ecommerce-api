@@ -16,9 +16,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # --legacy-peer-deps evita un bug de npm 11 al resolver el árbol de
-      # peer dependencies de eslint/vitest (TypeError: Cannot read
-      # properties of null (reading 'edgesOut') en @npmcli/arborist).
+      # --legacy-peer-deps: evita un bug de npm 11 con los peer deps de eslint/vitest.
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
 
@@ -26,10 +24,7 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     env:
-      # El import de resolvers.js carga config/stripe.js, que construye el
-      # cliente de Stripe en cuanto se importa el módulo. El smoke test nunca
-      # llama a la API de Stripe, pero el constructor necesita una llave no
-      # vacía para no tronar. Este valor es un placeholder, no una llave real.
+      # Placeholder: stripe.js exige una llave no vacía al importarse; el smoke test no la usa.
       STRIPE_SECRET_KEY: sk_test_ci_placeholder
     steps:
       - uses: actions/checkout@v4
@@ -37,5 +32,6 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # --legacy-peer-deps: evita un bug de npm 11 con los peer deps de eslint/vitest.
       - run: npm ci --legacy-peer-deps
       - run: npm run test

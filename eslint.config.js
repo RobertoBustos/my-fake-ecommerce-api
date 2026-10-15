@@ -17,10 +17,7 @@ export default [
       },
     },
     rules: {
-      // Bajadas a warning a propósito: el código que las dispara hoy ya
-      // tiene tarea asignada para corregirse (H8/H14 en ECOMAPI-15,
-      // ECOMAPI-13, ECOMAPI-19). ECOMAPI-10 solo monta la herramienta;
-      // súbelas de nuevo a "error" cuando esas tareas se completen.
+      // warn, no error: ya tienen tarea asignada (H8/H14 en ECOMAPI-13/15/19).
       "no-unused-vars": "warn",
       "no-useless-assignment": "warn",
       "no-constant-binary-expression": "warn",
