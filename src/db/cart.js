@@ -2,26 +2,28 @@ import { v4 as uuidv4 } from "uuid";
 import { readFile, writeFile } from "../utils/fileUtils.js";
 const FILE_PATH = "../data/cart.json";
 
-export const getCart = async (filter) => {
+export const getCart = async ({ cartId, orderId, productId } = {}) => {
   const cart = await readFile(FILE_PATH);
-  if (filter !== null) {
-    return cart.filter((item) => item[filter.field] == filter.value);
-  }
-  return cart;
+  return cart.filter(
+    (item) =>
+      (cartId === undefined || item.cartId == cartId) &&
+      (orderId === undefined || item.orderId == orderId) &&
+      (productId === undefined || item.productId == productId)
+  );
 };
 
-export const getCartWithoutOrder = async (filter) => {
+export const getCartWithoutOrder = async ({ cartId, productId } = {}) => {
   const cart = await readFile(FILE_PATH);
-  if (filter !== null) {
-    return cart.filter(
-      (item) => item[filter.field] == filter.value && item.orderId === null
-    );
-  }
-  return cart;
+  return cart.filter(
+    (item) =>
+      item.orderId === null &&
+      (cartId === undefined || item.cartId == cartId) &&
+      (productId === undefined || item.productId == productId)
+  );
 };
 
 export const addToCart = async (product, input) => {
-  const carts = await getCart(null);
+  const carts = await getCart();
   const existingItem = carts.find(
     (cart) =>
       cart.productId === input.productId &&
@@ -49,7 +51,7 @@ export const addToCart = async (product, input) => {
 };
 
 export const removeFromCart = async (input) => {
-  const carts = await getCart(null);
+  const carts = await getCart();
   const existingItem = carts.find((cart) => cart.id === input.id);
   if (!existingItem) {
     return false;
@@ -60,7 +62,7 @@ export const removeFromCart = async (input) => {
 };
 
 export const updateCartItems = async (cartId, orderId) => {
-  const cart = await getCart(null);
+  const cart = await getCart();
   const newCart = cart.map((item) => {
     if (item.orderId === null && item.cartId === cartId) {
       item.orderId = orderId;

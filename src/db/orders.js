@@ -5,16 +5,18 @@ import { cancelPayment, getCustomer } from "./payment.js";
 
 const FILE_PATH = "../data/orders.json";
 
-export const getOrders = async (filter) => {
+export const getOrders = async ({ id, cart, status } = {}) => {
   const orders = await readFile(FILE_PATH);
-  if (filter !== null) {
-    return orders.filter((order) => order[filter.field] == filter.value);
-  }
-  return orders;
+  return orders.filter(
+    (order) =>
+      (id === undefined || order.id == id) &&
+      (cart === undefined || order.cart == cart) &&
+      (status === undefined || order.status == status)
+  );
 };
 
 export const getOrderTotals = async (id) => {
-  const cart = await getCart({ field: "orderId", value: id });
+  const cart = await getCart({ orderId: id });
   const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
   const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
   const taxes = Math.floor(subtotal * 0.16);
@@ -30,23 +32,15 @@ export const getOrderTotals = async (id) => {
   };
 };
 
-export const getIncompleteOrders = async (filter) => {
-  const orders = await getOrders(null);
-  if (filter !== null) {
-    return orders.filter(
-      (order) =>
-        order.status !== "COMPLETE" &&
-        order.status !== "CANCELLED" &&
-        order[filter.field] == filter.value
-    );
-  }
+export const getIncompleteOrders = async ({ cart } = {}) => {
+  const orders = await getOrders({ cart });
   return orders.filter(
     (order) => order.status !== "COMPLETE" && order.status !== "CANCELLED"
   );
 };
 
 export const createOrder = async (input) => {
-  const orders = await getOrders(null);
+  const orders = await getOrders();
   const newOrder = {
     id: uuidv4(),
     customer: null,
@@ -61,7 +55,7 @@ export const createOrder = async (input) => {
 };
 
 export const updateOrder = async (input) => {
-  const orders = await getOrders(null);
+  const orders = await getOrders();
   const existingOrder = orders.find((order) => order.id === input.id);
   if (existingOrder) {
     // != null / == null (no !==/===) a propósito: GraphQL manda un campo
@@ -86,7 +80,7 @@ export const updateOrder = async (input) => {
 };
 
 export const cancelOrder = async (input) => {
-  const orders = await getOrders(null);
+  const orders = await getOrders();
   const order = orders.find((order) => order.id === input.id);
   if (!order) {
     return false;
@@ -100,7 +94,7 @@ export const cancelOrder = async (input) => {
 };
 
 export const setOrderPayment = async (orderId, paymentId) => {
-  const orders = await getOrders(null);
+  const orders = await getOrders();
   const order = orders.find((order) => order.id === orderId);
   if (!order) {
     return false;

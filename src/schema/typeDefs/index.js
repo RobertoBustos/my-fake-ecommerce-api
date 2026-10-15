@@ -5,16 +5,16 @@ import productTypes from "./productTypes.js";
 
 const rootTypes = `#graphql
   # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
-  input Filter {
-    field: String!
-    value: String!
+  type PageInfo {
+    hasNextPage: Boolean!
+    endCursor: String
   }
 
   type Query {
-    products(filter: Filter): [Product!]!
-    carts(filter: Filter):[CartItem!]!
-    orders(filter: Filter): [Order!]!
-    incompleteOrders(filter: Filter): [Order!]!
+    products(id: ID, category: String, first: Int, after: String): ProductConnection!
+    carts(cartId: String, productId: String, first: Int, after: String): CartItemConnection!
+    orders(id: ID, cart: String, status: Status, first: Int, after: String): OrderConnection!
+    incompleteOrders(cart: String, first: Int, after: String): OrderConnection!
   }
 
   interface MutationResponse {

@@ -11,6 +11,16 @@ const cartTypes = `#graphql
     product: Product!
   }
 
+  type CartItemEdge {
+    node: CartItem!
+    cursor: String!
+  }
+
+  type CartItemConnection {
+    edges: [CartItemEdge!]!
+    pageInfo: PageInfo!
+  }
+
   input AddToCart {
     productId: String!
     quantity: Int!

@@ -21,10 +21,7 @@ export const addToCart = async (input) => {
       }
     );
   }
-  const product = await getProducts({
-    field: "id",
-    value: input.productId,
-  });
+  const product = await getProducts({ id: input.productId });
   if (!product || product.length === 0) {
     throw new GraphQLError("Product not found", {
       extensions: {

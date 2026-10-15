@@ -10,24 +10,25 @@ import {
 } from "../db/index.js";
 import * as cartService from "../services/cartService.js";
 import * as orderService from "../services/orderService.js";
+import { paginate } from "../utils/pagination.js";
 
 const resolvers = {
   Query: {
-    products: async (_, args) => {
-      const products = await getProducts(args.filter);
-      return products;
+    products: async (_, { id, category, first, after }) => {
+      const products = await getProducts({ id, category });
+      return paginate(products, { first, after });
     },
-    carts: async (_, args) => {
-      const cart = await getCartWithoutOrder(args.filter);
-      return cart;
+    carts: async (_, { cartId, productId, first, after }) => {
+      const cart = await getCartWithoutOrder({ cartId, productId });
+      return paginate(cart, { first, after });
     },
-    orders: async (_, args) => {
-      const orders = await getOrders(args.filter);
-      return orders;
+    orders: async (_, { id, cart, status, first, after }) => {
+      const orders = await getOrders({ id, cart, status });
+      return paginate(orders, { first, after });
     },
-    incompleteOrders: async (_, args) => {
-      const incompleteOrders = await getIncompleteOrders(args.filter);
-      return incompleteOrders;
+    incompleteOrders: async (_, { cart, first, after }) => {
+      const incompleteOrders = await getIncompleteOrders({ cart });
+      return paginate(incompleteOrders, { first, after });
     },
   },
 
@@ -42,10 +43,7 @@ const resolvers = {
   },
   CartItem: {
     product: async (parent) => {
-      const product = await getProducts({
-        field: "id",
-        value: parent.productId,
-      });
+      const product = await getProducts({ id: parent.productId });
       return product[0];
     },
   },
@@ -55,7 +53,7 @@ const resolvers = {
       return totals;
     },
     details: async (parent) => {
-      const cart = await getCart({ field: "orderId", value: parent.id });
+      const cart = await getCart({ orderId: parent.id });
       return cart;
     },
     payment: async (parent) => {
