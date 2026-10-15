@@ -23,3 +23,6 @@
   en vez de escribir `ECOMAPI-10`.
 - Las reglas 2-4 de Automation ya comparan la rama del PR contra la clave del issue
   (ver más abajo), así que lo anterior es cinturón y tirantes, no la única defensa.
+- **Sin menciones a Claude.** No incluyas líneas de atribución a Claude/Claude Code
+  (`Co-Authored-By`, `Generated with...`, enlaces de sesión, etc.) en commits ni en
+  el título o descripción del PR.
