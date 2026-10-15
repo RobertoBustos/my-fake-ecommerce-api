@@ -1,6 +1,7 @@
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import env from "./config/env.js";
+import { createLoaders } from "./dataloaders/index.js";
 import { formatError } from "./schema/formatError.js";
 import resolvers from "./schema/resolvers.js";
 import typeDefs from "./schema/typeDefs/index.js";
@@ -19,6 +20,7 @@ const { url } = await startStandaloneServer(server, {
   listen: { port: PORT, host: HOST },
   context: async ({ req, res }) => ({
     headers: req.headers,
+    loaders: createLoaders(),
   }),
 });
 

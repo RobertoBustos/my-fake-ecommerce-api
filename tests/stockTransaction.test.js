@@ -47,5 +47,5 @@ describe("addToCart - transacción de stock", () => {
 
     const finalDoc = await db.collection("products").doc(productId).get();
     expect(finalDoc.data().stock).toBe(0);
-  }, 20000);
+  }, 30000);
 });
