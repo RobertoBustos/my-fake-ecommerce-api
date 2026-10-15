@@ -1,31 +1,15 @@
-import { GraphQLError } from "graphql";
 import {
-  addToCart,
-  cancelOrder,
-  createOrder,
-  createPayment,
   getCart,
   getCartWithoutOrder,
   getIncompleteOrders,
   getOrderTotals,
   getOrders,
   getProducts,
-  removeFromCart,
   searchPayment,
   searchPaymentMethod,
-  setOrderPayment,
-  updateCartItems,
-  updateOrder,
 } from "../db/index.js";
-import {
-  addToCartValidator,
-  cancelOrderValidator,
-  createOrderPaymentValidator,
-  createOrderValidator,
-  removeFromCartValidator,
-  updateOrderValidator,
-  validateCartQuantity,
-} from "./validators/index.js";
+import * as cartService from "../services/cartService.js";
+import * as orderService from "../services/orderService.js";
 
 const resolvers = {
   Query: {
@@ -48,204 +32,13 @@ const resolvers = {
   },
 
   Mutation: {
-    addToCart: async (_, { input }) => {
-      const validation = addToCartValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_USER_INPUT",
-            },
-          }
-        );
-      }
-      const product = await getProducts({
-        field: "id",
-        value: input.productId,
-      });
-      if (!product || product.length === 0) {
-        throw new GraphQLError("Product not found", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "productId",
-          },
-        });
-      }
-      if (!validateCartQuantity(input.quantity, product[0])) {
-        throw new GraphQLError(
-          `quantity must be between ${product[0].purchaseLimits.min} and ${Math.min(
-            product[0].purchaseLimits.max,
-            product[0].stock
-          )}`,
-          {
-            extensions: {
-              code: "BAD_USER_INPUT",
-              invalidArgument: "quantity",
-            },
-          }
-        );
-      }
-      const cartItem = await addToCart(product[0], input);
-      return {
-        code: 200,
-        success: true,
-        message: "Product added",
-        data: cartItem,
-      };
-    },
-    removeFromCart: async (_, { input }) => {
-      const validation = removeFromCartValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const result = await removeFromCart(input);
-      return {
-        code: 200,
-        success: result,
-        message: result
-          ? "Item Removed"
-          : "There was an error removing the item",
-      };
-    },
-    createOrder: async (_, { input }) => {
-      const validation = createOrderValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const cart = await getCart({ field: "cartId", value: input.cartId });
-      if (!cart || cart.length === 0) {
-        throw new GraphQLError("Cart not found", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "cartId",
-          },
-        });
-      }
-      const order = await createOrder(input);
-      await updateCartItems(input.cartId, order.id);
-      return {
-        code: 200,
-        success: true,
-        message: "Order created",
-        data: order,
-      };
-    },
-    updateOrder: async (_, { input }) => {
-      const validation = updateOrderValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const order = await getOrders({ field: "id", value: input.id });
-      if (!order || order.length === 0) {
-        throw new GraphQLError("Order not found", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "id",
-          },
-        });
-      }
-      const newOrder = await updateOrder(input);
-      if (!newOrder) {
-        return {
-          code: 200,
-          success: false,
-          message: "There was an error updating the order",
-          data: null,
-        };
-      }
-      return {
-        code: 200,
-        success: true,
-        message: "Order updated",
-        data: newOrder,
-      };
-    },
-    cancelOrder: async (_, { input }) => {
-      const validation = cancelOrderValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const result = await cancelOrder(input);
-      return {
-        code: 200,
-        success: result,
-        message: result
-          ? "Order cancelled"
-          : "There was an error cancelling the order",
-      };
-    },
-    createOrderPayment: async (_, { input }) => {
-      const validation = createOrderPaymentValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const order = await getOrders({ field: "id", value: input.orderId });
-      if (!order || order.length === 0) {
-        throw new GraphQLError("Order not found", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "orderId",
-          },
-        });
-      }
-      if (!order[0].customer) {
-        throw new GraphQLError("Order has no customer information", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "order.customer",
-          },
-        });
-      }
-      const totals = await getOrderTotals(order[0].id);
-      const payment = await createPayment(
-        order[0].id,
-        totals.total,
-        order[0].customer.id
-      );
-      await setOrderPayment(order[0].id, payment.paymentId);
-      return {
-        code: 200,
-        success: true,
-        message: "Payment created",
-        data: payment,
-      };
-    },
+    addToCart: async (_, { input }) => cartService.addToCart(input),
+    removeFromCart: async (_, { input }) => cartService.removeFromCart(input),
+    createOrder: async (_, { input }) => orderService.createOrder(input),
+    updateOrder: async (_, { input }) => orderService.updateOrder(input),
+    cancelOrder: async (_, { input }) => orderService.cancelOrder(input),
+    createOrderPayment: async (_, { input }) =>
+      orderService.createOrderPayment(input),
   },
   CartItem: {
     product: async (parent) => {
