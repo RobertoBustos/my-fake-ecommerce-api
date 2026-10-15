@@ -2,6 +2,7 @@ import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import env from "./config/env.js";
 import { createContext } from "./context.js";
+import { validationRules } from "./schema/depthLimit.js";
 import { formatError } from "./schema/formatError.js";
 import resolvers from "./schema/resolvers.js";
 import typeDefs from "./schema/typeDefs/index.js";
@@ -14,6 +15,7 @@ const server = new ApolloServer({
   status400ForVariableCoercionErrors: true,
   includeStacktraceInErrorResponses: false,
   formatError,
+  validationRules,
 });
 
 const { url } = await startStandaloneServer(server, {
