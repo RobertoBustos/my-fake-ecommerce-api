@@ -24,6 +24,7 @@ import {
   createOrderValidator,
   removeFromCartValidator,
   updateOrderValidator,
+  validateCartQuantity,
 } from "./validators/index.js";
 
 const resolvers = {
@@ -54,7 +55,7 @@ const resolvers = {
           "One or more parameters sent have an invalid value",
           {
             extensions: {
-              code: "BAD_REQUEST",
+              code: "BAD_USER_INPUT",
             },
           }
         );
@@ -70,6 +71,20 @@ const resolvers = {
             invalidArgument: "productId",
           },
         });
+      }
+      if (!validateCartQuantity(input.quantity, product[0])) {
+        throw new GraphQLError(
+          `quantity must be between ${product[0].purchaseLimits.min} and ${Math.min(
+            product[0].purchaseLimits.max,
+            product[0].stock
+          )}`,
+          {
+            extensions: {
+              code: "BAD_USER_INPUT",
+              invalidArgument: "quantity",
+            },
+          }
+        );
       }
       const cartItem = await addToCart(product[0], input);
       return {
