@@ -107,3 +107,13 @@ export const setOrderPayment = async (orderId, paymentId) => {
 export const deleteOrder = async (id) => {
   await db.collection(COLLECTION).doc(id).delete();
 };
+
+export const markOrderComplete = async (id) => {
+  const docRef = db.collection(COLLECTION).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) {
+    return false;
+  }
+  await docRef.update({ status: "COMPLETE" });
+  return true;
+};

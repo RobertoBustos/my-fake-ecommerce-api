@@ -9,6 +9,7 @@ import { validationRules } from "./schema/depthLimit.js";
 import { formatError } from "./schema/formatError.js";
 import resolvers from "./schema/resolvers.js";
 import typeDefs from "./schema/typeDefs/index.js";
+import { handleStripeWebhook } from "./webhooks/stripeWebhook.js";
 
 // Separado de index.js para poder construir la app en tests sin levantar un
 // puerto real (supertest pega directo contra el objeto `app`).
@@ -33,6 +34,14 @@ export const createApp = async () => {
   app.get("/healthz", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });
+
+  // express.raw (no express.json): la verificación de firma de Stripe necesita
+  // los bytes exactos del body, no el objeto ya parseado.
+  app.post(
+    "/webhooks/stripe",
+    express.raw({ type: "application/json" }),
+    handleStripeWebhook
+  );
 
   app.use(
     "/graphql",
