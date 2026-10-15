@@ -1,10 +1,15 @@
 import stripeClient from "../config/stripe.js";
 
+// Stripe usa comillas simples para delimitar valores en su lenguaje de
+// búsqueda; un email con comilla simple sin escapar rompe o manipula el
+// query (H4). Stripe espera que las comillas dentro del valor vayan con \.
+export const escapeStripeSearchValue = (value) => value.replace(/'/g, "\\'");
+
 export const getCustomer = async (input) => {
   const { email, name, phone } = input;
   let customer;
   const customers = await stripeClient.customers.search({
-    query: `email:'${email}'`,
+    query: `email:'${escapeStripeSearchValue(email)}'`,
   });
   //the customer was found
   if (customers.data.length > 0) {
