@@ -1,43 +1,46 @@
-import { v4 as uuidv4 } from "uuid";
-import { readFile, writeFile } from "../utils/fileUtils.js";
-const FILE_PATH = "../data/cart.json";
+import db from "../config/firestore.js";
+
+const COLLECTION = "cartItems";
+const toCartItem = (doc) => ({ id: doc.id, ...doc.data() });
 
 export const getCart = async ({ cartId, orderId, productId } = {}) => {
-  const cart = await readFile(FILE_PATH);
-  return cart.filter(
-    (item) =>
-      (cartId === undefined || item.cartId == cartId) &&
-      (orderId === undefined || item.orderId == orderId) &&
-      (productId === undefined || item.productId == productId)
-  );
+  let query = db.collection(COLLECTION);
+  if (cartId !== undefined) query = query.where("cartId", "==", cartId);
+  if (orderId !== undefined) query = query.where("orderId", "==", orderId);
+  if (productId !== undefined) query = query.where("productId", "==", productId);
+  const snapshot = await query.get();
+  return snapshot.docs.map(toCartItem);
 };
 
 export const getCartWithoutOrder = async ({ cartId, productId } = {}) => {
-  const cart = await readFile(FILE_PATH);
-  return cart.filter(
-    (item) =>
-      item.orderId === null &&
-      (cartId === undefined || item.cartId == cartId) &&
-      (productId === undefined || item.productId == productId)
-  );
+  let query = db.collection(COLLECTION).where("orderId", "==", null);
+  if (cartId !== undefined) query = query.where("cartId", "==", cartId);
+  if (productId !== undefined) query = query.where("productId", "==", productId);
+  const snapshot = await query.get();
+  return snapshot.docs.map(toCartItem);
 };
 
 export const addToCart = async (product, input) => {
-  const carts = await getCart();
-  const existingItem = carts.find(
-    (cart) =>
-      cart.productId === input.productId &&
-      cart.orderId === input.orderId &&
-      cart.cartId === input.cartId
-  );
-  if (existingItem) {
-    existingItem.quantity += input.quantity;
-    existingItem.subtotal += product.unitPrice * input.quantity;
-    await saveCart(carts);
-    return existingItem;
+  const existingSnapshot = await db
+    .collection(COLLECTION)
+    .where("cartId", "==", input.cartId)
+    .where("productId", "==", input.productId)
+    .where("orderId", "==", input.orderId ?? null)
+    .get();
+
+  if (!existingSnapshot.empty) {
+    const existingDoc = existingSnapshot.docs[0];
+    const existingItem = toCartItem(existingDoc);
+    const updates = {
+      quantity: existingItem.quantity + input.quantity,
+      subtotal: existingItem.subtotal + product.unitPrice * input.quantity,
+    };
+    await existingDoc.ref.update(updates);
+    return { ...existingItem, ...updates };
   }
+
+  const docRef = db.collection(COLLECTION).doc();
   const newItem = {
-    id: uuidv4(),
     cartId: input.cartId,
     orderId: null,
     productId: input.productId,
@@ -45,34 +48,28 @@ export const addToCart = async (product, input) => {
     unitPrice: product.unitPrice,
     subtotal: product.unitPrice * input.quantity,
   };
-  carts.push(newItem);
-  await saveCart(carts);
-  return newItem;
+  await docRef.set(newItem);
+  return { id: docRef.id, ...newItem };
 };
 
 export const removeFromCart = async (input) => {
-  const carts = await getCart();
-  const existingItem = carts.find((cart) => cart.id === input.id);
-  if (!existingItem) {
+  const docRef = db.collection(COLLECTION).doc(input.id);
+  const doc = await docRef.get();
+  if (!doc.exists) {
     return false;
   }
-  const newCart = carts.filter((cart) => cart.id !== input.id);
-  await saveCart(newCart);
+  await docRef.delete();
   return true;
 };
 
 export const updateCartItems = async (cartId, orderId) => {
-  const cart = await getCart();
-  const newCart = cart.map((item) => {
-    if (item.orderId === null && item.cartId === cartId) {
-      item.orderId = orderId;
-    }
-    return item;
-  });
-  await saveCart(newCart);
+  const snapshot = await db
+    .collection(COLLECTION)
+    .where("cartId", "==", cartId)
+    .where("orderId", "==", null)
+    .get();
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => batch.update(doc.ref, { orderId }));
+  await batch.commit();
   return true;
-};
-
-export const saveCart = async (data) => {
-  await writeFile(FILE_PATH, data);
 };

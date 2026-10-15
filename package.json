@@ -11,13 +11,14 @@
     "start": "node --env-file=.env ./src/index.js",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:emulator": "firebase emulators:exec --project demo-ecommerce-api \"npm run test\""
+    "test:emulator": "firebase emulators:exec --project demo-ecommerce-api \"npm run test\"",
+    "seed": "node scripts/seedFirestore.js"
   },
   "dependencies": {
     "@apollo/server": "^4.11.3",
+    "firebase-admin": "^14.5.0",
     "graphql": "^16.10.0",
     "stripe": "^17.7.0",
-    "uuid": "^11.1.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

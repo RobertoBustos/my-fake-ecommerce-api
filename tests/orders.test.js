@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createOrder, updateOrder, cancelOrder, getOrders, saveOrders } from "../src/db/orders.js";
+import { createOrder, updateOrder, cancelOrder, deleteOrder } from "../src/db/orders.js";
 
 vi.mock("../src/db/payment.js", () => ({
   cancelPayment: vi.fn(),
@@ -8,11 +8,10 @@ vi.mock("../src/db/payment.js", () => ({
 
 import { cancelPayment } from "../src/db/payment.js";
 
-// orders.js lee/escribe src/data/orders.json de verdad; limpiamos lo que cada
-// prueba crea para no dejar basura en el archivo.
+// orders.js ahora lee/escribe la colección "orders" del emulador de Firestore
+// de verdad; limpiamos lo que cada prueba crea para no dejar basura entre corridas.
 async function removeOrder(id) {
-  const orders = await getOrders();
-  await saveOrders(orders.filter((order) => order.id !== id));
+  await deleteOrder(id);
 }
 
 describe("updateOrder (H6)", () => {
