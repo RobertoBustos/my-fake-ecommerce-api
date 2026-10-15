@@ -38,15 +38,21 @@ export const createPayment = async (orderId, amount, customerId) => {
   const response = await searchPayment("order", orderId);
   let paymentIntent;
   if (!response || response === null) {
-    paymentIntent = await stripeClient.paymentIntents.create({
-      currency: "MXN",
-      customer: customerId,
-      amount: amount,
-      payment_method_types: ["card"],
-      metadata: {
-        order_id: orderId,
+    // Llave estable por orden: si la llamada se reintenta (timeout, retry del
+    // cliente, etc.), Stripe regresa el mismo PaymentIntent en vez de crear
+    // uno nuevo.
+    paymentIntent = await stripeClient.paymentIntents.create(
+      {
+        currency: "MXN",
+        customer: customerId,
+        amount: amount,
+        payment_method_types: ["card"],
+        metadata: {
+          order_id: orderId,
+        },
       },
-    });
+      { idempotencyKey: `order-${orderId}-payment-intent` }
+    );
   } else {
     if (response.amount !== amount) {
       paymentIntent = await stripeClient.paymentIntents.update(response.id, {
