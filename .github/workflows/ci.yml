@@ -32,6 +32,10 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       # --legacy-peer-deps: evita un bug de npm 11 con los peer deps de eslint/vitest.
       - run: npm ci --legacy-peer-deps
-      - run: npm run test
+      - run: npm run test:emulator
