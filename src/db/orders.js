@@ -64,14 +64,16 @@ export const updateOrder = async (input) => {
   const orders = await getOrders(null);
   const existingOrder = orders.find((order) => order.id === input.id);
   if (existingOrder) {
-    if (input.customer !== null) {
+    // != null / == null (no !==/===) a propósito: GraphQL manda un campo
+    // opcional omitido como undefined, no null (H6).
+    if (input.customer != null) {
       existingOrder.customer = await getCustomer(input.customer);
     }
-    if (input.address !== null) {
+    if (input.address != null) {
       existingOrder.address = input.address;
     }
     if (existingOrder.customer !== null && existingOrder.address !== null) {
-      if (input.status === null) {
+      if (input.status == null) {
         existingOrder.status = "PAYMENT_PENDING";
       } else {
         existingOrder.status = input.status;
