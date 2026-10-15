@@ -5,7 +5,7 @@ export const fakePromise = (miliseconds = 500, forceReject = false) => {
         reject(false);
       }
       resolve(true);
-    }, 1000);
+    }, miliseconds);
   });
 };
 
