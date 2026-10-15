@@ -49,6 +49,16 @@ const orderTypes = `#graphql
         details: [CartItem!]!
     }
 
+    type OrderEdge {
+        node: Order!
+        cursor: String!
+    }
+
+    type OrderConnection {
+        edges: [OrderEdge!]!
+        pageInfo: PageInfo!
+    }
+
     input CreateOrder {
         cartId: String!
     }

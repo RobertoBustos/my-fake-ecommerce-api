@@ -1,6 +1,7 @@
 import {
   addToCartValidator,
   removeFromCartValidator,
+  validateCartQuantity,
 } from "./cartValidations.js";
 import {
   cancelOrderValidator,
@@ -16,4 +17,5 @@ export {
   createOrderValidator,
   removeFromCartValidator,
   updateOrderValidator,
+  validateCartQuantity,
 };

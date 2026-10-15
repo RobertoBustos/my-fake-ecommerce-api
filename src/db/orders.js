@@ -1,111 +1,97 @@
-import { v4 as uuidv4 } from "uuid";
-import { readFile, writeFile } from "../utils/fileUtils.js";
+import db from "../config/firestore.js";
+import { computeOrderTotals } from "../utils/orderTotals.js";
 import { getCart } from "./cart.js";
 import { cancelPayment, getCustomer } from "./payment.js";
 
-const FILE_PATH = "../data/orders.json";
+const COLLECTION = "orders";
+const toOrder = (doc) => ({ id: doc.id, ...doc.data() });
 
-export const getOrders = async (filter) => {
-  const orders = await readFile(FILE_PATH);
-  if (filter !== null) {
-    return orders.filter((order) => order[filter.field] == filter.value);
+export const getOrders = async ({ id, cart, status } = {}) => {
+  if (id !== undefined) {
+    const doc = await db.collection(COLLECTION).doc(id).get();
+    return doc.exists ? [toOrder(doc)] : [];
   }
-  return orders;
+  let query = db.collection(COLLECTION);
+  if (cart !== undefined) query = query.where("cart", "==", cart);
+  if (status !== undefined) query = query.where("status", "==", status);
+  const snapshot = await query.get();
+  return snapshot.docs.map(toOrder);
 };
 
 export const getOrderTotals = async (id) => {
-  const cart = await getCart({ field: "orderId", value: id });
-  const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
-  const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
-  const taxes = Math.floor(subtotal * 0.16);
-
-  return {
-    currency: "MXN",
-    items: cart.length,
-    units: units,
-    subTotal: subtotal,
-    taxes: taxes,
-    discount: 0,
-    total: subtotal + taxes,
-  };
+  const cart = await getCart({ orderId: id });
+  return computeOrderTotals(cart);
 };
 
-export const getIncompleteOrders = async (filter) => {
-  const orders = await getOrders(null);
-  if (filter !== null) {
-    return orders.filter(
-      (order) =>
-        order.status !== "COMPLETE" &&
-        order.status !== "CANCELLED" &&
-        order[filter.field] == filter.value
-    );
-  }
+export const getIncompleteOrders = async ({ cart } = {}) => {
+  const orders = await getOrders({ cart });
   return orders.filter(
     (order) => order.status !== "COMPLETE" && order.status !== "CANCELLED"
   );
 };
 
 export const createOrder = async (input) => {
-  const orders = await getOrders(null);
+  const docRef = db.collection(COLLECTION).doc();
   const newOrder = {
-    id: uuidv4(),
     customer: null,
     address: null,
     paymentId: null,
     cart: input.cartId,
     status: "INCOMPLETE",
   };
-  orders.push(newOrder);
-  await saveOrders(orders);
-  return newOrder;
+  await docRef.set(newOrder);
+  return { id: docRef.id, ...newOrder };
 };
 
 export const updateOrder = async (input) => {
-  const orders = await getOrders(null);
-  const existingOrder = orders.find((order) => order.id === input.id);
-  if (existingOrder) {
-    if (input.customer !== null) {
-      existingOrder.customer = await getCustomer(input.customer);
-    }
-    if (input.address !== null) {
-      existingOrder.address = input.address;
-    }
-    if (existingOrder.customer !== null && existingOrder.address !== null) {
-      if (input.status === null) {
-        existingOrder.status = "PAYMENT_PENDING";
-      } else {
-        existingOrder.status = input.status;
-      }
-    }
-    await saveOrders(orders);
-    return existingOrder;
+  const docRef = db.collection(COLLECTION).doc(input.id);
+  const doc = await docRef.get();
+  if (!doc.exists) {
+    return undefined;
   }
-  return undefined;
+  const existingOrder = toOrder(doc);
+  const updates = {};
+  // != null / == null (no !==/===) a propósito: GraphQL manda un campo
+  // opcional omitido como undefined, no null (H6).
+  if (input.customer != null) {
+    updates.customer = await getCustomer(input.customer);
+  }
+  if (input.address != null) {
+    updates.address = input.address;
+  }
+  const resultingCustomer = updates.customer ?? existingOrder.customer;
+  const resultingAddress = updates.address ?? existingOrder.address;
+  if (resultingCustomer !== null && resultingAddress !== null) {
+    updates.status = input.status == null ? "PAYMENT_PENDING" : input.status;
+  }
+  await docRef.update(updates);
+  return { ...existingOrder, ...updates };
 };
 
 export const cancelOrder = async (input) => {
-  const orders = await getOrders(null);
-  const order = orders.find((order) => order.id === input.id);
-  if (!order) {
+  const docRef = db.collection(COLLECTION).doc(input.id);
+  const doc = await docRef.get();
+  if (!doc.exists) {
     return false;
   }
-  order.status = "CANCELLED";
-  await cancelPayment(order.paymentId);
-  await saveOrders(orders);
+  const order = toOrder(doc);
+  await docRef.update({ status: "CANCELLED" });
+  if (order.paymentId) {
+    await cancelPayment(order.paymentId);
+  }
   return true;
 };
 
 export const setOrderPayment = async (orderId, paymentId) => {
-  const orders = await getOrders(null);
-  const order = orders.find((order) => order.id === orderId);
-  if (!order) {
+  const docRef = db.collection(COLLECTION).doc(orderId);
+  const doc = await docRef.get();
+  if (!doc.exists) {
     return false;
   }
-  order.paymentId = paymentId;
-  await saveOrders(orders);
+  await docRef.update({ paymentId });
   return true;
 };
 
-export const saveOrders = async (data) => {
-  await writeFile(FILE_PATH, data);
+export const deleteOrder = async (id) => {
+  await db.collection(COLLECTION).doc(id).delete();
 };

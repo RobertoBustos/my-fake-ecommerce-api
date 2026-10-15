@@ -21,6 +21,16 @@ const productTypes = `#graphql
     unitPrice: Int!
     purchaseLimits: PurchaseLimit!
   }
+
+  type ProductEdge {
+    node: Product!
+    cursor: String!
+  }
+
+  type ProductConnection {
+    edges: [ProductEdge!]!
+    pageInfo: PageInfo!
+  }
 `;
 
 export default productTypes;

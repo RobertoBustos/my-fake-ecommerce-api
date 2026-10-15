@@ -1,253 +1,56 @@
-import { GraphQLError } from "graphql";
 import {
-  addToCart,
-  cancelOrder,
-  createOrder,
-  createPayment,
   getCart,
   getCartWithoutOrder,
   getIncompleteOrders,
-  getOrderTotals,
   getOrders,
   getProducts,
-  removeFromCart,
   searchPayment,
   searchPaymentMethod,
-  setOrderPayment,
-  updateCartItems,
-  updateOrder,
 } from "../db/index.js";
-import {
-  addToCartValidator,
-  cancelOrderValidator,
-  createOrderPaymentValidator,
-  createOrderValidator,
-  removeFromCartValidator,
-  updateOrderValidator,
-} from "./validators/index.js";
+import * as cartService from "../services/cartService.js";
+import * as orderService from "../services/orderService.js";
+import { paginate } from "../utils/pagination.js";
 
 const resolvers = {
   Query: {
-    products: async (_, args) => {
-      const products = await getProducts(args.filter);
-      return products;
+    products: async (_, { id, category, first, after }) => {
+      const products = await getProducts({ id, category });
+      return paginate(products, { first, after });
     },
-    carts: async (_, args) => {
-      const cart = await getCartWithoutOrder(args.filter);
-      return cart;
+    carts: async (_, { cartId, productId, first, after }) => {
+      const cart = await getCartWithoutOrder({ cartId, productId });
+      return paginate(cart, { first, after });
     },
-    orders: async (_, args) => {
-      const orders = await getOrders(args.filter);
-      return orders;
+    orders: async (_, { id, cart, status, first, after }) => {
+      const orders = await getOrders({ id, cart, status });
+      return paginate(orders, { first, after });
     },
-    incompleteOrders: async (_, args) => {
-      const incompleteOrders = await getIncompleteOrders(args.filter);
-      return incompleteOrders;
+    incompleteOrders: async (_, { cart, first, after }) => {
+      const incompleteOrders = await getIncompleteOrders({ cart });
+      return paginate(incompleteOrders, { first, after });
     },
   },
 
   Mutation: {
-    addToCart: async (_, { input }) => {
-      const validation = addToCartValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const product = await getProducts({
-        field: "id",
-        value: input.productId,
-      });
-      if (!product || product.length === 0) {
-        throw new GraphQLError("Product not found", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "productId",
-          },
-        });
-      }
-      const cartItem = await addToCart(product[0], input);
-      return {
-        code: 200,
-        success: true,
-        message: "Product added",
-        data: cartItem,
-      };
-    },
-    removeFromCart: async (_, { input }) => {
-      const validation = removeFromCartValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const result = await removeFromCart(input);
-      return {
-        code: 200,
-        success: result,
-        message: result
-          ? "Item Removed"
-          : "There was an error removing the item",
-      };
-    },
-    createOrder: async (_, { input }) => {
-      const validation = createOrderValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const cart = await getCart({ field: "cartId", value: input.cartId });
-      if (!cart || cart.length === 0) {
-        throw new GraphQLError("Cart not found", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "cartId",
-          },
-        });
-      }
-      const order = await createOrder(input);
-      await updateCartItems(input.cartId, order.id);
-      return {
-        code: 200,
-        success: true,
-        message: "Order created",
-        data: order,
-      };
-    },
-    updateOrder: async (_, { input }) => {
-      const validation = updateOrderValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const order = await getOrders({ field: "id", value: input.id });
-      if (!order || order.length === 0) {
-        throw new GraphQLError("Order not found", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "cartId",
-          },
-        });
-      }
-      const newOrder = await updateOrder(input);
-      if (!newOrder) {
-        return {
-          code: 200,
-          success: false,
-          message: "There was an error updating the order",
-          data: null,
-        };
-      }
-      return {
-        code: 200,
-        success: true,
-        message: "Order updated",
-        data: newOrder,
-      };
-    },
-    cancelOrder: async (_, { input }) => {
-      const validation = cancelOrderValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const result = await cancelOrder(input);
-      return {
-        code: 200,
-        success: result,
-        message: result
-          ? "Order cancelled"
-          : "There was an error cancelling the order",
-      };
-    },
-    createOrderPayment: async (_, { input }) => {
-      const validation = createOrderPaymentValidator(input);
-      if (!validation) {
-        throw new GraphQLError(
-          "One or more parameters sent have an invalid value",
-          {
-            extensions: {
-              code: "BAD_REQUEST",
-            },
-          }
-        );
-      }
-      const order = await getOrders({ field: "id", value: input.orderId });
-      if (!order || order.length === 0) {
-        throw new GraphQLError("Order not found", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "orderId",
-          },
-        });
-      }
-      if (!order[0].customer || !order[0].customer === null) {
-        throw new GraphQLError("Order has no customer information", {
-          extensions: {
-            code: "NOT_FOUND",
-            invalidArgument: "order.customer",
-          },
-        });
-      }
-      const totals = await getOrderTotals(order[0].id);
-      const payment = await createPayment(
-        order[0].id,
-        totals.total,
-        order[0].customer.id
-      );
-      await setOrderPayment(order[0].id, payment.paymentId);
-      return {
-        code: 200,
-        success: true,
-        message: "Payment created",
-        data: payment,
-      };
-    },
+    addToCart: async (_, { input }) => cartService.addToCart(input),
+    removeFromCart: async (_, { input }) => cartService.removeFromCart(input),
+    createOrder: async (_, { input }) => orderService.createOrder(input),
+    updateOrder: async (_, { input }) => orderService.updateOrder(input),
+    cancelOrder: async (_, { input }) => orderService.cancelOrder(input),
+    createOrderPayment: async (_, { input }) =>
+      orderService.createOrderPayment(input),
   },
   CartItem: {
-    product: async (parent) => {
-      const product = await getProducts({
-        field: "id",
-        value: parent.productId,
-      });
-      return product[0];
+    product: async (parent, _args, context) => {
+      return context.loaders.products.load(parent.productId);
     },
   },
   Order: {
-    totals: async (parent) => {
-      const totals = await getOrderTotals(parent.id);
-      return totals;
+    totals: async (parent, _args, context) => {
+      return context.loaders.orderTotals.load(parent.id);
     },
     details: async (parent) => {
-      const cart = await getCart({ field: "orderId", value: parent.id });
+      const cart = await getCart({ orderId: parent.id });
       return cart;
     },
     payment: async (parent) => {

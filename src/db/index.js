@@ -2,6 +2,7 @@ import {
   addToCart,
   getCart,
   getCartWithoutOrder,
+  InsufficientStockError,
   removeFromCart,
   updateCartItems,
 } from "./cart.js";
@@ -36,6 +37,7 @@ export {
   getOrderTotals,
   getOrders,
   getProducts,
+  InsufficientStockError,
   removeFromCart,
   searchPayment,
   searchPaymentMethod,
