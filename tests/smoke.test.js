@@ -1,6 +1,3 @@
-// Carga .env en local; en CI ya viene por variable de entorno.
-import "dotenv/config";
-
 import { describe, it, expect } from "vitest";
 import { ApolloServer } from "@apollo/server";
 import typeDefs from "../src/schema/typeDefs/index.js";
