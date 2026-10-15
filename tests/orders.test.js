@@ -11,7 +11,7 @@ import { cancelPayment } from "../src/db/payment.js";
 // orders.js lee/escribe src/data/orders.json de verdad; limpiamos lo que cada
 // prueba crea para no dejar basura en el archivo.
 async function removeOrder(id) {
-  const orders = await getOrders(null);
+  const orders = await getOrders();
   await saveOrders(orders.filter((order) => order.id !== id));
 }
 

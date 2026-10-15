@@ -28,7 +28,7 @@ export const createOrder = async (input) => {
       }
     );
   }
-  const cart = await getCart({ field: "cartId", value: input.cartId });
+  const cart = await getCart({ cartId: input.cartId });
   if (!cart || cart.length === 0) {
     throw new GraphQLError("Cart not found", {
       extensions: {
@@ -58,7 +58,7 @@ export const updateOrder = async (input) => {
       }
     );
   }
-  const order = await getOrders({ field: "id", value: input.id });
+  const order = await getOrders({ id: input.id });
   if (!order || order.length === 0) {
     throw new GraphQLError("Order not found", {
       extensions: {
@@ -116,7 +116,7 @@ export const createOrderPayment = async (input) => {
       }
     );
   }
-  const order = await getOrders({ field: "id", value: input.orderId });
+  const order = await getOrders({ id: input.orderId });
   if (!order || order.length === 0) {
     throw new GraphQLError("Order not found", {
       extensions: {
