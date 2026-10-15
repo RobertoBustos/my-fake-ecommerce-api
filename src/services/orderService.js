@@ -17,7 +17,7 @@ import {
   updateOrderValidator,
 } from "../schema/validators/index.js";
 
-export const createOrder = async (input) => {
+export const createOrder = async (input, userId) => {
   if (!createOrderValidator(input)) {
     throw new GraphQLError(
       "One or more parameters sent have an invalid value",
@@ -37,7 +37,7 @@ export const createOrder = async (input) => {
       },
     });
   }
-  const order = await createOrderDb(input);
+  const order = await createOrderDb(input, userId);
   await updateCartItems(input.cartId, order.id);
   return {
     code: 200,

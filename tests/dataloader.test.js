@@ -43,7 +43,7 @@ describe("DataLoader de productos y totales (H10)", () => {
     for (const id of productIds) {
       await addToCart({ id, unitPrice: 100 }, { cartId, productId: id, quantity: 1 });
     }
-    const order = await createOrder({ cartId });
+    const order = await createOrder({ cartId }, "test-user");
     orderId = order.id;
     await updateCartItems(cartId, orderId);
 
@@ -64,7 +64,7 @@ describe("DataLoader de productos y totales (H10)", () => {
         }`,
         variables: { id: orderId },
       },
-      { contextValue: { loaders: createLoaders() } }
+      { contextValue: { loaders: createLoaders(), user: { uid: "test-user" } } }
     );
 
     const { data, errors } = response.body.singleResult;

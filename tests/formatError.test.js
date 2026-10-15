@@ -32,13 +32,16 @@ describe("formatError (H? - errores de dominio traducidos en el borde)", () => {
     // con el mock de getProducts que lanza un error inesperado arriba.
     const server = new ApolloServer({ typeDefs, resolvers, formatError });
 
-    const response = await server.executeOperation({
-      query: `mutation {
-        createOrder(input: { cartId: "cart-that-does-not-exist" }) {
-          success
-        }
-      }`,
-    });
+    const response = await server.executeOperation(
+      {
+        query: `mutation {
+          createOrder(input: { cartId: "cart-that-does-not-exist" }) {
+            success
+          }
+        }`,
+      },
+      { contextValue: { user: { uid: "test-user" } } }
+    );
 
     const { errors } = response.body.singleResult;
     expect(errors[0].extensions.code).toBe("NOT_FOUND");
