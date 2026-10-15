@@ -86,6 +86,26 @@ export const removeFromCart = async (input) => {
   return true;
 };
 
+const FIRESTORE_IN_QUERY_LIMIT = 30;
+
+// Una sola tanda de lecturas para N orderIds (vs. N queries), la usa el
+// DataLoader de totales para evitar el problema N+1 (H10). Firestore limita
+// "in" a 30 valores, así que se parte en chunks si hace falta.
+export const getCartByOrderIds = async (orderIds) => {
+  const uniqueIds = [...new Set(orderIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+  const chunks = [];
+  for (let i = 0; i < uniqueIds.length; i += FIRESTORE_IN_QUERY_LIMIT) {
+    chunks.push(uniqueIds.slice(i, i + FIRESTORE_IN_QUERY_LIMIT));
+  }
+  const snapshots = await Promise.all(
+    chunks.map((chunk) => db.collection(COLLECTION).where("orderId", "in", chunk).get())
+  );
+  return snapshots.flatMap((snapshot) => snapshot.docs.map(toCartItem));
+};
+
 export const updateCartItems = async (cartId, orderId) => {
   const snapshot = await db
     .collection(COLLECTION)

@@ -1,4 +1,5 @@
 import db from "../config/firestore.js";
+import { computeOrderTotals } from "../utils/orderTotals.js";
 import { getCart } from "./cart.js";
 import { cancelPayment, getCustomer } from "./payment.js";
 
@@ -19,19 +20,7 @@ export const getOrders = async ({ id, cart, status } = {}) => {
 
 export const getOrderTotals = async (id) => {
   const cart = await getCart({ orderId: id });
-  const units = cart.reduce((acc, item) => (acc += item.quantity), 0);
-  const subtotal = cart.reduce((acc, item) => (acc += item.subtotal), 0);
-  const taxes = Math.floor(subtotal * 0.16);
-
-  return {
-    currency: "MXN",
-    items: cart.length,
-    units: units,
-    subTotal: subtotal,
-    taxes: taxes,
-    discount: 0,
-    total: subtotal + taxes,
-  };
+  return computeOrderTotals(cart);
 };
 
 export const getIncompleteOrders = async ({ cart } = {}) => {

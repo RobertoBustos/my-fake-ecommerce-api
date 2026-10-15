@@ -2,7 +2,6 @@ import {
   getCart,
   getCartWithoutOrder,
   getIncompleteOrders,
-  getOrderTotals,
   getOrders,
   getProducts,
   searchPayment,
@@ -42,15 +41,13 @@ const resolvers = {
       orderService.createOrderPayment(input),
   },
   CartItem: {
-    product: async (parent) => {
-      const product = await getProducts({ id: parent.productId });
-      return product[0];
+    product: async (parent, _args, context) => {
+      return context.loaders.products.load(parent.productId);
     },
   },
   Order: {
-    totals: async (parent) => {
-      const totals = await getOrderTotals(parent.id);
-      return totals;
+    totals: async (parent, _args, context) => {
+      return context.loaders.orderTotals.load(parent.id);
     },
     details: async (parent) => {
       const cart = await getCart({ orderId: parent.id });
