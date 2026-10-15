@@ -1,6 +1,7 @@
 import stripeClient from "../config/stripe.js";
 import env from "../config/env.js";
 import { markOrderComplete } from "../db/index.js";
+import { markEventProcessed } from "../db/webhookEvents.js";
 
 // H11: el pago solo se confirmaba del lado del cliente (el cliente avisaba
 // "ya pagué"). Ahora la orden solo pasa a COMPLETE cuando Stripe confirma el
@@ -16,6 +17,14 @@ export const handleStripeWebhook = async (req, res) => {
     );
   } catch (err) {
     res.status(400).send(`Webhook signature verification failed: ${err.message}`);
+    return;
+  }
+
+  // Stripe entrega "al menos una vez": si ya procesamos este event.id antes
+  // (reintento), respondemos 200 sin repetir el efecto secundario.
+  const alreadyProcessed = await markEventProcessed(event.id);
+  if (alreadyProcessed) {
+    res.status(200).json({ received: true, duplicate: true });
     return;
   }
 
