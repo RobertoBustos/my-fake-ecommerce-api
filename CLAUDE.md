@@ -26,3 +26,19 @@
 - **Sin menciones a Claude.** No incluyas líneas de atribución a Claude/Claude Code
   (`Co-Authored-By`, `Generated with...`, enlaces de sesión, etc.) en commits ni en
   el título o descripción del PR.
+
+## Flujo de trabajo con Claude
+- **Default:** Claude escribe y verifica el código localmente (lint + test tal
+  cual corre CI), pero **no** hace `git add`/`commit`/`push`/`gh pr create` ni
+  mergea — eso lo controla el usuario. Claude entrega el código ya listo más los
+  comandos exactos para que el usuario los corra.
+- Esto cambia solo si el usuario pide explícitamente que Claude trabaje de forma
+  autónoma hasta cierto punto (p. ej. "pushea la rama", "abre el PR", "haz todo
+  el flujo hasta que quede en revisión") — y aplica solo a esa tarea puntual, no
+  cambia el default para las siguientes.
+- Las reglas de Jira Automation ligadas a GitHub (branch creada → En Curso, PR
+  creado → En revision, PR mergeado → Completado, cascada de épicas) están
+  **desactivadas** (se acercaban al límite de ejecuciones del plan gratuito).
+  Claude transiciona los issues de Jira directamente por API en los momentos
+  equivalentes — esto sí lo hace siempre, sin pedir permiso, porque no es una
+  acción sobre el repositorio.
