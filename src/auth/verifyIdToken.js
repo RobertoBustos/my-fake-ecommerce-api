@@ -1,8 +1,13 @@
 import { GraphQLError } from "graphql";
 import { getAuth } from "firebase-admin/auth";
 
+// This is thrown while building the context, before the operation runs, and
+// Apollo answers those errors with a 500 unless extensions.http says
+// otherwise. Apollo strips `http` from the response body.
 const unauthenticated = (message) =>
-  new GraphQLError(message, { extensions: { code: "UNAUTHENTICATED" } });
+  new GraphQLError(message, {
+    extensions: { code: "UNAUTHENTICATED", http: { status: 401 } },
+  });
 
 export const verifyIdToken = async (authorizationHeader) => {
   const token = authorizationHeader?.startsWith("Bearer ")
