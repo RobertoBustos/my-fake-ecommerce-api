@@ -21,3 +21,9 @@ export const markEventProcessed = async (eventId) => {
     throw err;
   }
 };
+
+// Undoes markEventProcessed when handling the event failed, so Stripe's retry
+// processes it again instead of being skipped as a duplicate.
+export const unmarkEventProcessed = async (eventId) => {
+  await db.collection(COLLECTION).doc(eventId).delete();
+};

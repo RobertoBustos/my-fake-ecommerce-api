@@ -1,7 +1,8 @@
 import stripeClient from "../config/stripe.js";
 import env from "../config/env.js";
 import { markOrderComplete } from "../db/index.js";
-import { markEventProcessed } from "../db/webhookEvents.js";
+import { markEventProcessed, unmarkEventProcessed } from "../db/webhookEvents.js";
+import { logger } from "../utils/logger.js";
 
 // H11: payment used to be confirmed only client-side (the client claimed
 // "I already paid"). Now the order only moves to COMPLETE when Stripe
@@ -28,11 +29,25 @@ export const handleStripeWebhook = async (req, res) => {
     return;
   }
 
-  if (event.type === "payment_intent.succeeded") {
-    const orderId = event.data.object.metadata?.order_id;
-    if (orderId) {
-      await markOrderComplete(orderId);
+  try {
+    if (event.type === "payment_intent.succeeded") {
+      const orderId = event.data.object.metadata?.order_id;
+      if (orderId) {
+        await markOrderComplete(orderId);
+      }
     }
+  } catch (err) {
+    // The event was already marked as processed above; without undoing it,
+    // Stripe's retry would be skipped as a duplicate and the order would
+    // never be completed. Reprocessing is safe: markOrderComplete only sets
+    // the status. Rethrowing makes the endpoint answer 500, so Stripe retries.
+    await unmarkEventProcessed(event.id).catch((unmarkErr) => {
+      logger.error("Could not unmark webhook event; Stripe's retry will be skipped", {
+        eventId: event.id,
+        error: unmarkErr.message,
+      });
+    });
+    throw err;
   }
 
   res.status(200).json({ received: true });

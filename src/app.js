@@ -5,6 +5,7 @@ import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import { createContext } from "./context.js";
+import { asyncHandler } from "./middleware/asyncHandler.js";
 import { requestId } from "./middleware/requestId.js";
 import { validationRules } from "./schema/depthLimit.js";
 import { errorLoggingPlugin } from "./schema/errorLogging.js";
@@ -47,7 +48,7 @@ export const createApp = async () => {
   app.post(
     "/webhooks/stripe",
     express.raw({ type: "application/json" }),
-    handleStripeWebhook
+    asyncHandler(handleStripeWebhook)
   );
 
   app.use(
