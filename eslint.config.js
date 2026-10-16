@@ -17,7 +17,9 @@ export default [
       },
     },
     rules: {
-      // warn, no error: ya tienen tarea asignada (H8/H14 en ECOMAPI-13/15/19).
+      // Warnings, not errors, so they don't block CI. The only ones left are
+      // two no-useless-assignment hits in src/utils/orderTotals.js, which the
+      // dead-code cleanup in the backlog will remove.
       "no-unused-vars": "warn",
       "no-useless-assignment": "warn",
       "no-constant-binary-expression": "warn",
