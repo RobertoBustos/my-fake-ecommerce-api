@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-10-16
+
+### Fixed
+
+- The health check moved from `/healthz` to `/healthcheck`. Cloud Run reserves
+  some paths ending in `z` and answered `/healthz` with its own 404, so the
+  check was unreachable in production and the deploy smoke test failed.
+
 ## [1.0.0] - 2026-10-16
 
 Sprint 2 (days 6-10): authentication, Stripe payments confirmed by webhook,
@@ -75,6 +83,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.0.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v0.1.1...v1.0.0
 [0.1.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/releases/tag/v0.1.0

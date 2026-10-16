@@ -59,7 +59,7 @@ describe("JSON logs with a request ID (ECOMAPI-40)", () => {
     const created = await createApp();
     httpServer = created.httpServer;
 
-    const response = await request(created.app).get("/healthz");
+    const response = await request(created.app).get("/healthcheck");
 
     expect(response.headers["x-request-id"]).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -71,7 +71,7 @@ describe("JSON logs with a request ID (ECOMAPI-40)", () => {
     httpServer = created.httpServer;
 
     const response = await request(created.app)
-      .get("/healthz")
+      .get("/healthcheck")
       .set("X-Request-Id", "bad id; {\"severity\":\"INFO\"}");
 
     expect(response.headers["x-request-id"]).not.toContain("bad id");

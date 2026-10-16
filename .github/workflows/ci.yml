@@ -64,10 +64,10 @@ jobs:
       # The container needs a moment to boot; poll instead of a fixed sleep.
       - run: |
           for i in $(seq 1 10); do
-            if curl -sf http://localhost:8080/healthz; then exit 0; fi
+            if curl -sf http://localhost:8080/healthcheck; then exit 0; fi
             sleep 2
           done
-          echo "::error::/healthz never became healthy" >&2
+          echo "::error::/healthcheck never became healthy" >&2
           exit 1
       - if: always()
         run: docker logs api-ci
