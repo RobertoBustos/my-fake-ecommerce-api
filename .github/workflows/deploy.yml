@@ -51,18 +51,32 @@ jobs:
             STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest
           flags: --allow-unauthenticated --service-account=${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
 
+      # Hosting rewrites every path to the Cloud Run service, so it must deploy after it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # --legacy-peer-deps: works around an npm 11 bug with the eslint/vitest peer deps.
+      - run: npm ci --legacy-peer-deps
+      - name: Deploy Firebase Hosting
+        run: npx firebase deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
+
       # A new revision can take a few seconds to start serving; poll instead of a fixed sleep.
       - name: Smoke test
         run: |
-          url="${{ steps.deploy.outputs.url }}/healthz"
-          for i in $(seq 1 10); do
-            status=$(curl -s -o /dev/null -w "%{http_code}" "$url")
-            if [ "$status" = "200" ]; then
-              echo "$url returned 200"
-              exit 0
-            fi
-            echo "Attempt $i: $url returned $status"
-            sleep 3
-          done
-          echo "::error::$url never returned 200" >&2
-          exit 1
+          check() {
+            url="$1/healthz"
+            for i in $(seq 1 10); do
+              status=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+              if [ "$status" = "200" ]; then
+                echo "$url returned 200"
+                return 0
+              fi
+              echo "Attempt $i: $url returned $status"
+              sleep 3
+            done
+            echo "::error::$url never returned 200" >&2
+            return 1
+          }
+          check "${{ steps.deploy.outputs.url }}"
+          check "https://${{ vars.GCP_PROJECT_ID }}.web.app"

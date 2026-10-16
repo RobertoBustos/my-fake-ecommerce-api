@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "demo-ecommerce-api"
+    "default": "demo-ecommerce-api",
+    "prod": "my-fake-ecommerce-150b2"
   }
 }
