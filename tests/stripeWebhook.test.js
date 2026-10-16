@@ -6,10 +6,11 @@ import { createApp } from "../src/app.js";
 const WEBHOOK_SECRET = "whsec_test_secret";
 process.env.STRIPE_WEBHOOK_SECRET = WEBHOOK_SECRET;
 
-// supertest/superagent re-serializan un Buffer como JSON {type:"Buffer",data:[...]}
-// en vez de mandarlo crudo cuando el Content-Type declarado es application/json,
-// lo cual rompe la verificación de firma. Para este endpoint (que necesita los
-// bytes exactos del body) usamos fetch nativo contra un puerto real.
+// supertest/superagent re-serialize a Buffer as JSON {type:"Buffer",data:[...]}
+// instead of sending it raw when the declared Content-Type is
+// application/json, which breaks signature verification. For this endpoint
+// (which needs the exact raw bytes of the body) we use native fetch
+// against a real port.
 const postWebhook = async (app, { body, signature }) => {
   const server = app.listen(0);
   try {
@@ -29,7 +30,7 @@ const postWebhook = async (app, { body, signature }) => {
   }
 };
 
-describe("Webhook de Stripe con firma (H11)", () => {
+describe("Stripe webhook with signature (H11)", () => {
   let orderId;
 
   afterAll(async () => {
@@ -38,7 +39,7 @@ describe("Webhook de Stripe con firma (H11)", () => {
     }
   });
 
-  it("un evento firmado válido deja la orden en COMPLETE", async () => {
+  it("a validly signed event leaves the order in COMPLETE", async () => {
     const docRef = db.collection("orders").doc();
     orderId = docRef.id;
     await docRef.set({
@@ -69,7 +70,7 @@ describe("Webhook de Stripe con firma (H11)", () => {
     expect(updated.data().status).toBe("COMPLETE");
   });
 
-  it("una firma inválida regresa 400", async () => {
+  it("an invalid signature returns 400", async () => {
     const payload = JSON.stringify({
       id: "evt_test_2",
       type: "payment_intent.succeeded",

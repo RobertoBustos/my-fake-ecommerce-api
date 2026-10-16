@@ -4,20 +4,20 @@ import { paginate } from "../src/utils/pagination.js";
 const items = [{ id: "1" }, { id: "2" }, { id: "3" }];
 
 describe("paginate (H9)", () => {
-  it("regresa todo en un solo edge si no se manda first", () => {
+  it("returns everything as a single page when first is omitted", () => {
     const { edges, pageInfo } = paginate(items);
     expect(edges.map((e) => e.node.id)).toEqual(["1", "2", "3"]);
     expect(pageInfo.hasNextPage).toBe(false);
   });
 
-  it("limita el tamaño de página con first", () => {
+  it("limits the page size with first", () => {
     const { edges, pageInfo } = paginate(items, { first: 2 });
     expect(edges.map((e) => e.node.id)).toEqual(["1", "2"]);
     expect(pageInfo.hasNextPage).toBe(true);
     expect(pageInfo.endCursor).toBeTruthy();
   });
 
-  it("continúa después del cursor recibido", () => {
+  it("continues after the received cursor", () => {
     const firstPage = paginate(items, { first: 2 });
     const secondPage = paginate(items, {
       first: 2,

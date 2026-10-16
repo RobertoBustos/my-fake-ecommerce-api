@@ -16,8 +16,8 @@ export const getProducts = async ({ id, category } = {}) => {
   return snapshot.docs.map(toProduct);
 };
 
-// Una sola llamada a Firestore para N ids (vs. N llamadas de getProducts), la
-// usa el DataLoader de productos para evitar el problema N+1 (H10).
+// A single Firestore call for N ids (vs. N getProducts calls), used by the
+// product DataLoader to avoid the N+1 problem (H10).
 export const getProductsByIds = async (ids) => {
   if (ids.length === 0) {
     return [];

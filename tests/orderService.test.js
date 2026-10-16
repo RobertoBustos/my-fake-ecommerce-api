@@ -58,7 +58,7 @@ describe("orderService.createOrder", () => {
     createOrderValidatorMock.mockReturnValue(true);
   });
 
-  it("rechaza un input inválido", async () => {
+  it("rejects an invalid input", async () => {
     createOrderValidatorMock.mockReturnValue(false);
 
     await expect(createOrder({ cartId: "x" })).rejects.toMatchObject({
@@ -67,7 +67,7 @@ describe("orderService.createOrder", () => {
     expect(getCartMock).not.toHaveBeenCalled();
   });
 
-  it("falla si el carrito no existe", async () => {
+  it("fails when the cart doesn't exist", async () => {
     getCartMock.mockResolvedValue([]);
 
     await expect(
@@ -77,7 +77,7 @@ describe("orderService.createOrder", () => {
     });
   });
 
-  it("crea la orden y vincula los items del carrito", async () => {
+  it("creates the order and links the cart items", async () => {
     getCartMock.mockResolvedValue([{ id: "item-1" }]);
     const order = { id: "order-1", status: "INCOMPLETE" };
     createOrderDbMock.mockResolvedValue(order);
@@ -104,7 +104,7 @@ describe("orderService.updateOrder", () => {
     updateOrderValidatorMock.mockReturnValue(true);
   });
 
-  it("rechaza un input inválido", async () => {
+  it("rejects an invalid input", async () => {
     updateOrderValidatorMock.mockReturnValue(false);
 
     await expect(updateOrder({ id: "x" })).rejects.toMatchObject({
@@ -113,7 +113,7 @@ describe("orderService.updateOrder", () => {
     expect(getOrdersMock).not.toHaveBeenCalled();
   });
 
-  it("falla si la orden no existe", async () => {
+  it("fails when the order doesn't exist", async () => {
     getOrdersMock.mockResolvedValue([]);
 
     await expect(updateOrder({ id: "missing" })).rejects.toMatchObject({
@@ -121,7 +121,7 @@ describe("orderService.updateOrder", () => {
     });
   });
 
-  it("reporta el fallo cuando la actualización no se pudo aplicar", async () => {
+  it("reports failure when the update couldn't be applied", async () => {
     getOrdersMock.mockResolvedValue([{ id: "order-1" }]);
     updateOrderDbMock.mockResolvedValue(null);
 
@@ -135,7 +135,7 @@ describe("orderService.updateOrder", () => {
     });
   });
 
-  it("actualiza la orden en el camino feliz", async () => {
+  it("updates the order on the happy path", async () => {
     getOrdersMock.mockResolvedValue([{ id: "order-1" }]);
     const updated = { id: "order-1", status: "PAYMENT_PENDING" };
     updateOrderDbMock.mockResolvedValue(updated);
@@ -157,7 +157,7 @@ describe("orderService.cancelOrder", () => {
     cancelOrderValidatorMock.mockReturnValue(true);
   });
 
-  it("rechaza un input inválido", async () => {
+  it("rejects an invalid input", async () => {
     cancelOrderValidatorMock.mockReturnValue(false);
 
     await expect(cancelOrder({ id: "x" })).rejects.toMatchObject({
@@ -166,7 +166,7 @@ describe("orderService.cancelOrder", () => {
     expect(cancelOrderDbMock).not.toHaveBeenCalled();
   });
 
-  it("reporta éxito cuando la orden se cancela", async () => {
+  it("reports success when the order is cancelled", async () => {
     cancelOrderDbMock.mockResolvedValue(true);
 
     const result = await cancelOrder({ id: "order-1" });
@@ -178,7 +178,7 @@ describe("orderService.cancelOrder", () => {
     });
   });
 
-  it("reporta el fallo cuando la cancelación no se pudo aplicar", async () => {
+  it("reports failure when the cancellation couldn't be applied", async () => {
     cancelOrderDbMock.mockResolvedValue(false);
 
     const result = await cancelOrder({ id: "order-1" });
@@ -197,7 +197,7 @@ describe("orderService.createOrderPayment", () => {
     createOrderPaymentValidatorMock.mockReturnValue(true);
   });
 
-  it("rechaza un input inválido", async () => {
+  it("rejects an invalid input", async () => {
     createOrderPaymentValidatorMock.mockReturnValue(false);
 
     await expect(createOrderPayment({ orderId: "x" })).rejects.toMatchObject({
@@ -206,7 +206,7 @@ describe("orderService.createOrderPayment", () => {
     expect(getOrdersMock).not.toHaveBeenCalled();
   });
 
-  it("falla si la orden no existe", async () => {
+  it("fails when the order doesn't exist", async () => {
     getOrdersMock.mockResolvedValue([]);
 
     await expect(
@@ -216,7 +216,7 @@ describe("orderService.createOrderPayment", () => {
     });
   });
 
-  it("falla si la orden no tiene datos de cliente", async () => {
+  it("fails when the order has no customer information", async () => {
     getOrdersMock.mockResolvedValue([{ id: "order-1", customer: null }]);
 
     await expect(
@@ -226,7 +226,7 @@ describe("orderService.createOrderPayment", () => {
     });
   });
 
-  it("crea el pago en el camino feliz", async () => {
+  it("creates the payment on the happy path", async () => {
     getOrdersMock.mockResolvedValue([
       { id: "order-1", customer: { id: "cus-1" } },
     ]);

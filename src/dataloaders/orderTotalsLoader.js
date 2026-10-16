@@ -2,8 +2,9 @@ import DataLoader from "dataloader";
 import { getCartByOrderIds } from "../db/cart.js";
 import { computeOrderTotals } from "../utils/orderTotals.js";
 
-// Instancia nueva por request: agrupa los .load(orderId) del mismo tick en
-// una sola tanda de lecturas de cartItems, en vez de una query por orden.
+// New instance per request: batches the .load(orderId) calls made in the
+// same tick into a single round of cartItems reads, instead of one query
+// per order.
 export const createOrderTotalsLoader = () =>
   new DataLoader(async (orderIds) => {
     const cartItems = await getCartByOrderIds(orderIds);

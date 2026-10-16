@@ -7,9 +7,9 @@ import { createApp } from "../src/app.js";
 const WEBHOOK_SECRET = "whsec_test_secret_idempotency";
 process.env.STRIPE_WEBHOOK_SECRET = WEBHOOK_SECRET;
 
-// Mismo motivo que en stripeWebhook.test.js: supertest/superagent corrompe
-// un Buffer con Content-Type application/json, así que usamos fetch nativo
-// contra un puerto real para preservar los bytes exactos del body firmado.
+// Same reason as in stripeWebhook.test.js: supertest/superagent corrupts a
+// Buffer with Content-Type application/json, so we use native fetch
+// against a real port to preserve the exact bytes of the signed body.
 const postWebhook = async (app, { body, signature }) => {
   const server = app.listen(0);
   try {
@@ -26,7 +26,7 @@ const postWebhook = async (app, { body, signature }) => {
   }
 };
 
-describe("Idempotencia de eventos de webhook", () => {
+describe("Webhook event idempotency", () => {
   let orderId;
   let eventId;
 
@@ -39,7 +39,7 @@ describe("Idempotencia de eventos de webhook", () => {
     }
   });
 
-  it("el mismo evento entregado dos veces solo aplica el efecto una vez", async () => {
+  it("the same event delivered twice only applies the effect once", async () => {
     const docRef = db.collection("orders").doc();
     orderId = docRef.id;
     await docRef.set({
@@ -72,8 +72,8 @@ describe("Idempotencia de eventos de webhook", () => {
     expect(second.status).toBe(200);
     expect(second.body.duplicate).toBe(true);
 
-    // El efecto (completar la orden) solo debió aplicarse una vez, aunque
-    // el mismo evento haya llegado dos veces.
+    // The effect (completing the order) should only have been applied
+    // once, even though the same event arrived twice.
     expect(markOrderCompleteSpy).toHaveBeenCalledTimes(1);
 
     const updated = await docRef.get();

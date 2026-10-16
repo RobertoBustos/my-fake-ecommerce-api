@@ -22,8 +22,8 @@ const resolvers = {
       return paginate(cart, { first, after });
     },
     orders: async (_, { id, cart, status, first, after }, context) => {
-      // H2: un usuario solo ve sus propias órdenes, incluso pidiendo un id
-      // directo que no es suyo.
+      // H2: a user only sees their own orders, even when requesting a
+      // direct id that isn't theirs.
       const orders = await getOrders({ id, cart, status, userId: context.user.uid });
       return paginate(orders, { first, after });
     },

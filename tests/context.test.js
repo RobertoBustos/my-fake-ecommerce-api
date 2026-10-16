@@ -7,7 +7,7 @@ vi.mock("../src/auth/verifyIdToken.js", () => ({
 import { createContext } from "../src/context.js";
 
 describe("createContext", () => {
-  it("arma headers, loaders y user a partir del request", async () => {
+  it("builds headers, loaders and user from the request", async () => {
     const req = { headers: { authorization: "Bearer good-token" } };
     const context = await createContext({ req });
 

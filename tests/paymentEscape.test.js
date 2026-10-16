@@ -18,19 +18,19 @@ vi.mock("../src/config/stripe.js", () => ({
 import { escapeStripeSearchValue, getCustomer } from "../src/db/payment.js";
 
 describe("Stripe search query escaping (H4)", () => {
-  it("escapa la comilla simple antes de construir el query", () => {
+  it("escapes the single quote before building the query", () => {
     expect(escapeStripeSearchValue("o'brien@example.com")).toBe(
       "o\\'brien@example.com"
     );
   });
 
-  it("no toca un email sin comillas", () => {
+  it("doesn't touch an email without quotes", () => {
     expect(escapeStripeSearchValue("normal@example.com")).toBe(
       "normal@example.com"
     );
   });
 
-  it("un email con comilla simple genera una consulta segura hacia Stripe", async () => {
+  it("an email with a single quote produces a safe query to Stripe", async () => {
     await getCustomer({
       email: "o'brien@example.com",
       name: "O'Brien",

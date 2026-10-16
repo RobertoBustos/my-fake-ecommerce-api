@@ -52,7 +52,7 @@ describe("cartService.addToCart", () => {
     getProductsMock.mockResolvedValue([product]);
   });
 
-  it("rechaza un input inválido antes de tocar la base de datos", async () => {
+  it("rejects an invalid input before touching the database", async () => {
     addToCartValidatorMock.mockReturnValue(false);
 
     await expect(addToCart({ productId: "x" })).rejects.toMatchObject({
@@ -61,7 +61,7 @@ describe("cartService.addToCart", () => {
     expect(getProductsMock).not.toHaveBeenCalled();
   });
 
-  it("falla si el producto no existe", async () => {
+  it("fails when the product doesn't exist", async () => {
     getProductsMock.mockResolvedValue([]);
 
     await expect(
@@ -71,7 +71,7 @@ describe("cartService.addToCart", () => {
     });
   });
 
-  it("falla si la cantidad está fuera de los límites de compra", async () => {
+  it("fails when quantity is outside purchase limits", async () => {
     validateCartQuantityMock.mockReturnValue(false);
 
     await expect(
@@ -81,7 +81,7 @@ describe("cartService.addToCart", () => {
     });
   });
 
-  it("traduce InsufficientStockError a un error de usuario", async () => {
+  it("translates InsufficientStockError into a user-facing error", async () => {
     addToCartDbMock.mockRejectedValue(new InsufficientStockErrorStub());
 
     await expect(
@@ -91,7 +91,7 @@ describe("cartService.addToCart", () => {
     });
   });
 
-  it("deja pasar cualquier otro error de la base de datos sin envolver", async () => {
+  it("lets any other database error pass through unwrapped", async () => {
     const dbError = new Error("firestore unavailable");
     addToCartDbMock.mockRejectedValue(dbError);
 
@@ -100,7 +100,7 @@ describe("cartService.addToCart", () => {
     ).rejects.toBe(dbError);
   });
 
-  it("agrega el producto al carrito en el camino feliz", async () => {
+  it("adds the product to the cart on the happy path", async () => {
     const cartItem = { id: "cart-item-1", productId: product.id, quantity: 2 };
     addToCartDbMock.mockResolvedValue(cartItem);
 
@@ -125,7 +125,7 @@ describe("cartService.removeFromCart", () => {
     removeFromCartValidatorMock.mockReturnValue(true);
   });
 
-  it("rechaza un input inválido", async () => {
+  it("rejects an invalid input", async () => {
     removeFromCartValidatorMock.mockReturnValue(false);
 
     await expect(removeFromCart({ id: "bad" })).rejects.toMatchObject({
@@ -134,7 +134,7 @@ describe("cartService.removeFromCart", () => {
     expect(removeFromCartDbMock).not.toHaveBeenCalled();
   });
 
-  it("reporta éxito cuando la base de datos elimina el item", async () => {
+  it("reports success when the database removes the item", async () => {
     removeFromCartDbMock.mockResolvedValue(true);
 
     const result = await removeFromCart({ id: "cart-item-1" });
@@ -146,7 +146,7 @@ describe("cartService.removeFromCart", () => {
     });
   });
 
-  it("reporta el fallo cuando la base de datos no logra eliminar el item", async () => {
+  it("reports failure when the database can't remove the item", async () => {
     removeFromCartDbMock.mockResolvedValue(false);
 
     const result = await removeFromCart({ id: "cart-item-1" });

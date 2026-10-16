@@ -20,8 +20,8 @@ vi.mock("../src/config/stripe.js", () => ({
 
 import { createPayment } from "../src/db/payment.js";
 
-describe("Llave de idempotencia en el PaymentIntent", () => {
-  it("la llamada a Stripe lleva idempotencyKey", async () => {
+describe("Idempotency key on the PaymentIntent", () => {
+  it("the call to Stripe carries idempotencyKey", async () => {
     await createPayment("order-123", 10000, "cus_1");
 
     expect(createMock).toHaveBeenCalledTimes(1);
@@ -29,7 +29,7 @@ describe("Llave de idempotencia en el PaymentIntent", () => {
     expect(options).toMatchObject({ idempotencyKey: "order-order-123-payment-intent" });
   });
 
-  it("la llave es estable para la misma orden (mismos reintentos no crean otro pago)", async () => {
+  it("the key is stable for the same order (retries don't create another payment)", async () => {
     createMock.mockClear();
 
     await createPayment("order-456", 5000, "cus_2");

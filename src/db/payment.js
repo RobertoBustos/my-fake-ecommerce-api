@@ -1,8 +1,8 @@
 import stripeClient from "../config/stripe.js";
 
-// Stripe usa comillas simples para delimitar valores en su lenguaje de
-// búsqueda; un email con comilla simple sin escapar rompe o manipula el
-// query (H4). Stripe espera que las comillas dentro del valor vayan con \.
+// Stripe uses single quotes to delimit values in its search language; an
+// email with an unescaped single quote breaks or manipulates the query
+// (H4). Stripe expects quotes inside the value to be escaped with \.
 export const escapeStripeSearchValue = (value) => value.replace(/'/g, "\\'");
 
 export const getCustomer = async (input) => {
@@ -38,9 +38,9 @@ export const createPayment = async (orderId, amount, customerId) => {
   const response = await searchPayment("order", orderId);
   let paymentIntent;
   if (!response || response === null) {
-    // Llave estable por orden: si la llamada se reintenta (timeout, retry del
-    // cliente, etc.), Stripe regresa el mismo PaymentIntent en vez de crear
-    // uno nuevo.
+    // Stable key per order: if the call is retried (timeout, client retry,
+    // etc.), Stripe returns the same PaymentIntent instead of creating a
+    // new one.
     paymentIntent = await stripeClient.paymentIntents.create(
       {
         currency: "MXN",

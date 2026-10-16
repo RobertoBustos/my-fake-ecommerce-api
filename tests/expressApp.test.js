@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import request from "supertest";
 
-// El context real exige un Firebase ID token válido (ECOMAPI-24); para esta
-// prueba de humo solo nos interesa que el enrutado de Express/Apollo
-// funcione, no la verificación real de Firebase.
+// The real context requires a valid Firebase ID token (ECOMAPI-24); for
+// this smoke test we only care that the Express/Apollo routing works,
+// not the real Firebase verification.
 vi.mock("../src/auth/verifyIdToken.js", () => ({
   verifyIdToken: vi.fn().mockResolvedValue({ uid: "smoke-test-user" }),
 }));
@@ -17,7 +17,7 @@ describe("Express app (ECOMAPI-29)", () => {
     httpServer?.close();
   });
 
-  it("GET /healthz responde 200", async () => {
+  it("GET /healthz responds with 200", async () => {
     const created = await createApp();
     httpServer = created.httpServer;
 
@@ -26,7 +26,7 @@ describe("Express app (ECOMAPI-29)", () => {
     expect(response.status).toBe(200);
   });
 
-  it("POST /graphql responde 200", async () => {
+  it("POST /graphql responds with 200", async () => {
     const created = await createApp();
     httpServer = created.httpServer;
 

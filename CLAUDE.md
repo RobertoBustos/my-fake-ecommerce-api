@@ -8,8 +8,12 @@
 ## Mensajes de commit y de PR
 - **En inglés.** Cualquier texto que termine en GitHub —mensajes de commit (lo que
   viaja con el `push`), título y descripción del PR, nombre de la rama, tags, notas
-  de release— va en inglés, aunque el resto de la conversación sea en español. La
-  clave de Jira al inicio se mantiene igual (`ECOMAPI-<n>: ...`).
+  de release, **comentarios de código (`//`, `/* */`) y nombres de test
+  (`describe`/`it`/`test`)**— va en inglés, aunque el resto de la conversación sea
+  en español. La clave de Jira al inicio se mantiene igual (`ECOMAPI-<n>: ...`).
+  - Esto es obligatorio desde ECOMAPI-47 (detectado a medio Sprint 2: varios
+    comentarios y nombres de test habían quedado en español). No es opcional ni
+    depende de que el usuario lo recuerde en cada tarea.
   - Rama: `ECOMAPI-<n>-<slug-corto-en-inglés>`, por ejemplo
     `ECOMAPI-13-updateorder-omitted-fields`. No afecta a GitHub for Jira ni a las
     reglas de Automation: solo les importa que la clave `ECOMAPI-<n>` esté en el

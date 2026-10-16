@@ -4,7 +4,7 @@ import typeDefs from "../src/schema/typeDefs/index.js";
 import resolvers from "../src/schema/resolvers.js";
 
 describe("addToCart mutation (H5)", () => {
-  it("regresa BAD_USER_INPUT si la cantidad excede purchaseLimits", async () => {
+  it("returns BAD_USER_INPUT when quantity exceeds purchaseLimits", async () => {
     const server = new ApolloServer({ typeDefs, resolvers });
 
     const response = await server.executeOperation({
