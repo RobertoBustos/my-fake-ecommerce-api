@@ -1,5 +1,6 @@
 import { GraphQLError } from "graphql";
 import { getAuth } from "firebase-admin/auth";
+import { firebaseApp } from "../config/firestore.js";
 
 // This is thrown while building the context, before the operation runs, and
 // Apollo answers those errors with a 500 unless extensions.http says
@@ -17,7 +18,7 @@ export const verifyIdToken = async (authorizationHeader) => {
     throw unauthenticated("Missing Firebase ID token");
   }
   try {
-    return await getAuth().verifyIdToken(token);
+    return await getAuth(firebaseApp).verifyIdToken(token);
   } catch {
     throw unauthenticated("Invalid Firebase ID token");
   }
