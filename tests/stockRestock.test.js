@@ -36,7 +36,7 @@ const orderWithItems = async (lines, { paymentId = null } = {}) => {
   const cartId = `cart-restock-${randomUUID()}`;
   created.carts.push(cartId);
   for (const { product, quantity } of lines) {
-    await addToCart(product, { cartId, productId: product.id, quantity });
+    await addToCart(product, { cartId, productId: product.id, quantity }, "user-restock");
   }
   const order = await createOrder({ cartId }, "user-restock");
   created.orders.push(order.id);
@@ -65,10 +65,14 @@ describe("removeFromCart restock", () => {
     const product = await newProduct();
     const cartId = `cart-restock-${randomUUID()}`;
     created.carts.push(cartId);
-    const item = await addToCart(product, { cartId, productId: product.id, quantity: 3 });
+    const item = await addToCart(
+      product,
+      { cartId, productId: product.id, quantity: 3 },
+      "user-restock"
+    );
     expect(await stockOf(product.id)).toBe(STOCK - 3);
 
-    const result = await removeFromCart({ id: item.id });
+    const result = await removeFromCart({ id: item.id }, "user-restock");
 
     expect(result).toBe(true);
     expect(await stockOf(product.id)).toBe(STOCK);
@@ -76,7 +80,7 @@ describe("removeFromCart restock", () => {
   });
 
   it("returns false for an unknown item without touching stock", async () => {
-    expect(await removeFromCart({ id: `missing-${randomUUID()}` })).toBe(false);
+    expect(await removeFromCart({ id: `missing-${randomUUID()}` }, "user-restock")).toBe(false);
   });
 });
 

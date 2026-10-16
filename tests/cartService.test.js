@@ -8,9 +8,14 @@ const {
   removeFromCartValidatorMock,
   validateCartQuantityMock,
   InsufficientStockErrorStub,
+  CartNotOwnedErrorStub,
+  getOrdersMock,
 } = vi.hoisted(() => {
   class InsufficientStockErrorStub extends Error {}
+  class CartNotOwnedErrorStub extends Error {}
   return {
+    CartNotOwnedErrorStub,
+    getOrdersMock: vi.fn(),
     addToCartDbMock: vi.fn(),
     getProductsMock: vi.fn(),
     removeFromCartDbMock: vi.fn(),
@@ -23,6 +28,8 @@ const {
 
 vi.mock("../src/db/index.js", () => ({
   addToCart: addToCartDbMock,
+  CartNotOwnedError: CartNotOwnedErrorStub,
+  getOrders: getOrdersMock,
   getProducts: getProductsMock,
   removeFromCart: removeFromCartDbMock,
   InsufficientStockError: InsufficientStockErrorStub,
@@ -91,6 +98,28 @@ describe("cartService.addToCart", () => {
     });
   });
 
+  it("answers NOT_FOUND when the cart belongs to another user", async () => {
+    addToCartDbMock.mockRejectedValue(new CartNotOwnedErrorStub());
+
+    await expect(
+      addToCart({ productId: product.id, quantity: 1, cartId: "cart-a" }, "user-b")
+    ).rejects.toMatchObject({
+      extensions: { code: "NOT_FOUND", invalidArgument: "cartId" },
+    });
+  });
+
+  it("answers NOT_FOUND when the orderId belongs to another user", async () => {
+    getOrdersMock.mockResolvedValue([]);
+
+    await expect(
+      addToCart({ productId: product.id, quantity: 1, orderId: "order-a" }, "user-b")
+    ).rejects.toMatchObject({
+      extensions: { code: "NOT_FOUND", invalidArgument: "orderId" },
+    });
+    expect(getOrdersMock).toHaveBeenCalledWith({ id: "order-a", userId: "user-b" });
+    expect(addToCartDbMock).not.toHaveBeenCalled();
+  });
+
   it("lets any other database error pass through unwrapped", async () => {
     const dbError = new Error("firestore unavailable");
     addToCartDbMock.mockRejectedValue(dbError);
@@ -104,12 +133,13 @@ describe("cartService.addToCart", () => {
     const cartItem = { id: "cart-item-1", productId: product.id, quantity: 2 };
     addToCartDbMock.mockResolvedValue(cartItem);
 
-    const result = await addToCart({ productId: product.id, quantity: 2 });
+    const result = await addToCart({ productId: product.id, quantity: 2 }, "user-1");
 
-    expect(addToCartDbMock).toHaveBeenCalledWith(product, {
-      productId: product.id,
-      quantity: 2,
-    });
+    expect(addToCartDbMock).toHaveBeenCalledWith(
+      product,
+      { productId: product.id, quantity: 2 },
+      "user-1"
+    );
     expect(result).toEqual({
       code: 200,
       success: true,
@@ -146,15 +176,12 @@ describe("cartService.removeFromCart", () => {
     });
   });
 
-  it("reports failure when the database can't remove the item", async () => {
+  it("answers NOT_FOUND when the item is missing or belongs to someone else", async () => {
     removeFromCartDbMock.mockResolvedValue(false);
 
-    const result = await removeFromCart({ id: "cart-item-1" });
-
-    expect(result).toEqual({
-      code: 200,
-      success: false,
-      message: "There was an error removing the item",
+    await expect(removeFromCart({ id: "cart-item-1" }, "user-b")).rejects.toMatchObject({
+      extensions: { code: "NOT_FOUND", invalidArgument: "id" },
     });
+    expect(removeFromCartDbMock).toHaveBeenCalledWith({ id: "cart-item-1" }, "user-b");
   });
 });
