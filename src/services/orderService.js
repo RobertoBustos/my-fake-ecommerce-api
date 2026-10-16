@@ -30,7 +30,8 @@ export const createOrder = async (input, userId) => {
     );
   }
   const cart = await getCart({ cartId: input.cartId });
-  if (!cart || cart.length === 0) {
+  // Someone else's cart looks exactly like a missing one (H2).
+  if (!cart || cart.length === 0 || cart.some((item) => item.userId !== userId)) {
     throw new GraphQLError("Cart not found", {
       extensions: {
         code: "NOT_FOUND",
@@ -48,7 +49,7 @@ export const createOrder = async (input, userId) => {
   };
 };
 
-export const updateOrder = async (input) => {
+export const updateOrder = async (input, userId) => {
   if (!updateOrderValidator(input)) {
     throw new GraphQLError(
       "One or more parameters sent have an invalid value",
@@ -59,7 +60,7 @@ export const updateOrder = async (input) => {
       }
     );
   }
-  const order = await getOrders({ id: input.id });
+  const order = await getOrders({ id: input.id, userId });
   if (!order || order.length === 0) {
     throw new GraphQLError("Order not found", {
       extensions: {
@@ -85,7 +86,7 @@ export const updateOrder = async (input) => {
   };
 };
 
-export const cancelOrder = async (input) => {
+export const cancelOrder = async (input, userId) => {
   if (!cancelOrderValidator(input)) {
     throw new GraphQLError(
       "One or more parameters sent have an invalid value",
@@ -95,6 +96,15 @@ export const cancelOrder = async (input) => {
         },
       }
     );
+  }
+  const order = await getOrders({ id: input.id, userId });
+  if (order.length === 0) {
+    throw new GraphQLError("Order not found", {
+      extensions: {
+        code: "NOT_FOUND",
+        invalidArgument: "id",
+      },
+    });
   }
   let result;
   try {
@@ -119,7 +129,7 @@ export const cancelOrder = async (input) => {
   };
 };
 
-export const createOrderPayment = async (input) => {
+export const createOrderPayment = async (input, userId) => {
   if (!createOrderPaymentValidator(input)) {
     throw new GraphQLError(
       "One or more parameters sent have an invalid value",
@@ -130,7 +140,7 @@ export const createOrderPayment = async (input) => {
       }
     );
   }
-  const order = await getOrders({ id: input.orderId });
+  const order = await getOrders({ id: input.orderId, userId });
   if (!order || order.length === 0) {
     throw new GraphQLError("Order not found", {
       extensions: {

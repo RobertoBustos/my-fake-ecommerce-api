@@ -81,7 +81,7 @@ describe("orderService.createOrder", () => {
   });
 
   it("creates the order and links the cart items", async () => {
-    getCartMock.mockResolvedValue([{ id: "item-1" }]);
+    getCartMock.mockResolvedValue([{ id: "item-1", userId: "user-1" }]);
     const order = { id: "order-1", status: "INCOMPLETE" };
     createOrderDbMock.mockResolvedValue(order);
 

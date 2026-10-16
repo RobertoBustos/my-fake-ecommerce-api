@@ -1,5 +1,6 @@
 import {
   addToCart,
+  CartNotOwnedError,
   getCart,
   getCartWithoutOrder,
   InsufficientStockError,
@@ -28,6 +29,7 @@ import { getProducts } from "./products.js";
 
 export {
   addToCart,
+  CartNotOwnedError,
   cancelOrder,
   cancelPayment,
   createOrder,

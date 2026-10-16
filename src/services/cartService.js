@@ -1,6 +1,8 @@
 import { GraphQLError } from "graphql";
 import {
   addToCart as addToCartDb,
+  CartNotOwnedError,
+  getOrders,
   getProducts,
   InsufficientStockError,
   removeFromCart as removeFromCartDb,
@@ -11,7 +13,9 @@ import {
   validateCartQuantity,
 } from "../schema/validators/index.js";
 
-export const addToCart = async (input) => {
+// Every write takes the authenticated user's uid and only touches what that
+// user owns; anything else answers NOT_FOUND, as if it didn't exist (H2).
+export const addToCart = async (input, userId) => {
   if (!addToCartValidator(input)) {
     throw new GraphQLError(
       "One or more parameters sent have an invalid value",
@@ -45,10 +49,29 @@ export const addToCart = async (input) => {
       }
     );
   }
+  if (input.orderId != null) {
+    const order = await getOrders({ id: input.orderId, userId });
+    if (order.length === 0) {
+      throw new GraphQLError("Order not found", {
+        extensions: {
+          code: "NOT_FOUND",
+          invalidArgument: "orderId",
+        },
+      });
+    }
+  }
   let cartItem;
   try {
-    cartItem = await addToCartDb(product[0], input);
+    cartItem = await addToCartDb(product[0], input, userId);
   } catch (err) {
+    if (err instanceof CartNotOwnedError) {
+      throw new GraphQLError("Cart not found", {
+        extensions: {
+          code: "NOT_FOUND",
+          invalidArgument: "cartId",
+        },
+      });
+    }
     if (err instanceof InsufficientStockError) {
       throw new GraphQLError("Not enough stock available for this quantity", {
         extensions: {
@@ -67,7 +90,7 @@ export const addToCart = async (input) => {
   };
 };
 
-export const removeFromCart = async (input) => {
+export const removeFromCart = async (input, userId) => {
   if (!removeFromCartValidator(input)) {
     throw new GraphQLError(
       "One or more parameters sent have an invalid value",
@@ -78,12 +101,18 @@ export const removeFromCart = async (input) => {
       }
     );
   }
-  const result = await removeFromCartDb(input);
+  const removed = await removeFromCartDb(input, userId);
+  if (!removed) {
+    throw new GraphQLError("Cart item not found", {
+      extensions: {
+        code: "NOT_FOUND",
+        invalidArgument: "id",
+      },
+    });
+  }
   return {
     code: 200,
-    success: result,
-    message: result
-      ? "Item Removed"
-      : "There was an error removing the item",
+    success: true,
+    message: "Item Removed",
   };
 };
