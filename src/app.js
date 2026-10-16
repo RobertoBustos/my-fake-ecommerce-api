@@ -28,6 +28,10 @@ export const createApp = async () => {
     includeStacktraceInErrorResponses: false,
     formatError,
     validationRules,
+    // Apollo's own default, made explicit: the depth limit doesn't count
+    // __schema, so introspection must be off in production (the Dockerfile
+    // sets NODE_ENV=production). Local runs and tests keep it on.
+    introspection: process.env.NODE_ENV !== "production",
     // Recommended by Apollo when integrating with a self-managed
     // http.Server: closes in-flight connections gracefully instead of
     // dropping them.

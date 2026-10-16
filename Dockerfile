@@ -2,6 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Turns off GraphQL introspection and the Sandbox landing page (see src/app.js).
+ENV NODE_ENV=production
+
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --legacy-peer-deps
 
