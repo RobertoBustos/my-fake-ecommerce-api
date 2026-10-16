@@ -75,7 +75,7 @@ jobs:
       - name: Smoke test
         run: |
           check() {
-            url="$1/healthz"
+            url="$1/healthcheck"
             for i in $(seq 1 10); do
               status=$(curl -s -o /dev/null -w "%{http_code}" "$url")
               if [ "$status" = "200" ]; then

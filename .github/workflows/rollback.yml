@@ -69,7 +69,7 @@ jobs:
         run: |
           url=$(gcloud run services describe "$SERVICE" --region "$REGION" --format="value(status.url)")
           check() {
-            url="$1/healthz"
+            url="$1/healthcheck"
             for i in $(seq 1 10); do
               status=$(curl -s -o /dev/null -w "%{http_code}" "$url")
               if [ "$status" = "200" ]; then
