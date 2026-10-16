@@ -1,0 +1,13 @@
+node_modules
+.env
+.env.*
+!.env.example
+.git
+.github
+.vscode
+tests
+scripts
+coverage
+*.md
+*-debug.log
+.firebase

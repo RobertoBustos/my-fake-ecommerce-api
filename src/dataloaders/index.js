@@ -1,8 +1,8 @@
 import { createOrderTotalsLoader } from "./orderTotalsLoader.js";
 import { createProductLoader } from "./productLoader.js";
 
-// Una instancia por request: cachear/batchear entre requests distintos
-// filtraría datos de un cliente a otro.
+// One instance per request: caching/batching across different requests
+// would leak data from one customer into another.
 export const createLoaders = () => ({
   products: createProductLoader(),
   orderTotals: createOrderTotalsLoader(),

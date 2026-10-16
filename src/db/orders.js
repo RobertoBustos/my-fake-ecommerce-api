@@ -6,14 +6,23 @@ import { cancelPayment, getCustomer } from "./payment.js";
 const COLLECTION = "orders";
 const toOrder = (doc) => ({ id: doc.id, ...doc.data() });
 
-export const getOrders = async ({ id, cart, status } = {}) => {
+export const getOrders = async ({ id, cart, status, userId } = {}) => {
   if (id !== undefined) {
     const doc = await db.collection(COLLECTION).doc(id).get();
-    return doc.exists ? [toOrder(doc)] : [];
+    if (!doc.exists) {
+      return [];
+    }
+    const order = toOrder(doc);
+    // H2: a user never sees an order that isn't theirs, not even by direct id.
+    if (userId !== undefined && order.userId !== userId) {
+      return [];
+    }
+    return [order];
   }
   let query = db.collection(COLLECTION);
   if (cart !== undefined) query = query.where("cart", "==", cart);
   if (status !== undefined) query = query.where("status", "==", status);
+  if (userId !== undefined) query = query.where("userId", "==", userId);
   const snapshot = await query.get();
   return snapshot.docs.map(toOrder);
 };
@@ -23,14 +32,14 @@ export const getOrderTotals = async (id) => {
   return computeOrderTotals(cart);
 };
 
-export const getIncompleteOrders = async ({ cart } = {}) => {
-  const orders = await getOrders({ cart });
+export const getIncompleteOrders = async ({ cart, userId } = {}) => {
+  const orders = await getOrders({ cart, userId });
   return orders.filter(
     (order) => order.status !== "COMPLETE" && order.status !== "CANCELLED"
   );
 };
 
-export const createOrder = async (input) => {
+export const createOrder = async (input, userId = null) => {
   const docRef = db.collection(COLLECTION).doc();
   const newOrder = {
     customer: null,
@@ -38,6 +47,7 @@ export const createOrder = async (input) => {
     paymentId: null,
     cart: input.cartId,
     status: "INCOMPLETE",
+    userId,
   };
   await docRef.set(newOrder);
   return { id: docRef.id, ...newOrder };
@@ -51,8 +61,8 @@ export const updateOrder = async (input) => {
   }
   const existingOrder = toOrder(doc);
   const updates = {};
-  // != null / == null (no !==/===) a propósito: GraphQL manda un campo
-  // opcional omitido como undefined, no null (H6).
+  // != null / == null (not !==/===) on purpose: GraphQL sends an omitted
+  // optional field as undefined, not null (H6).
   if (input.customer != null) {
     updates.customer = await getCustomer(input.customer);
   }
@@ -61,8 +71,10 @@ export const updateOrder = async (input) => {
   }
   const resultingCustomer = updates.customer ?? existingOrder.customer;
   const resultingAddress = updates.address ?? existingOrder.address;
+  // The client no longer sends status (H3): the server only derives it once
+  // shipping data is complete, never from a value that arrives in input.
   if (resultingCustomer !== null && resultingAddress !== null) {
-    updates.status = input.status == null ? "PAYMENT_PENDING" : input.status;
+    updates.status = "PAYMENT_PENDING";
   }
   await docRef.update(updates);
   return { ...existingOrder, ...updates };
@@ -94,4 +106,14 @@ export const setOrderPayment = async (orderId, paymentId) => {
 
 export const deleteOrder = async (id) => {
   await db.collection(COLLECTION).doc(id).delete();
+};
+
+export const markOrderComplete = async (id) => {
+  const docRef = db.collection(COLLECTION).doc(id);
+  const doc = await docRef.get();
+  if (!doc.exists) {
+    return false;
+  }
+  await docRef.update({ status: "COMPLETE" });
+  return true;
 };

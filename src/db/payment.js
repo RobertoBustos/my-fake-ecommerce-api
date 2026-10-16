@@ -1,10 +1,15 @@
 import stripeClient from "../config/stripe.js";
 
+// Stripe uses single quotes to delimit values in its search language; an
+// email with an unescaped single quote breaks or manipulates the query
+// (H4). Stripe expects quotes inside the value to be escaped with \.
+export const escapeStripeSearchValue = (value) => value.replace(/'/g, "\\'");
+
 export const getCustomer = async (input) => {
   const { email, name, phone } = input;
   let customer;
   const customers = await stripeClient.customers.search({
-    query: `email:'${email}'`,
+    query: `email:'${escapeStripeSearchValue(email)}'`,
   });
   //the customer was found
   if (customers.data.length > 0) {
@@ -33,15 +38,21 @@ export const createPayment = async (orderId, amount, customerId) => {
   const response = await searchPayment("order", orderId);
   let paymentIntent;
   if (!response || response === null) {
-    paymentIntent = await stripeClient.paymentIntents.create({
-      currency: "MXN",
-      customer: customerId,
-      amount: amount,
-      payment_method_types: ["card"],
-      metadata: {
-        order_id: orderId,
+    // Stable key per order: if the call is retried (timeout, client retry,
+    // etc.), Stripe returns the same PaymentIntent instead of creating a
+    // new one.
+    paymentIntent = await stripeClient.paymentIntents.create(
+      {
+        currency: "MXN",
+        customer: customerId,
+        amount: amount,
+        payment_method_types: ["card"],
+        metadata: {
+          order_id: orderId,
+        },
       },
-    });
+      { idempotencyKey: `order-${orderId}-payment-intent` }
+    );
   } else {
     if (response.amount !== amount) {
       paymentIntent = await stripeClient.paymentIntents.update(response.id, {

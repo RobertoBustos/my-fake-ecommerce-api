@@ -1,27 +1,12 @@
-import { ApolloServer } from "@apollo/server";
-import { startStandaloneServer } from "@apollo/server/standalone";
 import env from "./config/env.js";
-import { createLoaders } from "./dataloaders/index.js";
-import { formatError } from "./schema/formatError.js";
-import resolvers from "./schema/resolvers.js";
-import typeDefs from "./schema/typeDefs/index.js";
+import { createApp } from "./app.js";
+import { logger } from "./utils/logger.js";
+
 const PORT = env.PORT;
 const HOST = env.HOST;
 
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  status400ForVariableCoercionErrors: true,
-  includeStacktraceInErrorResponses: false,
-  formatError,
-});
+const { httpServer } = await createApp();
 
-const { url } = await startStandaloneServer(server, {
-  listen: { port: PORT, host: HOST },
-  context: async ({ req, res }) => ({
-    headers: req.headers,
-    loaders: createLoaders(),
-  }),
-});
+await new Promise((resolve) => httpServer.listen({ port: PORT, host: HOST }, resolve));
 
-console.log(`🚀  Server ready at: ${url}`);
+logger.info("Server ready", { url: `http://${HOST}:${PORT}/graphql` });

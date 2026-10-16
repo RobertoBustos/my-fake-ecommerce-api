@@ -10,25 +10,30 @@
   "scripts": {
     "start": "node --env-file=.env ./src/index.js",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "test:emulator": "firebase emulators:exec --project demo-ecommerce-api \"npm run test\"",
     "seed": "node scripts/seedFirestore.js"
   },
   "dependencies": {
     "@apollo/server": "^4.11.3",
     "@google-cloud/firestore": "^9.3.1",
+    "cors": "^2.8.6",
     "dataloader": "^2.2.3",
+    "express": "^4.22.3",
     "firebase-admin": "^14.5.0",
     "graphql": "^16.10.0",
+    "graphql-depth-limit": "^1.1.0",
     "stripe": "^17.7.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^5.0.5",
     "dotenv": "^16.4.7",
     "eslint": "^10.12.0",
     "firebase-tools": "^15.34.0",
+    "supertest": "^7.3.1",
     "vite": "^8.3.4",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.5"
   }
 }

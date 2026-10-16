@@ -21,12 +21,14 @@ const resolvers = {
       const cart = await getCartWithoutOrder({ cartId, productId });
       return paginate(cart, { first, after });
     },
-    orders: async (_, { id, cart, status, first, after }) => {
-      const orders = await getOrders({ id, cart, status });
+    orders: async (_, { id, cart, status, first, after }, context) => {
+      // H2: a user only sees their own orders, even when requesting a
+      // direct id that isn't theirs.
+      const orders = await getOrders({ id, cart, status, userId: context.user.uid });
       return paginate(orders, { first, after });
     },
-    incompleteOrders: async (_, { cart, first, after }) => {
-      const incompleteOrders = await getIncompleteOrders({ cart });
+    incompleteOrders: async (_, { cart, first, after }, context) => {
+      const incompleteOrders = await getIncompleteOrders({ cart, userId: context.user.uid });
       return paginate(incompleteOrders, { first, after });
     },
   },
@@ -34,7 +36,8 @@ const resolvers = {
   Mutation: {
     addToCart: async (_, { input }) => cartService.addToCart(input),
     removeFromCart: async (_, { input }) => cartService.removeFromCart(input),
-    createOrder: async (_, { input }) => orderService.createOrder(input),
+    createOrder: async (_, { input }, context) =>
+      orderService.createOrder(input, context.user.uid),
     updateOrder: async (_, { input }) => orderService.updateOrder(input),
     cancelOrder: async (_, { input }) => orderService.cancelOrder(input),
     createOrderPayment: async (_, { input }) =>

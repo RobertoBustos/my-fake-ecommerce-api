@@ -1,0 +1,92 @@
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    # Manual runs only from main, so unreleased code from a feature branch never ships.
+    if: github.ref_type == 'tag' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      SERVICE: my-fake-ecommerce-api
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/my-fake-ecommerce-api/my-fake-ecommerce-api:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      # Release revisions get a traffic tag (v1.0.0 -> v1-0-0) so rollback.yml can find them by version.
+      - id: release
+        if: github.ref_type == 'tag'
+        run: echo "tag=$(echo "$GITHUB_REF_NAME" | tr '.' '-')" >> "$GITHUB_OUTPUT"
+
+      - id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ vars.GCP_REGION }}
+          image: ${{ env.IMAGE }}
+          env_vars: |
+            FIRESTORE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}
+          secrets: |
+            STRIPE_SECRET_KEY=stripe-secret-key:latest
+            STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest
+          flags: --allow-unauthenticated --service-account=${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+          tag: ${{ steps.release.outputs.tag }}
+
+      # A rollback pins traffic to an older revision; without this, new deploys would get no traffic.
+      - name: Route traffic to the new revision
+        run: gcloud run services update-traffic "${{ env.SERVICE }}" --region "${{ vars.GCP_REGION }}" --to-latest
+
+      # Hosting rewrites every path to the Cloud Run service, so it must deploy after it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # --legacy-peer-deps: works around an npm 11 bug with the eslint/vitest peer deps.
+      - run: npm ci --legacy-peer-deps
+      - name: Deploy Firebase Hosting
+        run: npx firebase deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
+
+      # A new revision can take a few seconds to start serving; poll instead of a fixed sleep.
+      - name: Smoke test
+        run: |
+          check() {
+            url="$1/healthz"
+            for i in $(seq 1 10); do
+              status=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+              if [ "$status" = "200" ]; then
+                echo "$url returned 200"
+                return 0
+              fi
+              echo "Attempt $i: $url returned $status"
+              sleep 3
+            done
+            echo "::error::$url never returned 200" >&2
+            return 1
+          }
+          check "${{ steps.deploy.outputs.url }}"
+          check "https://${{ vars.GCP_PROJECT_ID }}.web.app"

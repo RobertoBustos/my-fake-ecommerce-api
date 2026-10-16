@@ -11,8 +11,9 @@ export const addToCartValidator = (input) => {
   return addToCartSchema.safeParse(input).success;
 };
 
-// El límite real es el menor entre purchaseLimits.max y el stock disponible:
-// no tiene sentido dejar comprar más de lo que hay, aunque el producto lo permita.
+// The real limit is the lesser of purchaseLimits.max and the available stock:
+// there's no point letting someone buy more than there is, even if the
+// product's own limit would allow it.
 export const validateCartQuantity = (quantity, product) => {
   const maxAllowed = Math.min(product.purchaseLimits.max, product.stock);
   return z.number().int().min(product.purchaseLimits.min).max(maxAllowed).safeParse(quantity).success;

@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import db from "../src/config/firestore.js";
 import { addToCart, InsufficientStockError } from "../src/db/cart.js";
 
-describe("addToCart - transacción de stock", () => {
+describe("addToCart - stock transaction", () => {
   const productId = `test-stock-${randomUUID()}`;
   const product = { id: productId, unitPrice: 100 };
   const STOCK = 10;
@@ -18,10 +18,10 @@ describe("addToCart - transacción de stock", () => {
     await Promise.all(cartItems.docs.map((doc) => doc.ref.delete()));
   });
 
-  it("20 compras simultáneas nunca dejan el stock en negativo", async () => {
-    // Firestore reintenta transacciones en conflicto automáticamente; con 20
-    // escrituras concurrentes sobre el mismo doc, eso tarda más que el
-    // timeout por defecto de Vitest.
+  it("20 simultaneous purchases never leave stock negative", async () => {
+    // Firestore automatically retries conflicting transactions; with 20
+    // concurrent writes to the same doc, that takes longer than Vitest's
+    // default timeout.
     await db
       .collection("products")
       .doc(productId)

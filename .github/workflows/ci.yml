@@ -39,3 +39,37 @@ jobs:
       # --legacy-peer-deps: evita un bug de npm 11 con los peer deps de eslint/vitest.
       - run: npm ci --legacy-peer-deps
       - run: npm run test:emulator
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-build:
+    name: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t my-fake-ecommerce-api:ci .
+      - run: |
+          docker run -d --name api-ci -p 8080:8080 \
+            -e STRIPE_SECRET_KEY=sk_test_ci_placeholder \
+            my-fake-ecommerce-api:ci
+      # The container needs a moment to boot; poll instead of a fixed sleep.
+      - run: |
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8080/healthz; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::/healthz never became healthy" >&2
+          exit 1
+      - if: always()
+        run: docker logs api-ci
+      - if: always()
+        run: docker rm -f api-ci

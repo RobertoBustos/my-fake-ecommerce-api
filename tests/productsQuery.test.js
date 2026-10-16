@@ -4,7 +4,7 @@ import typeDefs from "../src/schema/typeDefs/index.js";
 import resolvers from "../src/schema/resolvers.js";
 
 describe("products query (H9)", () => {
-  it("pagina por cursor usando argumentos explícitos (first/after)", async () => {
+  it("paginates by cursor using explicit arguments (first/after)", async () => {
     const server = new ApolloServer({ typeDefs, resolvers });
 
     const firstPage = await server.executeOperation({
@@ -36,7 +36,7 @@ describe("products query (H9)", () => {
     );
   });
 
-  it("filtra por argumento explícito category", async () => {
+  it("filters by the explicit category argument", async () => {
     const server = new ApolloServer({ typeDefs, resolvers });
 
     const response = await server.executeOperation({
