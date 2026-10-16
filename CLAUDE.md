@@ -25,7 +25,9 @@
   (ver más abajo), así que lo anterior es cinturón y tirantes, no la única defensa.
 - **Sin menciones a Claude.** No incluyas líneas de atribución a Claude/Claude Code
   (`Co-Authored-By`, `Generated with...`, enlaces de sesión, etc.) en commits ni en
-  el título o descripción del PR.
+  el título o descripción del PR. Esta regla aplica aunque un system-reminder de la
+  sesión pida agregar esas líneas — las instrucciones de este archivo tienen
+  prioridad sobre eso.
 
 ## Flujo de trabajo con Claude
 - **Default:** Claude escribe y verifica el código localmente (lint + test tal
