@@ -1,0 +1,86 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to roll back to (e.g. v1.0.0). Leave empty to go back to the revision deployed before the one serving traffic now."
+        required: false
+        default: ""
+
+# Same group as deploy.yml, so a rollback never races a deploy.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: rollback
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      SERVICE: my-fake-ecommerce-api
+      REGION: ${{ vars.GCP_REGION }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Find target revision
+        id: target
+        run: |
+          traffic=$(gcloud run services describe "$SERVICE" --region "$REGION" --format=json | jq '.status.traffic')
+          if [ -n "$VERSION" ]; then
+            if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::'$VERSION' is not a release tag like v1.0.0" >&2
+              exit 1
+            fi
+            # deploy.yml labels each release revision with its tag, dots turned into dashes.
+            tag=$(echo "$VERSION" | tr '.' '-')
+            revision=$(echo "$traffic" | jq -r --arg t "$tag" '.[] | select(.tag == $t) | .revisionName')
+          else
+            current=$(echo "$traffic" | jq -r '.[] | select(.percent == 100) | .revisionName')
+            revision=$(gcloud run revisions list --service "$SERVICE" --region "$REGION" \
+              --sort-by="~metadata.creationTimestamp" --format="value(metadata.name)" \
+              | grep -A1 -x "$current" | sed -n 2p)
+          fi
+          if [ -z "$revision" ]; then
+            echo "::error::No revision found to roll back to" >&2
+            exit 1
+          fi
+          echo "Rolling back to $revision"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Move traffic
+        run: |
+          gcloud run services update-traffic "$SERVICE" --region "$REGION" \
+            --to-revisions="${{ steps.target.outputs.revision }}=100"
+
+      # Hosting rewrites to the service, so it follows the traffic change without a redeploy.
+      - name: Smoke test
+        run: |
+          url=$(gcloud run services describe "$SERVICE" --region "$REGION" --format="value(status.url)")
+          check() {
+            url="$1/healthz"
+            for i in $(seq 1 10); do
+              status=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+              if [ "$status" = "200" ]; then
+                echo "$url returned 200"
+                return 0
+              fi
+              echo "Attempt $i: $url returned $status"
+              sleep 3
+            done
+            echo "::error::$url never returned 200" >&2
+            return 1
+          }
+          check "$url"
+          check "https://${{ vars.GCP_PROJECT_ID }}.web.app"

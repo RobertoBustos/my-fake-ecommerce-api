@@ -38,6 +38,11 @@ jobs:
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
 
+      # Release revisions get a traffic tag (v1.0.0 -> v1-0-0) so rollback.yml can find them by version.
+      - id: release
+        if: github.ref_type == 'tag'
+        run: echo "tag=$(echo "$GITHUB_REF_NAME" | tr '.' '-')" >> "$GITHUB_OUTPUT"
+
       - id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -50,6 +55,11 @@ jobs:
             STRIPE_SECRET_KEY=stripe-secret-key:latest
             STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest
           flags: --allow-unauthenticated --service-account=${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+          tag: ${{ steps.release.outputs.tag }}
+
+      # A rollback pins traffic to an older revision; without this, new deploys would get no traffic.
+      - name: Route traffic to the new revision
+        run: gcloud run services update-traffic "${{ env.SERVICE }}" --region "${{ vars.GCP_REGION }}" --to-latest
 
       # Hosting rewrites every path to the Cloud Run service, so it must deploy after it.
       - uses: actions/setup-node@v4
