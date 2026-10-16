@@ -1,41 +1,106 @@
 # my-fake-ecommerce-api
 
-API GraphQL (Apollo Server) para una tienda en línea de práctica: productos, carrito, órdenes y pagos con Stripe.
+GraphQL API (Apollo Server 4 on Express) for a practice online store: products,
+cart, orders and Stripe payments. Data lives in Firestore, users authenticate
+with Firebase Auth, and production runs on Cloud Run behind Firebase Hosting.
 
-## Requisitos
+- **Production:** `https://my-fake-ecommerce-150b2.web.app/graphql`
+- **Health check:** `GET /healthcheck` → `{"status":"ok"}`
+- **Stripe webhook:** `POST /webhooks/stripe`
+- **Changes per release:** [`CHANGELOG.md`](./CHANGELOG.md)
 
-- Node.js 20 o superior
-- Una cuenta de Stripe en **modo de prueba** (test mode), para `STRIPE_SECRET_KEY`
+## Documentation
 
-## Ejecutar
+The project's documentation lives in Confluence (space **Arquitectura Backend**,
+written in Spanish) and its work is tracked in Jira (project **ECOMAPI**). Start
+with the architecture page, then the runbook.
+
+| Page | What it covers |
+|---|---|
+| [Arquitectura de la API (v1.0)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24674314) | System overview, request lifecycle, purchase and payment flow, CI/CD and releases, with diagrams |
+| [Runbook: operación en producción](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610) | Releases, rollbacks, logs and request IDs, common incidents |
+| [Guía: pruebas end to end de la API](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/25296898) | How to test the deployed API without the app or any frontend |
+| [Guía: configuración manual de GCP](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24576001) | One-time Google Cloud / Firebase setup behind the deploy pipeline |
+| [Guía: configuración manual del webhook de Stripe](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/25100294) | One-time Stripe webhook setup and secret rotation |
+| [Guía: configuración manual de Jira y GitHub](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23625729) | Jira ↔ GitHub integration, branch protection, workflow |
+| [Hallazgos técnicos](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23298055) | Technical findings from the initial code review and how each was addressed |
+| [Seguimiento en Jira](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23068673) | Sprint history, epics and the status of every task |
+| [Jira project ECOMAPI](https://roberto-bustos-hernandez.atlassian.net/browse/ECOMAPI) | Backlog and board |
+
+Confluence and Jira are private: ask the project owner for access to the
+Atlassian site before following these links.
+
+## Requirements
+
+- Node.js 20 or later
+- Java 21 (the Firestore emulator needs it)
+- A Stripe account in **test mode**, for `STRIPE_SECRET_KEY`
+
+The Firebase CLI is a dev dependency, so `npx firebase` works without a global
+install.
+
+## Run locally
 
 ```bash
-cp .env.example .env
-# edita .env: STRIPE_SECRET_KEY, HOST, PORT
+cp .env.example .env        # then set STRIPE_SECRET_KEY
 npm install --legacy-peer-deps
+
+# Terminal 1: Firestore emulator on port 8080
+npx firebase emulators:start --only firestore --project demo-ecommerce-api
+
+# Terminal 2: load the sample catalog, then start the API on port 4000
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm run seed
 npm start
 ```
 
-`npm install --legacy-peer-deps` es necesario: con npm 11, un `npm install` normal
-falla por un bug al resolver los peer dependencies de eslint/vitest.
+`npm install --legacy-peer-deps` is required: with npm 11 a plain install fails
+because of a bug resolving the eslint/vitest peer dependencies.
 
-Con el servidor corriendo, abre Apollo Sandbox en `http://localhost:8080` (o el
-`PORT` que hayas puesto en `.env`).
+Open `http://localhost:4000/graphql` in a browser to get Apollo Sandbox.
 
-## Flujo de compra
+**Authentication:** every GraphQL operation needs a Firebase ID token in
+`Authorization: Bearer <token>`; without one the API answers `401
+UNAUTHENTICATED`. The local setup uses a demo project, which can't verify real
+tokens, so to call the API by hand use the deployed environment and the test
+user described in the end-to-end testing guide above.
 
-1. `products` — ver el catálogo
-2. `addToCart` — agregar productos a un carrito
-3. `createOrder` — crear la orden a partir del carrito
-4. `updateOrder` — agregar datos del cliente y de envío
-5. `createOrderPayment` — generar el PaymentIntent de Stripe para cobrar
+## Tests
 
-## Flujo de ramas
+```bash
+npm run lint
+npm run test:emulator   # starts the Firestore emulator and runs Vitest with coverage
+```
 
-- Todo el desarrollo entra a `dev` por pull request; `main` solo recibe
-  releases (`release/sprint-<n>`) y hotfixes.
-- `dev` y `main` están protegidas: PR obligatorio y los checks `lint` y
-  `test` en verde antes de fusionar.
-- Commits y PRs: clave de Jira al inicio (`ECOMAPI-<n>: ...`).
+`npm test` alone expects an emulator that is already running. CI runs the same
+`lint` and `test` jobs on every pull request, plus a secret scan (gitleaks) and
+a Docker build that checks `/healthcheck`.
 
-Más detalle de convenciones en [`CLAUDE.md`](./CLAUDE.md).
+## Purchase flow
+
+1. `products`: browse the catalog
+2. `addToCart`: add products to a cart (`cartId` is generated by the client)
+3. `createOrder`: create the order from the cart (`INCOMPLETE`)
+4. `updateOrder`: add customer and shipping details (`PAYMENT_PENDING`)
+5. `createOrderPayment`: create the Stripe PaymentIntent; the client confirms it
+6. Stripe sends `payment_intent.succeeded` to the webhook, which marks the
+   order `COMPLETE`
+
+## Deployment
+
+Pushing a `v*` tag from `main` runs `.github/workflows/deploy.yml`: it builds the
+image, deploys it to Cloud Run, updates Firebase Hosting and smoke-tests
+`/healthcheck`. `.github/workflows/rollback.yml` moves traffic back to an earlier
+release. Details are in the runbook.
+
+## Branches and commits
+
+- All development goes into `dev` through pull requests; `main` only receives
+  releases (`release/sprint-<n>`) and hotfixes (`hotfix/ECOMAPI-<n>-<slug>`).
+- `dev` and `main` are protected: a pull request and green `lint` and `test`
+  checks are required to merge.
+- Branches are named `ECOMAPI-<n>-<short-slug>`, and commits and pull request
+  titles start with the Jira key (`ECOMAPI-<n>: ...`).
+- Everything that reaches GitHub is written in English: commits, pull requests,
+  code comments and test names.
+
+More detail on these conventions in [`CLAUDE.md`](./CLAUDE.md).

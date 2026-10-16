@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # --legacy-peer-deps: evita un bug de npm 11 con los peer deps de eslint/vitest.
+      # --legacy-peer-deps: works around an npm 11 bug resolving the eslint/vitest peer deps.
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
 
@@ -24,7 +24,7 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     env:
-      # Placeholder: stripe.js exige una llave no vacía al importarse; el smoke test no la usa.
+      # Placeholder: src/config/stripe.js needs a non-empty key at import time; no test calls Stripe for real.
       STRIPE_SECRET_KEY: sk_test_ci_placeholder
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      # --legacy-peer-deps: evita un bug de npm 11 con los peer deps de eslint/vitest.
+      # --legacy-peer-deps: works around an npm 11 bug resolving the eslint/vitest peer deps.
       - run: npm ci --legacy-peer-deps
       - run: npm run test:emulator
 
