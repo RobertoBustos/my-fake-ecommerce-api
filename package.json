@@ -11,8 +11,9 @@
     "start": "node --env-file=.env ./src/index.js",
     "lint": "eslint .",
     "test": "vitest run --coverage",
-    "test:emulator": "firebase emulators:exec --project demo-ecommerce-api \"npm run test\"",
-    "seed": "node scripts/seedFirestore.js"
+    "test:emulator": "firebase emulators:exec --only firestore,auth --project demo-ecommerce-api \"npm run test\"",
+    "seed": "node scripts/seedFirestore.js",
+    "token:local": "node scripts/localToken.js"
   },
   "dependencies": {
     "@apollo/server": "^4.11.3",

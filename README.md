@@ -45,8 +45,8 @@ install.
 cp .env.example .env        # then set STRIPE_SECRET_KEY
 npm install --legacy-peer-deps
 
-# Terminal 1: Firestore emulator on port 8080
-npx firebase emulators:start --only firestore --project demo-ecommerce-api
+# Terminal 1: Firestore (port 8080) and Auth (port 9099) emulators
+npx firebase emulators:start --only firestore,auth --project demo-ecommerce-api
 
 # Terminal 2: load the sample catalog, then start the API on port 4000
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm run seed
@@ -60,15 +60,28 @@ Open `http://localhost:4000/graphql` in a browser to get Apollo Sandbox.
 
 **Authentication:** every GraphQL operation needs a Firebase ID token in
 `Authorization: Bearer <token>`; without one the API answers `401
-UNAUTHENTICATED`. The local setup uses a demo project, which can't verify real
-tokens, so to call the API by hand use the deployed environment and the test
-user described in the end-to-end testing guide above.
+UNAUTHENTICATED`. Locally, the token comes from the Auth emulator (the
+`.env.example` values already point the API at it):
+
+```bash
+# Terminal 3: prints an ID token for dev@example.com (created on first run)
+TOKEN=$(npm run -s token:local)
+curl -s http://localhost:4000/graphql -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"query":"{ products(first: 3) { edges { node { id title } } } }"}'
+```
+
+Pass an email to get a second user, e.g. `npm run -s token:local other@example.com`,
+which is handy for checking that one user can't touch another user's orders.
+In Apollo Sandbox, paste the token as an `Authorization: Bearer <token>`
+header. Emulator tokens only work against the emulator; the deployed API needs
+a real Firebase token (see the end-to-end testing guide above).
 
 ## Tests
 
 ```bash
 npm run lint
-npm run test:emulator   # starts the Firestore emulator and runs Vitest with coverage
+npm run test:emulator   # starts the Firestore and Auth emulators and runs Vitest with coverage
 ```
 
 `npm test` alone expects an emulator that is already running. CI runs the same
