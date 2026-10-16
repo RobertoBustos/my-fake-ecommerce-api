@@ -4,6 +4,10 @@ import { getCart } from "./cart.js";
 import { cancelPayment, getCustomer } from "./payment.js";
 
 const COLLECTION = "orders";
+// Must match the collections in db/cart.js and db/products.js: cancelling
+// reads the order's cart items and products inside one transaction.
+const CART_COLLECTION = "cartItems";
+const PRODUCTS_COLLECTION = "products";
 const toOrder = (doc) => ({ id: doc.id, ...doc.data() });
 
 export const getOrders = async ({ id, cart, status, userId } = {}) => {
@@ -80,16 +84,64 @@ export const updateOrder = async (input) => {
   return { ...existingOrder, ...updates };
 };
 
+export class OrderAlreadyCompleteError extends Error {
+  constructor(orderId) {
+    super(`Order ${orderId} is already paid and can't be cancelled`);
+    this.name = "OrderAlreadyCompleteError";
+    this.orderId = orderId;
+  }
+}
+
+// Cancelling puts the order's units back in stock, in the same transaction
+// as the status change so it happens exactly once: a second cancel finds the
+// order already CANCELLED and changes nothing. A COMPLETE order was paid, so
+// its stock is sold and it can't be cancelled here.
 export const cancelOrder = async (input) => {
   const docRef = db.collection(COLLECTION).doc(input.id);
-  const doc = await docRef.get();
-  if (!doc.exists) {
+  const outcome = await db.runTransaction(async (tx) => {
+    const doc = await tx.get(docRef);
+    if (!doc.exists) {
+      return { found: false };
+    }
+    const order = toOrder(doc);
+    if (order.status === "COMPLETE") {
+      throw new OrderAlreadyCompleteError(order.id);
+    }
+    if (order.status === "CANCELLED") {
+      return { found: true, order, changed: false };
+    }
+
+    const itemsSnapshot = await tx.get(
+      db.collection(CART_COLLECTION).where("orderId", "==", order.id)
+    );
+    const quantities = new Map();
+    for (const itemDoc of itemsSnapshot.docs) {
+      const { productId, quantity } = itemDoc.data();
+      const key = String(productId);
+      quantities.set(key, (quantities.get(key) ?? 0) + quantity);
+    }
+    const productRefs = [...quantities.keys()].map((id) =>
+      db.collection(PRODUCTS_COLLECTION).doc(id)
+    );
+    const productDocs = await Promise.all(productRefs.map((ref) => tx.get(ref)));
+
+    // Every read above happens before any write, as Firestore requires.
+    tx.update(docRef, { status: "CANCELLED" });
+    productDocs.forEach((productDoc, i) => {
+      if (!productDoc.exists) return;
+      tx.update(productRefs[i], {
+        stock: productDoc.data().stock + quantities.get(productRefs[i].id),
+      });
+    });
+    return { found: true, order, changed: true };
+  });
+
+  if (!outcome.found) {
     return false;
   }
-  const order = toOrder(doc);
-  await docRef.update({ status: "CANCELLED" });
-  if (order.paymentId) {
-    await cancelPayment(order.paymentId);
+  // Stripe isn't part of the Firestore transaction, so it goes after commit.
+  if (outcome.changed && outcome.order.paymentId) {
+    await cancelPayment(outcome.order.paymentId);
   }
   return true;
 };

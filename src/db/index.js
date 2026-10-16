@@ -13,6 +13,7 @@ import {
   getOrderTotals,
   getOrders,
   markOrderComplete,
+  OrderAlreadyCompleteError,
   setOrderPayment,
   updateOrder,
 } from "./orders.js";
@@ -40,6 +41,7 @@ export {
   getProducts,
   InsufficientStockError,
   markOrderComplete,
+  OrderAlreadyCompleteError,
   removeFromCart,
   searchPayment,
   searchPaymentMethod,
