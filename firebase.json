@@ -3,6 +3,19 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "hosting": {
+    "public": "public",
+    "ignore": ["firebase.json", "**/.*"],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "my-fake-ecommerce-api",
+          "region": "us-central1"
+        }
+      }
+    ]
+  },
   "emulators": {
     "firestore": {
       "port": 8080
