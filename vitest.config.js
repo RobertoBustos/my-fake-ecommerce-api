@@ -4,9 +4,9 @@ export default defineConfig({
   test: {
     setupFiles: ["./tests/setup.js"],
     globalSetup: ["./tests/globalSetup.js"],
-    // Todos los archivos pegan contra la misma instancia del emulador de
-    // Firestore; correrlos en paralelo genera contención y timeouts falsos
-    // en las pruebas que ya de por sí son pesadas (transacciones, batches).
+    // Every file hits the same Firestore emulator instance; running them in
+    // parallel causes contention and spurious timeouts in the tests that are
+    // already heavy (transactions, batches).
     fileParallelism: false,
     coverage: {
       provider: "v8",

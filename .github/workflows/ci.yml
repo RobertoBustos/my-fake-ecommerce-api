@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # --legacy-peer-deps: evita un bug de npm 11 con los peer deps de eslint/vitest.
+      # --legacy-peer-deps: works around an npm 11 bug resolving the eslint/vitest peer deps.
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
 
@@ -24,7 +24,7 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     env:
-      # Placeholder: stripe.js exige una llave no vacía al importarse; el smoke test no la usa.
+      # Placeholder: src/config/stripe.js needs a non-empty key at import time; no test calls Stripe for real.
       STRIPE_SECRET_KEY: sk_test_ci_placeholder
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      # --legacy-peer-deps: evita un bug de npm 11 con los peer deps de eslint/vitest.
+      # --legacy-peer-deps: works around an npm 11 bug resolving the eslint/vitest peer deps.
       - run: npm ci --legacy-peer-deps
       - run: npm run test:emulator
 
@@ -73,3 +73,21 @@ jobs:
         run: docker logs api-ci
       - if: always()
         run: docker rm -f api-ci
+
+  # main only receives releases and hotfixes. Required on main; on any other
+  # base branch the job is skipped, which GitHub counts as passing.
+  branch-guard:
+    name: branch-guard
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            release/*|hotfix/*) echo "OK: $HEAD_REF may target main" ;;
+            *)
+              echo "::error::Pull requests into main must come from release/* or hotfix/* (got '$HEAD_REF')." >&2
+              exit 1
+              ;;
+          esac
