@@ -1,2 +1,2 @@
-// npm start ya carga .env con --env-file (H12: antes había dos mecanismos para esto).
+// npm start already loads .env via --env-file (H12: there used to be two mechanisms for this).
 export default process.env;

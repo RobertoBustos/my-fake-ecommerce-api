@@ -13,7 +13,7 @@ export const getOrders = async ({ id, cart, status, userId } = {}) => {
       return [];
     }
     const order = toOrder(doc);
-    // H2: un usuario nunca ve una orden que no es suya, ni por id directo.
+    // H2: a user never sees an order that isn't theirs, not even by direct id.
     if (userId !== undefined && order.userId !== userId) {
       return [];
     }
@@ -61,8 +61,8 @@ export const updateOrder = async (input) => {
   }
   const existingOrder = toOrder(doc);
   const updates = {};
-  // != null / == null (no !==/===) a propósito: GraphQL manda un campo
-  // opcional omitido como undefined, no null (H6).
+  // != null / == null (not !==/===) on purpose: GraphQL sends an omitted
+  // optional field as undefined, not null (H6).
   if (input.customer != null) {
     updates.customer = await getCustomer(input.customer);
   }
@@ -71,8 +71,8 @@ export const updateOrder = async (input) => {
   }
   const resultingCustomer = updates.customer ?? existingOrder.customer;
   const resultingAddress = updates.address ?? existingOrder.address;
-  // El status ya no lo manda el cliente (H3): solo lo deriva el servidor al
-  // completarse los datos de envío, nunca por un valor que llegue en input.
+  // The client no longer sends status (H3): the server only derives it once
+  // shipping data is complete, never from a value that arrives in input.
   if (resultingCustomer !== null && resultingAddress !== null) {
     updates.status = "PAYMENT_PENDING";
   }

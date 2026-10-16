@@ -3,15 +3,15 @@ import { readFile } from "../src/utils/fileUtils.js";
 import { fakePromise } from "../src/utils/fakePromise.js";
 
 describe("fileUtils (H8)", () => {
-  it("readFile de un archivo inexistente rechaza una sola vez, sin tronar después", async () => {
-    // Antes del fix, faltaba un `return` después de reject(err): seguía
-    // ejecutando y JSON.parse(undefined) tronaba por fuera de la promesa.
+  it("readFile on a nonexistent file rejects exactly once, without crashing afterward", async () => {
+    // Before the fix, a `return` was missing after reject(err): execution
+    // kept going and JSON.parse(undefined) crashed outside the promise.
     await expect(readFile("../data/no-existe.json")).rejects.toBeTruthy();
   });
 });
 
 describe("fakePromise (H14)", () => {
-  it("respeta los milisegundos que recibe, no 1000 fijo", async () => {
+  it("respects the milliseconds it receives, not a fixed 1000", async () => {
     const start = Date.now();
     await fakePromise(30);
     const elapsed = Date.now() - start;

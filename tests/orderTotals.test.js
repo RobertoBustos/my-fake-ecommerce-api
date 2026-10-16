@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeOrderTotals } from "../src/utils/orderTotals.js";
 
 describe("computeOrderTotals", () => {
-  it("calcula el IVA al 16% sobre el subtotal", () => {
+  it("calculates 16% VAT on the subtotal", () => {
     const totals = computeOrderTotals([{ quantity: 1, subtotal: 10000 }]);
 
     expect(totals.subTotal).toBe(10000);
@@ -10,14 +10,14 @@ describe("computeOrderTotals", () => {
     expect(totals.total).toBe(11600);
   });
 
-  it("redondea el IVA hacia abajo, no al más cercano", () => {
-    // 999 * 0.16 = 159.84 -> floor = 159. Si usara Math.round daría 160.
+  it("rounds VAT down, not to the nearest integer", () => {
+    // 999 * 0.16 = 159.84 -> floor = 159. Math.round would give 160.
     const totals = computeOrderTotals([{ quantity: 1, subtotal: 999 }]);
 
     expect(totals.taxes).toBe(159);
   });
 
-  it("un carrito vacío regresa totales en cero sin lanzar error", () => {
+  it("an empty cart returns zeroed totals without throwing", () => {
     const totals = computeOrderTotals([]);
 
     expect(totals).toEqual({
@@ -31,7 +31,7 @@ describe("computeOrderTotals", () => {
     });
   });
 
-  it("suma quantity y subtotal de varios renglones", () => {
+  it("sums quantity and subtotal across several line items", () => {
     const totals = computeOrderTotals([
       { quantity: 2, subtotal: 5000 },
       { quantity: 1, subtotal: 3000 },

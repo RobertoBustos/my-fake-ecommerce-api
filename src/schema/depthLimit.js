@@ -1,6 +1,6 @@
 import depthLimit from "graphql-depth-limit";
 
-// Limita cuántos niveles de selección anidada acepta una query, para evitar
-// queries maliciosamente profundas que exploten el árbol de resolvers (DoS).
+// Limits how many levels of nested selection a query accepts, to prevent
+// maliciously deep queries from exploiting the resolver tree (DoS).
 export const MAX_QUERY_DEPTH = 7;
 export const validationRules = [depthLimit(MAX_QUERY_DEPTH)];

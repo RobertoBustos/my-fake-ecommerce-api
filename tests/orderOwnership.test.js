@@ -7,7 +7,7 @@ import { createLoaders } from "../src/dataloaders/index.js";
 import db from "../src/config/firestore.js";
 import { createOrder } from "../src/db/orders.js";
 
-describe("Órdenes aisladas por usuario (H2)", () => {
+describe("Orders isolated per user (H2)", () => {
   const cartId = `cart-ownership-${randomUUID()}`;
   let orderId;
 
@@ -30,7 +30,7 @@ describe("Órdenes aisladas por usuario (H2)", () => {
     );
   };
 
-  it("el usuario B no ve la orden del usuario A", async () => {
+  it("user B doesn't see user A's order", async () => {
     const order = await createOrder({ cartId }, "user-a");
     orderId = order.id;
 
@@ -41,7 +41,7 @@ describe("Órdenes aisladas por usuario (H2)", () => {
     expect(data.orders.edges).toHaveLength(0);
   });
 
-  it("el usuario A sí ve su propia orden", async () => {
+  it("user A does see their own order", async () => {
     const response = await queryOrder("user-a");
     const { data, errors } = response.body.singleResult;
 

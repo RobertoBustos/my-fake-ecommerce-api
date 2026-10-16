@@ -8,8 +8,9 @@ vi.mock("../src/db/payment.js", () => ({
 
 import { cancelPayment } from "../src/db/payment.js";
 
-// orders.js ahora lee/escribe la colección "orders" del emulador de Firestore
-// de verdad; limpiamos lo que cada prueba crea para no dejar basura entre corridas.
+// orders.js now genuinely reads/writes the "orders" collection on the
+// Firestore emulator; we clean up what each test creates to avoid leaving
+// junk between runs.
 async function removeOrder(id) {
   await deleteOrder(id);
 }
@@ -23,7 +24,7 @@ describe("updateOrder (H6)", () => {
     createdOrderId = undefined;
   });
 
-  it("acepta solo address, sin tronar por customer omitido", async () => {
+  it("accepts address alone without blowing up on an omitted customer", async () => {
     const order = await createOrder({ cartId: "cart-h6-test" });
     createdOrderId = order.id;
 
@@ -47,10 +48,10 @@ describe("cancelOrder (H7)", () => {
     createdOrderId = undefined;
   });
 
-  it("no llama a Stripe si la orden no tiene pago", async () => {
+  it("doesn't call Stripe when the order has no payment", async () => {
     const order = await createOrder({ cartId: "cart-h7-test" });
     createdOrderId = order.id;
-    // createOrder deja paymentId en null.
+    // createOrder leaves paymentId as null.
 
     const result = await cancelOrder({ id: order.id });
 

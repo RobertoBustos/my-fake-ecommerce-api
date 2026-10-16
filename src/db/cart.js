@@ -1,8 +1,8 @@
 import db from "../config/firestore.js";
 
 const COLLECTION = "cartItems";
-// Debe coincidir con COLLECTION en db/products.js: la transacción de stock
-// necesita el doc del producto, no puede pasar por getProducts().
+// Must match COLLECTION in db/products.js: the stock transaction needs the
+// product doc directly, it can't go through getProducts().
 const PRODUCTS_COLLECTION = "products";
 const toCartItem = (doc) => ({ id: doc.id, ...doc.data() });
 
@@ -40,8 +40,8 @@ export const addToCart = async (product, input) => {
       .where("productId", "==", input.productId)
       .where("orderId", "==", input.orderId ?? null);
 
-    // Todas las lecturas de una transacción de Firestore van antes que
-    // cualquier escritura: primero el stock actual, luego el cart item.
+    // All reads in a Firestore transaction must happen before any write:
+    // current stock first, then the cart item.
     const productDoc = await tx.get(productRef);
     const existingSnapshot = await tx.get(existingQuery);
 
@@ -88,9 +88,9 @@ export const removeFromCart = async (input) => {
 
 const FIRESTORE_IN_QUERY_LIMIT = 30;
 
-// Una sola tanda de lecturas para N orderIds (vs. N queries), la usa el
-// DataLoader de totales para evitar el problema N+1 (H10). Firestore limita
-// "in" a 30 valores, así que se parte en chunks si hace falta.
+// A single round of reads for N orderIds (vs. N queries), used by the
+// totals DataLoader to avoid the N+1 problem (H10). Firestore limits "in"
+// to 30 values, so this splits into chunks when needed.
 export const getCartByOrderIds = async (orderIds) => {
   const uniqueIds = [...new Set(orderIds)];
   if (uniqueIds.length === 0) {

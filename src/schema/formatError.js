@@ -1,7 +1,7 @@
-// Apollo ya clasifica cualquier excepción que no sea un GraphQLError propio
-// (con su propio extensions.code) como INTERNAL_SERVER_ERROR, pero sin
-// ocultar el mensaje original fuera de NODE_ENV=production. Lo forzamos
-// aquí para que el comportamiento sea el mismo en dev, test y prod.
+// Apollo already classifies any exception that isn't our own GraphQLError
+// (with its own extensions.code) as INTERNAL_SERVER_ERROR, but it doesn't
+// hide the original message unless NODE_ENV=production. We force it here
+// so the behavior is the same in dev, test and prod.
 export const formatError = (formattedError) => {
   if (formattedError.extensions?.code !== "INTERNAL_SERVER_ERROR") {
     return formattedError;

@@ -11,8 +11,8 @@ import resolvers from "./schema/resolvers.js";
 import typeDefs from "./schema/typeDefs/index.js";
 import { handleStripeWebhook } from "./webhooks/stripeWebhook.js";
 
-// Separado de index.js para poder construir la app en tests sin levantar un
-// puerto real (supertest pega directo contra el objeto `app`).
+// Separated from index.js so tests can build the app without binding a real
+// port (supertest hits the `app` object directly).
 export const createApp = async () => {
   const app = express();
   const httpServer = http.createServer(app);
@@ -24,8 +24,9 @@ export const createApp = async () => {
     includeStacktraceInErrorResponses: false,
     formatError,
     validationRules,
-    // Recomendado por Apollo cuando se integra con un http.Server propio:
-    // cierra las conexiones en curso de forma ordenada en vez de cortarlas.
+    // Recommended by Apollo when integrating with a self-managed
+    // http.Server: closes in-flight connections gracefully instead of
+    // dropping them.
     plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
   });
 
@@ -35,8 +36,8 @@ export const createApp = async () => {
     res.status(200).json({ status: "ok" });
   });
 
-  // express.raw (no express.json): la verificación de firma de Stripe necesita
-  // los bytes exactos del body, no el objeto ya parseado.
+  // express.raw (not express.json): Stripe's signature verification needs
+  // the exact raw bytes of the body, not the already-parsed object.
   app.post(
     "/webhooks/stripe",
     express.raw({ type: "application/json" }),

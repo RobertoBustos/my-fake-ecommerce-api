@@ -5,9 +5,9 @@ import { validationRules, MAX_QUERY_DEPTH } from "../src/schema/depthLimit.js";
 import typeDefs from "../src/schema/typeDefs/index.js";
 import resolvers from "../src/schema/resolvers.js";
 
-// Esquema sintético solo para probar la regla de profundidad de forma
-// determinista: el schema real de la API no tiene un único árbol de
-// objetos con 8 niveles reales de anidamiento.
+// Synthetic schema used only to test the depth rule deterministically:
+// the API's real schema doesn't have a single object tree with 8 real
+// levels of nesting.
 const testSchema = buildSchema(`
   type L8 { value: String }
   type L7 { value: String, next: L8 }
@@ -28,8 +28,8 @@ const deepQuery = (depth) => {
   return `query { root { ${body} } }`;
 };
 
-describe("Límite de profundidad de queries", () => {
-  it(`rechaza una query de profundidad ${MAX_QUERY_DEPTH + 1}`, () => {
+describe("Query depth limit", () => {
+  it(`rejects a query of depth ${MAX_QUERY_DEPTH + 1}`, () => {
     const errors = validate(
       testSchema,
       parse(deepQuery(MAX_QUERY_DEPTH + 1)),
@@ -39,7 +39,7 @@ describe("Límite de profundidad de queries", () => {
     expect(errors[0].message).toMatch(/exceeds maximum operation depth/i);
   });
 
-  it(`acepta una query de profundidad ${MAX_QUERY_DEPTH} (el límite)`, () => {
+  it(`accepts a query of depth ${MAX_QUERY_DEPTH} (the limit)`, () => {
     const errors = validate(
       testSchema,
       parse(deepQuery(MAX_QUERY_DEPTH)),
@@ -48,7 +48,7 @@ describe("Límite de profundidad de queries", () => {
     expect(errors).toHaveLength(0);
   });
 
-  it("el server real sigue aceptando queries normales con la regla activa", async () => {
+  it("the real server still accepts normal queries with the rule active", async () => {
     const server = new ApolloServer({ typeDefs, resolvers, validationRules });
     const response = await server.executeOperation({
       query: `{ __typename }`,

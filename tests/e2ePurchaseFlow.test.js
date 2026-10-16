@@ -6,10 +6,10 @@ import db from "../src/config/firestore.js";
 const WEBHOOK_SECRET = "whsec_e2e_test_secret";
 process.env.STRIPE_WEBHOOK_SECRET = WEBHOOK_SECRET;
 
-// Mockeamos solo las llamadas de Stripe que pegarían a la red real (no
-// funcionan en CI, que corre con una llave placeholder). `webhooks` se queda
-// con la implementación real del SDK: es crypto local, no red, y necesitamos
-// que la firma del evento del paso final se verifique de verdad.
+// We only mock the Stripe calls that would hit the real network (they
+// don't work in CI, which runs with a placeholder key). `webhooks` keeps
+// the real SDK implementation: it's local crypto, not network, and we
+// need the signature on the final event to be genuinely verified.
 vi.mock("../src/config/stripe.js", async () => {
   const Stripe = (await import("stripe")).default;
   const realStripe = Stripe("sk_test_fake_key_for_webhook_crypto_only");
@@ -32,8 +32,8 @@ vi.mock("../src/config/stripe.js", async () => {
   };
 });
 
-// La autenticación real de Firebase ya se probó a fondo en ECOMAPI-24/25;
-// aquí solo nos interesa que el flujo de compra encadene bien.
+// Real Firebase authentication was already thoroughly tested in
+// ECOMAPI-24/25; here we only care that the purchase flow chains correctly.
 vi.mock("../src/auth/verifyIdToken.js", () => ({
   verifyIdToken: vi.fn().mockResolvedValue({ uid: "e2e-user" }),
 }));
@@ -65,7 +65,7 @@ const postWebhook = async (app, { body, signature }) => {
   }
 };
 
-describe("Flujo de compra de punta a punta", () => {
+describe("End-to-end purchase flow", () => {
   let cartId;
   let orderId;
 
@@ -79,18 +79,18 @@ describe("Flujo de compra de punta a punta", () => {
     }
   });
 
-  it("productos -> carrito -> orden -> datos de envío -> webhook deja la orden pagada", async () => {
+  it("products -> cart -> order -> shipping details -> webhook leaves the order paid", async () => {
     cartId = `cart-e2e-${randomUUID()}`;
     const { app } = await createApp();
 
-    // 1. Productos: tomamos uno real del catálogo sembrado.
+    // 1. Products: pick a real one from the seeded catalog.
     const productsResult = await postGraphQL(app, {
       query: `query { products(first: 1) { edges { node { id purchaseLimits { min } } } } }`,
     });
     expect(productsResult.errors).toBeUndefined();
     const product = productsResult.data.products.edges[0].node;
 
-    // 2. Carrito: agregamos ese producto.
+    // 2. Cart: add that product.
     const addToCartResult = await postGraphQL(app, {
       query: `mutation ($input: AddToCart!) {
         addToCart(input: $input) { success }
@@ -102,7 +102,7 @@ describe("Flujo de compra de punta a punta", () => {
     expect(addToCartResult.errors).toBeUndefined();
     expect(addToCartResult.data.addToCart.success).toBe(true);
 
-    // 3. Orden: convertimos el carrito en una orden.
+    // 3. Order: convert the cart into an order.
     const createOrderResult = await postGraphQL(app, {
       query: `mutation ($input: CreateOrder!) {
         createOrder(input: $input) { success data { id status } }
@@ -113,8 +113,8 @@ describe("Flujo de compra de punta a punta", () => {
     expect(createOrderResult.data.createOrder.data.status).toBe("INCOMPLETE");
     orderId = createOrderResult.data.createOrder.data.id;
 
-    // 4. Datos de envío: al completar cliente + dirección, el server deriva
-    // PAYMENT_PENDING solo (H3: el cliente no manda status).
+    // 4. Shipping details: once customer + address are complete, the server
+    // derives PAYMENT_PENDING on its own (H3: the client doesn't send status).
     const updateOrderResult = await postGraphQL(app, {
       query: `mutation ($input: UpdateOrder!) {
         updateOrder(input: $input) { success data { status } }
@@ -134,7 +134,7 @@ describe("Flujo de compra de punta a punta", () => {
     expect(updateOrderResult.errors).toBeUndefined();
     expect(updateOrderResult.data.updateOrder.data.status).toBe("PAYMENT_PENDING");
 
-    // 5. Pago: se crea el PaymentIntent (mockeado) y se guarda en la orden.
+    // 5. Payment: the PaymentIntent (mocked) is created and saved on the order.
     const createPaymentResult = await postGraphQL(app, {
       query: `mutation ($input: CreateOrderPayment!) {
         createOrderPayment(input: $input) { success data { paymentId } }
@@ -144,7 +144,7 @@ describe("Flujo de compra de punta a punta", () => {
     expect(createPaymentResult.errors).toBeUndefined();
     expect(createPaymentResult.data.createOrderPayment.data.paymentId).toBe("pi_e2e");
 
-    // 6. Webhook: Stripe confirma el pago con un evento firmado de verdad.
+    // 6. Webhook: Stripe confirms the payment with a genuinely signed event.
     const payload = JSON.stringify({
       id: `evt_e2e_${orderId}`,
       type: "payment_intent.succeeded",
