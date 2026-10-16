@@ -76,14 +76,25 @@ export const addToCart = async (product, input) => {
   });
 };
 
+// addToCart took these units out of stock; removing the item puts them back
+// in the same transaction, so a concurrent purchase can't see a stale value.
 export const removeFromCart = async (input) => {
-  const docRef = db.collection(COLLECTION).doc(input.id);
-  const doc = await docRef.get();
-  if (!doc.exists) {
-    return false;
-  }
-  await docRef.delete();
-  return true;
+  return db.runTransaction(async (tx) => {
+    const docRef = db.collection(COLLECTION).doc(input.id);
+    const doc = await tx.get(docRef);
+    if (!doc.exists) {
+      return false;
+    }
+    const item = toCartItem(doc);
+    const productRef = db.collection(PRODUCTS_COLLECTION).doc(String(item.productId));
+    const productDoc = await tx.get(productRef);
+
+    tx.delete(docRef);
+    if (productDoc.exists) {
+      tx.update(productRef, { stock: productDoc.data().stock + item.quantity });
+    }
+    return true;
+  });
 };
 
 const FIRESTORE_IN_QUERY_LIMIT = 30;

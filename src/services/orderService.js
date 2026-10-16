@@ -6,6 +6,7 @@ import {
   getCart,
   getOrderTotals,
   getOrders,
+  OrderAlreadyCompleteError,
   setOrderPayment,
   updateCartItems,
   updateOrder as updateOrderDb,
@@ -95,7 +96,20 @@ export const cancelOrder = async (input) => {
       }
     );
   }
-  const result = await cancelOrderDb(input);
+  let result;
+  try {
+    result = await cancelOrderDb(input);
+  } catch (err) {
+    if (err instanceof OrderAlreadyCompleteError) {
+      throw new GraphQLError("A paid order can't be cancelled", {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "id",
+        },
+      });
+    }
+    throw err;
+  }
   return {
     code: 200,
     success: result,

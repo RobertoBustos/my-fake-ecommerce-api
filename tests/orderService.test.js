@@ -14,6 +14,7 @@ const {
   createOrderPaymentValidatorMock,
   createOrderValidatorMock,
   updateOrderValidatorMock,
+  OrderAlreadyCompleteError,
 } = vi.hoisted(() => ({
   cancelOrderDbMock: vi.fn(),
   createOrderDbMock: vi.fn(),
@@ -28,6 +29,7 @@ const {
   createOrderPaymentValidatorMock: vi.fn(),
   createOrderValidatorMock: vi.fn(),
   updateOrderValidatorMock: vi.fn(),
+  OrderAlreadyCompleteError: class OrderAlreadyCompleteError extends Error {},
 }));
 
 vi.mock("../src/db/index.js", () => ({
@@ -37,6 +39,7 @@ vi.mock("../src/db/index.js", () => ({
   getCart: getCartMock,
   getOrderTotals: getOrderTotalsMock,
   getOrders: getOrdersMock,
+  OrderAlreadyCompleteError,
   setOrderPayment: setOrderPaymentMock,
   updateCartItems: updateCartItemsMock,
   updateOrder: updateOrderDbMock,
@@ -175,6 +178,15 @@ describe("orderService.cancelOrder", () => {
       code: 200,
       success: true,
       message: "Order cancelled",
+    });
+  });
+
+  it("rejects cancelling a paid order with a domain error", async () => {
+    cancelOrderDbMock.mockRejectedValue(new OrderAlreadyCompleteError("order-1"));
+
+    await expect(cancelOrder({ id: "order-1" })).rejects.toMatchObject({
+      message: "A paid order can't be cancelled",
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "id" },
     });
   });
 
