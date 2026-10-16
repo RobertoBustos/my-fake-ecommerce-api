@@ -72,8 +72,10 @@ npm run test:emulator   # starts the Firestore emulator and runs Vitest with cov
 ```
 
 `npm test` alone expects an emulator that is already running. CI runs the same
-`lint` and `test` jobs on every pull request, plus a secret scan (gitleaks) and
-a Docker build that checks `/healthcheck`.
+`lint` and `test` jobs on every pull request, plus a secret scan (`gitleaks`), a
+Docker build that checks `/healthcheck` (`docker-build`) and, on pull requests
+into `main`, `branch-guard`, which only accepts `release/*` and `hotfix/*`
+branches.
 
 ## Purchase flow
 
@@ -96,8 +98,12 @@ release. Details are in the runbook.
 
 - All development goes into `dev` through pull requests; `main` only receives
   releases (`release/sprint-<n>`) and hotfixes (`hotfix/ECOMAPI-<n>-<slug>`).
-- `dev` and `main` are protected: a pull request and green `lint` and `test`
-  checks are required to merge.
+- `dev` and `main` are protected: a pull request and green `lint`, `test`,
+  `gitleaks` and `docker-build` checks are required to merge (`main` also
+  requires `branch-guard`).
+- Layering: GraphQL mutations go through `src/services/`; only the read-only
+  resolvers (`src/schema/resolvers/queries.js` and `fields.js`) may import
+  `src/db/` directly. ESLint enforces this.
 - Branches are named `ECOMAPI-<n>-<short-slug>`, and commits and pull request
   titles start with the Jira key (`ECOMAPI-<n>: ...`).
 - Everything that reaches GitHub is written in English: commits, pull requests,
