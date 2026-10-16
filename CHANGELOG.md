@@ -4,6 +4,43 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-16
+
+Technical debt cleanup after Sprint 2: stricter quality gates, documentation
+in English and production hardening.
+
+### Changed
+
+- GraphQL introspection is turned off in production. The container now runs
+  with `NODE_ENV=production`, so `__schema` and `__type` queries are rejected
+  with HTTP 400 (`GRAPHQL_VALIDATION_FAILED`) and `/graphql` no longer serves
+  Apollo Sandbox there. Regular queries and mutations are unaffected; local
+  runs and tests keep introspection on. Before this, introspection queries
+  also bypassed the query depth limit.
+- The resolvers are split into read-only queries and field resolvers, which
+  may read the database directly, and mutations, which must go through the
+  services layer. ESLint now enforces this.
+- The README is rewritten in English, with local setup, tests, deployment and
+  links to the project documentation in Confluence and Jira.
+- `CLAUDE.md` (the repository conventions) documents the release and hotfix
+  branches allowed into `main`, the required checks and the layering rule.
+- `.env.example` now uses port 4000 for the API, since the Firestore emulator
+  already listens on 8080.
+
+### Removed
+
+- Unused file helpers left over from the JSON-file storage
+  (`src/utils/fileUtils.js`, `src/utils/fakePromise.js`).
+
+### CI
+
+- New `branch-guard` job: pull requests into `main` must come from a
+  `release/*` or `hotfix/*` branch.
+- `gitleaks` and `docker-build` are now required checks on `dev` and `main`,
+  together with `lint` and `test` (and `branch-guard` on `main`).
+- Lint runs with ESLint's recommended defaults as errors; the last warnings
+  were fixed.
+
 ## [1.0.1] - 2026-10-16
 
 ### Fixed
@@ -83,6 +120,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.1.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v0.1.1...v1.0.0
 [0.1.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v0.1.0...v0.1.1
