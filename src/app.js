@@ -39,7 +39,9 @@ export const createApp = async () => {
   // First, so every route (and every log line it writes) has a request ID.
   app.use(requestId);
 
-  app.get("/healthz", (_req, res) => {
+  // Not /healthz: Cloud Run reserves some paths ending in "z" and answers them
+  // with its own 404 before they reach the container.
+  app.get("/healthcheck", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });
 

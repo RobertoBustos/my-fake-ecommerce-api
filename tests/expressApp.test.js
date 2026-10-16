@@ -17,11 +17,11 @@ describe("Express app (ECOMAPI-29)", () => {
     httpServer?.close();
   });
 
-  it("GET /healthz responds with 200", async () => {
+  it("GET /healthcheck responds with 200", async () => {
     const created = await createApp();
     httpServer = created.httpServer;
 
-    const response = await request(created.app).get("/healthz");
+    const response = await request(created.app).get("/healthcheck");
 
     expect(response.status).toBe(200);
   });
