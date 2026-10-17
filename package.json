@@ -7,6 +7,9 @@
   "license": "ISC",
   "description": "",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node --env-file=.env ./src/index.js",
     "lint": "eslint .",
@@ -16,7 +19,8 @@
     "token:local": "node scripts/localToken.js"
   },
   "dependencies": {
-    "@apollo/server": "^4.11.3",
+    "@apollo/server": "^5.5.1",
+    "@as-integrations/express4": "^1.1.2",
     "@google-cloud/firestore": "^9.3.1",
     "cors": "^2.8.6",
     "dataloader": "^2.2.3",

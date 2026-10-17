@@ -17,8 +17,8 @@ vi.mock("../src/config/stripe.js", async () => {
     default: {
       customers: {
         search: vi.fn().mockResolvedValue({ data: [] }),
-        create: vi.fn().mockResolvedValue({ id: "cus_e2e", phone: "5555555555" }),
-        update: vi.fn(),
+        create: vi.fn().mockResolvedValue({ id: "cus_e2e" }),
+        update: vi.fn().mockResolvedValue({ id: "cus_e2e", phone: "5555555555" }),
       },
       paymentIntents: {
         create: vi.fn().mockResolvedValue({ id: "pi_e2e", client_secret: "secret_e2e" }),
@@ -77,6 +77,7 @@ describe("End-to-end purchase flow", () => {
       const items = await db.collection("cartItems").where("cartId", "==", cartId).get();
       await Promise.all(items.docs.map((doc) => doc.ref.delete()));
     }
+    await db.collection("users").doc("e2e-user").delete();
   });
 
   it("products -> cart -> order -> shipping details -> webhook leaves the order paid", async () => {

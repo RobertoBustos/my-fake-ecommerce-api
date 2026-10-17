@@ -58,7 +58,7 @@ export const createOrder = async (input, userId = null) => {
   return { id: docRef.id, ...newOrder };
 };
 
-export const updateOrder = async (input) => {
+export const updateOrder = async (input, userId) => {
   const docRef = db.collection(COLLECTION).doc(input.id);
   const doc = await docRef.get();
   if (!doc.exists) {
@@ -69,7 +69,7 @@ export const updateOrder = async (input) => {
   // != null / == null (not !==/===) on purpose: GraphQL sends an omitted
   // optional field as undefined, not null (H6).
   if (input.customer != null) {
-    updates.customer = await getCustomer(input.customer);
+    updates.customer = await getCustomer(input.customer, userId);
   }
   if (input.address != null) {
     updates.address = input.address;

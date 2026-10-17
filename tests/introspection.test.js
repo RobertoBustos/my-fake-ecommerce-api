@@ -49,4 +49,13 @@ describe("GraphQL introspection", () => {
     expect(response.status).toBe(200);
     expect(response.body.data.__typename).toBe("Query");
   });
+
+  it("doesn't suggest field names in production validation errors", async () => {
+    const production = await runQuery("production", "{ product { id } }");
+    expect(production.status).toBe(400);
+    expect(production.body.errors[0].message).not.toMatch(/did you mean/i);
+
+    const local = await runQuery("test", "{ product { id } }");
+    expect(local.body.errors[0].message).toMatch(/did you mean/i);
+  });
 });
