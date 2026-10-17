@@ -131,7 +131,7 @@ release. Details are in the runbook.
 - All development goes into `dev` through pull requests; `main` only receives
   releases (`release/sprint-<n>`) and hotfixes (`hotfix/ECOMAPI-<n>-<slug>`).
 - `dev` and `main` are protected: a pull request and green `lint`, `test`,
-  `gitleaks` and `docker-build` checks are required to merge (`main` also
+  `gitleaks`, `docker-build` and `typecheck` checks are required to merge (`main` also
   requires `branch-guard`).
 - Layering: GraphQL mutations go through `src/services/`; only the read-only
   resolvers (`src/schema/resolvers/queries.ts` and `fields.ts`) may import

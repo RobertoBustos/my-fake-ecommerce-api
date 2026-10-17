@@ -4,7 +4,7 @@
 - Todo el desarrollo entra a `dev` por PR; `main` solo recibe releases (`release/sprint-<n>`, o `release/v<x.y.z>` fuera de un sprint) y hotfixes
   (`hotfix/ECOMAPI-<n>-<slug>`). El job `branch-guard` de CI rechaza cualquier otra rama hacia `main`.
 - Protegidas: `dev` y `main` (PR obligatorio y rama al día). Checks obligatorios en verde:
-  `lint`, `test`, `gitleaks` y `docker-build`; en `main` además `branch-guard`.
+  `lint`, `test`, `gitleaks`, `docker-build` y `typecheck`; en `main` además `branch-guard`.
 - Capas: las mutations de GraphQL pasan por `src/services/`. Solo los resolvers de lectura
   (`src/schema/resolvers/queries.ts` y `fields.ts`) pueden importar `src/db/`; ESLint lo hace cumplir.
 - TypeScript: `src/` y `scripts/` son `.ts` en modo `strict`; los imports llevan extensión
