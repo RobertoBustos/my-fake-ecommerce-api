@@ -1,6 +1,6 @@
 # my-fake-ecommerce-api
 
-GraphQL API (Apollo Server 4 on Express) for a practice online store: products,
+GraphQL API (Apollo Server 5 on Express) for a practice online store: products,
 cart, orders and Stripe payments. Data lives in Firestore, users authenticate
 with Firebase Auth, and production runs on Cloud Run behind Firebase Hosting.
 
@@ -32,7 +32,7 @@ Atlassian site before following these links.
 
 ## Requirements
 
-- Node.js 20 or later
+- Node.js 22 or later
 - Java 21 (the Firestore emulator needs it)
 - A Stripe account in **test mode**, for `STRIPE_SECRET_KEY`
 
