@@ -23,14 +23,14 @@ jobs:
       SERVICE: my-fake-ecommerce-api
       IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/my-fake-ecommerce-api/my-fake-ecommerce-api:${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v3
 
       - name: Build and push image
         run: |
@@ -44,7 +44,7 @@ jobs:
         run: echo "tag=$(echo "$GITHUB_REF_NAME" | tr '.' '-')" >> "$GITHUB_OUTPUT"
 
       - id: deploy
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: ${{ env.SERVICE }}
           region: ${{ vars.GCP_REGION }}
@@ -62,9 +62,9 @@ jobs:
         run: gcloud run services update-traffic "${{ env.SERVICE }}" --region "${{ vars.GCP_REGION }}" --to-latest
 
       # Hosting rewrites every path to the Cloud Run service, so it must deploy after it.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       # --legacy-peer-deps: works around an npm 11 bug with the eslint/vitest peer deps.
       - run: npm ci --legacy-peer-deps

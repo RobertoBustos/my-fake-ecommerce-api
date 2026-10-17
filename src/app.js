@@ -2,7 +2,7 @@ import http from "http";
 import cors from "cors";
 import express from "express";
 import { ApolloServer } from "@apollo/server";
-import { expressMiddleware } from "@apollo/server/express4";
+import { expressMiddleware } from "@as-integrations/express4";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import { createContext } from "./context.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
@@ -32,6 +32,9 @@ export const createApp = async () => {
     // __schema, so introspection must be off in production (the Dockerfile
     // sets NODE_ENV=production). Local runs and tests keep it on.
     introspection: process.env.NODE_ENV !== "production",
+    // With introspection off, validation errors would still leak the schema
+    // through "Did you mean ...?" suggestions.
+    hideSchemaDetailsFromClientErrors: process.env.NODE_ENV === "production",
     // Recommended by Apollo when integrating with a self-managed
     // http.Server: closes in-flight connections gracefully instead of
     // dropping them.
