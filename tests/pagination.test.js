@@ -27,3 +27,41 @@ describe("paginate (H9)", () => {
     expect(secondPage.pageInfo.hasNextPage).toBe(false);
   });
 });
+
+describe("paginate argument validation", () => {
+  const many = Array.from({ length: 150 }, (_, i) => ({ id: String(i + 1) }));
+  const rejected = (args) => {
+    try {
+      paginate(many, args);
+    } catch (err) {
+      return err.extensions;
+    }
+    return null;
+  };
+
+  it("uses a page of 20 when first is omitted", () => {
+    const { edges, pageInfo } = paginate(many);
+    expect(edges).toHaveLength(20);
+    expect(pageInfo.hasNextPage).toBe(true);
+  });
+
+  it("accepts the maximum page size of 100", () => {
+    expect(paginate(many, { first: 100 }).edges).toHaveLength(100);
+  });
+
+  it.each([-1, 0, 101])("rejects first = %s", (first) => {
+    expect(rejected({ first })).toEqual({ code: "BAD_USER_INPUT", invalidArgument: "first" });
+  });
+
+  it("rejects a cursor that doesn't belong to the list", () => {
+    const after = Buffer.from("not-an-item").toString("base64");
+    expect(rejected({ after })).toEqual({ code: "BAD_USER_INPUT", invalidArgument: "after" });
+  });
+
+  it("rejects a cursor that isn't even base64", () => {
+    expect(rejected({ after: "%%%" })).toEqual({
+      code: "BAD_USER_INPUT",
+      invalidArgument: "after",
+    });
+  });
+});
