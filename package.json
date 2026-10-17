@@ -16,7 +16,8 @@
     "test": "vitest run --coverage",
     "test:emulator": "firebase emulators:exec --only firestore,auth --project demo-ecommerce-api \"npm run test\"",
     "seed": "node scripts/seedFirestore.js",
-    "token:local": "node scripts/localToken.js"
+    "token:local": "node scripts/localToken.js",
+    "cleanup:cart-items": "node scripts/cleanupOrphanCartItems.js"
   },
   "dependencies": {
     "@apollo/server": "^5.5.1",
