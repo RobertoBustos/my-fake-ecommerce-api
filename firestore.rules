@@ -1,8 +1,16 @@
 rules_version = '2';
+
+// Closed on purpose. Nothing reads or writes Firestore directly from a
+// client: the API uses the Admin SDK, which bypasses these rules, and every
+// client goes through the API. Opening a path here would expose orders
+// (with personal data), stock and statuses to anyone who knows the project id.
+//
+// Publish only with `firebase deploy --only firestore:rules`, and keep it
+// closed (see the runbook).
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
