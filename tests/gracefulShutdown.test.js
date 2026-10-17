@@ -48,7 +48,8 @@ describe("graceful shutdown", () => {
   });
 
   it("the real server exits with 0 on SIGTERM", async () => {
-    const child = spawn(process.execPath, ["src/index.js"], {
+    // tsx runs the TypeScript sources directly, as `npm run dev` does.
+    const child = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
       env: { ...process.env, PORT: "18765", HOST: "127.0.0.1" },
       stdio: ["ignore", "pipe", "pipe"],
     });

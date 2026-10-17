@@ -6,7 +6,11 @@
 - Protegidas: `dev` y `main` (PR obligatorio y rama al día). Checks obligatorios en verde:
   `lint`, `test`, `gitleaks` y `docker-build`; en `main` además `branch-guard`.
 - Capas: las mutations de GraphQL pasan por `src/services/`. Solo los resolvers de lectura
-  (`src/schema/resolvers/queries.js` y `fields.js`) pueden importar `src/db/`; ESLint lo hace cumplir.
+  (`src/schema/resolvers/queries.ts` y `fields.ts`) pueden importar `src/db/`; ESLint lo hace cumplir.
+- TypeScript: `src/` y `scripts/` son `.ts` en modo `strict`; los imports llevan extensión
+  `.js` (nodenext). Si cambias `src/schema/typeDefs`, corre `npm run codegen` y commitea
+  `src/generated/graphql.ts` (el job `typecheck` falla si quedó desactualizado). Los tests
+  siguen en `.js`. Antes de entregar: `npm run lint`, `npm run typecheck` y `npm run test:emulator`.
 - Commits y PRs: clave de Jira al inicio del mensaje (`ECOMAPI-<n>: ...`).
 - Dependencias: instalar con `npm ci` y **nunca** con `--legacy-peer-deps` (el lock perdería
   los peer deps y el `npm ci` de CI fallaría). El job `audit` de CI falla con vulnerabilidades
