@@ -13,24 +13,15 @@ import {
   updateOrder as updateOrderDb,
 } from "../db/index.js";
 import {
-  cancelOrderValidator,
-  createOrderPaymentValidator,
-  createOrderValidator,
-  updateOrderValidator,
+  checkCancelOrder,
+  checkCreateOrder,
+  checkCreateOrderPayment,
+  checkUpdateOrder,
 } from "../schema/validators/index.js";
-import { withContentionRetryHint } from "./errors.js";
+import { assertValidInput, withContentionRetryHint } from "./errors.js";
 
 export const createOrder = async (input, userId) => {
-  if (!createOrderValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
-  }
+  assertValidInput(checkCreateOrder, input);
   const cart = await getCart({ cartId: input.cartId });
   // Someone else's cart looks exactly like a missing one (H2).
   if (!cart || cart.length === 0 || cart.some((item) => item.userId !== userId)) {
@@ -64,16 +55,7 @@ export const createOrder = async (input, userId) => {
 };
 
 export const updateOrder = async (input, userId) => {
-  if (!updateOrderValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
-  }
+  assertValidInput(checkUpdateOrder, input);
   const order = await getOrders({ id: input.id, userId });
   if (!order || order.length === 0) {
     throw new GraphQLError("Order not found", {
@@ -114,16 +96,7 @@ export const updateOrder = async (input, userId) => {
 };
 
 export const cancelOrder = async (input, userId) => {
-  if (!cancelOrderValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
-  }
+  assertValidInput(checkCancelOrder, input);
   const order = await getOrders({ id: input.id, userId });
   if (order.length === 0) {
     throw new GraphQLError("Order not found", {
@@ -157,16 +130,7 @@ export const cancelOrder = async (input, userId) => {
 };
 
 export const createOrderPayment = async (input, userId) => {
-  if (!createOrderPaymentValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
-  }
+  assertValidInput(checkCreateOrderPayment, input);
   const order = await getOrders({ id: input.orderId, userId });
   if (!order || order.length === 0) {
     throw new GraphQLError("Order not found", {

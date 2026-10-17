@@ -10,25 +10,16 @@ import {
   removeFromCart as removeFromCartDb,
 } from "../db/index.js";
 import {
-  addToCartValidator,
-  removeFromCartValidator,
+  checkAddToCart,
+  checkRemoveFromCart,
   validateCartQuantity,
 } from "../schema/validators/index.js";
-import { withContentionRetryHint } from "./errors.js";
+import { assertValidInput, withContentionRetryHint } from "./errors.js";
 
 // Every write takes the authenticated user's uid and only touches what that
 // user owns; anything else answers NOT_FOUND, as if it didn't exist (H2).
 export const addToCart = async (input, userId) => {
-  if (!addToCartValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_USER_INPUT",
-        },
-      }
-    );
-  }
+  assertValidInput(checkAddToCart, input);
   const product = await getProducts({ id: input.productId });
   if (!product || product.length === 0) {
     throw new GraphQLError("Product not found", {
@@ -113,16 +104,7 @@ export const addToCart = async (input, userId) => {
 };
 
 export const removeFromCart = async (input, userId) => {
-  if (!removeFromCartValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
-  }
+  assertValidInput(checkRemoveFromCart, input);
   let removed;
   try {
     removed = await withContentionRetryHint(() => removeFromCartDb(input, userId));
