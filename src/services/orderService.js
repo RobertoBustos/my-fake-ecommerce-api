@@ -70,7 +70,7 @@ export const updateOrder = async (input, userId) => {
       },
     });
   }
-  const newOrder = await updateOrderDb(input);
+  const newOrder = await updateOrderDb(input, userId);
   if (!newOrder) {
     return {
       code: 200,
