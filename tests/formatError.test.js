@@ -3,13 +3,12 @@ import { ApolloServer } from "@apollo/server";
 import typeDefs from "../src/schema/typeDefs/index.js";
 import { formatError } from "../src/schema/formatError.js";
 
-vi.mock("../src/db/products.js", () => ({
-  getProducts: vi.fn(() => {
-    throw new Error(
-      "ENOENT: no such file or directory, open '/etc/secret.json'"
-    );
-  }),
-}));
+vi.mock("../src/db/products.js", () => {
+  const leak = vi.fn(() => {
+    throw new Error("ENOENT: no such file or directory, open '/etc/secret.json'");
+  });
+  return { getProducts: leak, listProducts: leak };
+});
 
 import resolvers from "../src/schema/resolvers.js";
 
@@ -29,7 +28,7 @@ describe("formatError (H? - domain errors translated at the edge)", () => {
 
   it("lets known domain errors pass through unchanged", async () => {
     // We use createOrder (reads src/db/cart.js, not products.js) to avoid
-    // colliding with the getProducts mock that throws an unexpected error above.
+    // colliding with the products mock that throws an unexpected error above.
     const server = new ApolloServer({ typeDefs, resolvers, formatError });
 
     const response = await server.executeOperation(

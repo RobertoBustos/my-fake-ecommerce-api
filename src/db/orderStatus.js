@@ -3,6 +3,6 @@
 //   INCOMPLETE | PAYMENT_PENDING -> CANCELLED   cancelOrder
 //   PAYMENT_PENDING -> COMPLETE                 only the Stripe webhook
 // COMPLETE and CANCELLED are final: their items, details and stock are settled.
-const OPEN_STATUSES = new Set(["INCOMPLETE", "PAYMENT_PENDING"]);
+export const OPEN_STATUSES = ["INCOMPLETE", "PAYMENT_PENDING"];
 
-export const isOrderOpen = (order) => OPEN_STATUSES.has(order.status);
+export const isOrderOpen = (order) => OPEN_STATUSES.includes(order.status);
