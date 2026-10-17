@@ -43,7 +43,7 @@ install.
 
 ```bash
 cp .env.example .env        # then set STRIPE_SECRET_KEY
-npm install --legacy-peer-deps
+npm ci
 
 # Terminal 1: Firestore (port 8080) and Auth (port 9099) emulators
 npx firebase emulators:start --only firestore,auth --project demo-ecommerce-api
@@ -53,8 +53,11 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm run seed
 npm start
 ```
 
-`npm install --legacy-peer-deps` is required: with npm 11 a plain install fails
-because of a bug resolving the eslint/vitest peer dependencies.
+Use `npm ci` to install exactly what `package-lock.json` pins. Don't pass
+`--legacy-peer-deps` when adding or updating a dependency: the lock file has to
+keep the peer dependencies, and CI's `npm ci` fails if it doesn't. If npm 11
+crashes with `Cannot read properties of null (reading 'edgesOut')` while
+resolving a brand-new tree (no lock file), use npm 12 or later.
 
 Open `http://localhost:4000/graphql` in a browser to get Apollo Sandbox.
 
