@@ -2,7 +2,7 @@ import {
   addToCart,
   CartNotOwnedError,
   getCart,
-  getCartWithoutOrder,
+  listCartItemsWithoutOrder,
   InsufficientStockError,
   OrderItemLockedError,
   removeFromCart,
@@ -12,7 +12,8 @@ import {
   cancelOrder,
   CartAlreadyOrderedError,
   createOrder,
-  getIncompleteOrders,
+  listIncompleteOrders,
+  listOrders,
   getOrderTotals,
   getOrders,
   markOrderComplete,
@@ -29,7 +30,7 @@ import {
   searchPayment,
   searchPaymentMethod,
 } from "./payment.js";
-import { getProducts } from "./products.js";
+import { getProducts, listProducts } from "./products.js";
 import { TransactionContentionError } from "./transactions.js";
 
 export {
@@ -41,12 +42,14 @@ export {
   createOrder,
   createPayment,
   getCart,
-  getCartWithoutOrder,
+  listCartItemsWithoutOrder,
   getCustomer,
-  getIncompleteOrders,
+  listIncompleteOrders,
+  listOrders,
   getOrderTotals,
   getOrders,
   getProducts,
+  listProducts,
   InsufficientStockError,
   isOrderOpen,
   markOrderComplete,

@@ -1,8 +1,10 @@
+import { FieldPath } from "firebase-admin/firestore";
 import db from "../config/firestore.js";
 import { runTransaction } from "./transactions.js";
 import { computeOrderTotals } from "../utils/orderTotals.js";
 import { getCart } from "./cart.js";
-import { isOrderOpen } from "./orderStatus.js";
+import { isOrderOpen, OPEN_STATUSES } from "./orderStatus.js";
+import { paginateQuery } from "./pagination.js";
 import { cancelPayment, getCustomer, searchPayment } from "./payment.js";
 import { logger } from "../utils/logger.js";
 
@@ -66,9 +68,23 @@ export const getOrderTotals = async (id) => {
   return computeOrderTotals(cart);
 };
 
-export const getIncompleteOrders = async ({ cart, userId } = {}) => {
-  const orders = await getOrders({ cart, userId });
-  return orders.filter(isOrderOpen);
+// The orders query, one page at a time. Filtering by userId in the query
+// itself keeps H2: another user's order never appears, not even by direct id.
+export const listOrders = async ({ id, cart, status, userId } = {}, page = {}) => {
+  let query = db.collection(COLLECTION);
+  if (id !== undefined) query = query.where(FieldPath.documentId(), "==", id);
+  if (cart !== undefined) query = query.where("cart", "==", cart);
+  if (status !== undefined) query = query.where("status", "==", status);
+  if (userId !== undefined) query = query.where("userId", "==", userId);
+  return paginateQuery(query, page, toOrder);
+};
+
+// Open orders filtered by status in Firestore instead of in memory.
+export const listIncompleteOrders = async ({ cart, userId } = {}, page = {}) => {
+  let query = db.collection(COLLECTION).where("status", "in", OPEN_STATUSES);
+  if (cart !== undefined) query = query.where("cart", "==", cart);
+  if (userId !== undefined) query = query.where("userId", "==", userId);
+  return paginateQuery(query, page, toOrder);
 };
 
 // Creating the order and claiming the cart's free items happen in one
