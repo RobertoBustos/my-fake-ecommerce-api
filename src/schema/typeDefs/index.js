@@ -11,10 +11,30 @@ const rootTypes = `#graphql
   }
 
   type Query {
-    products(id: ID, category: String, first: Int, after: String): ProductConnection!
-    carts(cartId: String, productId: String, first: Int, after: String): CartItemConnection!
-    orders(id: ID, cart: String, status: Status, first: Int, after: String): OrderConnection!
-    incompleteOrders(cart: String, first: Int, after: String): OrderConnection!
+    products(id: ID, category: String,
+      "Page size, from 1 to 100. Defaults to 20."
+      first: Int
+      "endCursor of the previous page. An unknown cursor is rejected with BAD_USER_INPUT."
+      after: String
+    ): ProductConnection!
+    carts(cartId: String, productId: String,
+      "Page size, from 1 to 100. Defaults to 20."
+      first: Int
+      "endCursor of the previous page. An unknown cursor is rejected with BAD_USER_INPUT."
+      after: String
+    ): CartItemConnection!
+    orders(id: ID, cart: String, status: Status,
+      "Page size, from 1 to 100. Defaults to 20."
+      first: Int
+      "endCursor of the previous page. An unknown cursor is rejected with BAD_USER_INPUT."
+      after: String
+    ): OrderConnection!
+    incompleteOrders(cart: String,
+      "Page size, from 1 to 100. Defaults to 20."
+      first: Int
+      "endCursor of the previous page. An unknown cursor is rejected with BAD_USER_INPUT."
+      after: String
+    ): OrderConnection!
   }
 
   interface MutationResponse {
