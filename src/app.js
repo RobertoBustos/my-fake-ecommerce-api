@@ -2,7 +2,7 @@ import http from "http";
 import cors from "cors";
 import express from "express";
 import { ApolloServer } from "@apollo/server";
-import { expressMiddleware } from "@apollo/server/express4";
+import { expressMiddleware } from "@as-integrations/express4";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import { createContext } from "./context.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
@@ -13,6 +13,7 @@ import { formatError } from "./schema/formatError.js";
 import resolvers from "./schema/resolvers.js";
 import typeDefs from "./schema/typeDefs/index.js";
 import { logger } from "./utils/logger.js";
+import { SHUTDOWN_GRACE_PERIOD_MS } from "./shutdown.js";
 import { handleStripeWebhook } from "./webhooks/stripeWebhook.js";
 
 // Separated from index.js so tests can build the app without binding a real
@@ -32,10 +33,19 @@ export const createApp = async () => {
     // __schema, so introspection must be off in production (the Dockerfile
     // sets NODE_ENV=production). Local runs and tests keep it on.
     introspection: process.env.NODE_ENV !== "production",
+    // With introspection off, validation errors would still leak the schema
+    // through "Did you mean ...?" suggestions.
+    hideSchemaDetailsFromClientErrors: process.env.NODE_ENV === "production",
     // Recommended by Apollo when integrating with a self-managed
-    // http.Server: closes in-flight connections gracefully instead of
-    // dropping them.
-    plugins: [ApolloServerPluginDrainHttpServer({ httpServer }), errorLoggingPlugin],
+    // http.Server: on server.stop() (see shutdown.js), lets in-flight
+    // requests finish instead of dropping them.
+    plugins: [
+      ApolloServerPluginDrainHttpServer({
+        httpServer,
+        stopGracePeriodMillis: SHUTDOWN_GRACE_PERIOD_MS,
+      }),
+      errorLoggingPlugin,
+    ],
   });
 
   await server.start();
@@ -78,5 +88,5 @@ export const createApp = async () => {
     });
   });
 
-  return { app, httpServer };
+  return { app, httpServer, server };
 };

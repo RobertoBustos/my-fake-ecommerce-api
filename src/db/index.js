@@ -1,18 +1,24 @@
 import {
   addToCart,
+  CartNotOwnedError,
   getCart,
   getCartWithoutOrder,
   InsufficientStockError,
+  OrderItemLockedError,
   removeFromCart,
   updateCartItems,
 } from "./cart.js";
 import {
   cancelOrder,
+  CartAlreadyOrderedError,
   createOrder,
   getIncompleteOrders,
   getOrderTotals,
   getOrders,
   markOrderComplete,
+  isOrderOpen,
+  OrderAlreadyCompleteError,
+  OrderClosedError,
   setOrderPayment,
   updateOrder,
 } from "./orders.js";
@@ -24,9 +30,12 @@ import {
   searchPaymentMethod,
 } from "./payment.js";
 import { getProducts } from "./products.js";
+import { TransactionContentionError } from "./transactions.js";
 
 export {
   addToCart,
+  CartAlreadyOrderedError,
+  CartNotOwnedError,
   cancelOrder,
   cancelPayment,
   createOrder,
@@ -39,11 +48,16 @@ export {
   getOrders,
   getProducts,
   InsufficientStockError,
+  isOrderOpen,
   markOrderComplete,
+  OrderAlreadyCompleteError,
+  OrderClosedError,
+  OrderItemLockedError,
   removeFromCart,
   searchPayment,
   searchPaymentMethod,
   setOrderPayment,
+  TransactionContentionError,
   updateCartItems,
   updateOrder,
 };

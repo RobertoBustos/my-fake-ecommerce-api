@@ -1,27 +1,25 @@
 import { GraphQLError } from "graphql";
 import {
   addToCart as addToCartDb,
+  CartNotOwnedError,
+  getOrders,
   getProducts,
   InsufficientStockError,
+  isOrderOpen,
+  OrderItemLockedError,
   removeFromCart as removeFromCartDb,
 } from "../db/index.js";
 import {
-  addToCartValidator,
-  removeFromCartValidator,
+  checkAddToCart,
+  checkRemoveFromCart,
   validateCartQuantity,
 } from "../schema/validators/index.js";
+import { assertValidInput, withContentionRetryHint } from "./errors.js";
 
-export const addToCart = async (input) => {
-  if (!addToCartValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_USER_INPUT",
-        },
-      }
-    );
-  }
+// Every write takes the authenticated user's uid and only touches what that
+// user owns; anything else answers NOT_FOUND, as if it didn't exist (H2).
+export const addToCart = async (input, userId) => {
+  assertValidInput(checkAddToCart, input);
   const product = await getProducts({ id: input.productId });
   if (!product || product.length === 0) {
     throw new GraphQLError("Product not found", {
@@ -45,10 +43,48 @@ export const addToCart = async (input) => {
       }
     );
   }
+  if (input.orderId != null) {
+    const order = await getOrders({ id: input.orderId, userId });
+    if (order.length === 0) {
+      throw new GraphQLError("Order not found", {
+        extensions: {
+          code: "NOT_FOUND",
+          invalidArgument: "orderId",
+        },
+      });
+    }
+    // A paid or cancelled order's items are settled. If the order already
+    // has a PaymentIntent, the client must call createOrderPayment again,
+    // which updates its amount; the webhook refuses a payment for less.
+    if (!isOrderOpen(order[0])) {
+      throw new GraphQLError(`Items can't be added to a ${order[0].status} order`, {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "orderId",
+        },
+      });
+    }
+    if (order[0].cart !== input.cartId) {
+      throw new GraphQLError("cartId doesn't match the order's cart", {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "cartId",
+        },
+      });
+    }
+  }
   let cartItem;
   try {
-    cartItem = await addToCartDb(product[0], input);
+    cartItem = await withContentionRetryHint(() => addToCartDb(product[0], input, userId));
   } catch (err) {
+    if (err instanceof CartNotOwnedError) {
+      throw new GraphQLError("Cart not found", {
+        extensions: {
+          code: "NOT_FOUND",
+          invalidArgument: "cartId",
+        },
+      });
+    }
     if (err instanceof InsufficientStockError) {
       throw new GraphQLError("Not enough stock available for this quantity", {
         extensions: {
@@ -67,23 +103,33 @@ export const addToCart = async (input) => {
   };
 };
 
-export const removeFromCart = async (input) => {
-  if (!removeFromCartValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
+export const removeFromCart = async (input, userId) => {
+  assertValidInput(checkRemoveFromCart, input);
+  let removed;
+  try {
+    removed = await withContentionRetryHint(() => removeFromCartDb(input, userId));
+  } catch (err) {
+    if (err instanceof OrderItemLockedError) {
+      throw new GraphQLError(`Items can't be removed from a ${err.status} order`, {
         extensions: {
-          code: "BAD_REQUEST",
+          code: "BAD_USER_INPUT",
+          invalidArgument: "id",
         },
-      }
-    );
+      });
+    }
+    throw err;
   }
-  const result = await removeFromCartDb(input);
+  if (!removed) {
+    throw new GraphQLError("Cart item not found", {
+      extensions: {
+        code: "NOT_FOUND",
+        invalidArgument: "id",
+      },
+    });
+  }
   return {
     code: 200,
-    success: result,
-    message: result
-      ? "Item Removed"
-      : "There was an error removing the item",
+    success: true,
+    message: "Item Removed",
   };
 };

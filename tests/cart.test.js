@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { ApolloServer } from "@apollo/server";
 import typeDefs from "../src/schema/typeDefs/index.js";
 import resolvers from "../src/schema/resolvers.js";
+import { createLoaders } from "../src/dataloaders/index.js";
 
 describe("addToCart mutation (H5)", () => {
   it("returns BAD_USER_INPUT when quantity exceeds purchaseLimits", async () => {
@@ -13,7 +14,7 @@ describe("addToCart mutation (H5)", () => {
           success
         }
       }`,
-    });
+    }, { contextValue: { user: { uid: "user-h5" }, loaders: createLoaders() } });
 
     expect(response.body.kind).toBe("single");
     const { errors } = response.body.singleResult;

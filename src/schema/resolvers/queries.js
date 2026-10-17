@@ -14,8 +14,8 @@ export const Query = {
     const products = await getProducts({ id, category });
     return paginate(products, { first, after });
   },
-  carts: async (_, { cartId, productId, first, after }) => {
-    const cart = await getCartWithoutOrder({ cartId, productId });
+  carts: async (_, { cartId, productId, first, after }, context) => {
+    const cart = await getCartWithoutOrder({ cartId, productId, userId: context.user.uid });
     return paginate(cart, { first, after });
   },
   orders: async (_, { id, cart, status, first, after }, context) => {

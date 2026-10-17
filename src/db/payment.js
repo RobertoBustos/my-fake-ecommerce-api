@@ -1,37 +1,40 @@
+import db from "../config/firestore.js";
 import stripeClient from "../config/stripe.js";
 
-// Stripe uses single quotes to delimit values in its search language; an
-// email with an unescaped single quote breaks or manipulates the query
-// (H4). Stripe expects quotes inside the value to be escaped with \.
-export const escapeStripeSearchValue = (value) => value.replace(/'/g, "\\'");
+// Stripe's search language delimits values with quotes; a quote inside an
+// unescaped value breaks or manipulates the query (H4). Stripe expects
+// quotes (and the backslash itself) inside the value to be escaped with \.
+export const escapeStripeSearchValue = (value) => value.replace(/[\\'"]/g, "\\$&");
 
-export const getCustomer = async (input) => {
-  const { email, name, phone } = input;
-  let customer;
-  const customers = await stripeClient.customers.search({
-    query: `email:'${escapeStripeSearchValue(email)}'`,
-  });
-  //the customer was found
-  if (customers.data.length > 0) {
-    customer = customers.data[0];
-    if (customer.phone === null) {
-      customer = await stripeClient.customers.update(customer.id, {
-        phone: phone,
-      });
-    }
-  } else {
-    // i will create a customer
-    customer = await stripeClient.customers.create({
-      name: name,
-      email: email,
-      phone: phone,
-    });
+const USERS_COLLECTION = "users";
+
+// Each Firebase user has exactly one Stripe customer, found through the uid
+// (users/{uid}.stripeCustomerId), never through the email typed into the
+// order: looking it up by email let one user pick another user's customer
+// and get an ephemeral key for their saved cards. The typed details only
+// update the user's own customer.
+export const getCustomer = async (input, userId) => {
+  if (!userId) {
+    throw new Error("A Stripe customer can only be resolved for a signed-in user");
   }
-  if (!customer) {
-    throw new Error("Error getting customer information");
+  const details = { name: input.name, email: input.email, phone: input.phone };
+  const userRef = db.collection(USERS_COLLECTION).doc(userId);
+  const userDoc = await userRef.get();
+  let customerId = userDoc.exists ? userDoc.data().stripeCustomerId : undefined;
+
+  if (!customerId) {
+    // Same parameters on every attempt, so the idempotency key holds: two
+    // concurrent first orders, or a retry after a failed Firestore write,
+    // get the same customer instead of a duplicate.
+    const created = await stripeClient.customers.create(
+      { metadata: { firebase_uid: userId } },
+      { idempotencyKey: `customer-${userId}` }
+    );
+    customerId = created.id;
+    await userRef.set({ stripeCustomerId: customerId }, { merge: true });
   }
 
-  return customer;
+  return stripeClient.customers.update(customerId, details);
 };
 
 export const createPayment = async (orderId, amount, customerId) => {
@@ -85,7 +88,7 @@ export const searchPayment = async (searchBy, value) => {
     return response;
   } else if (searchBy === "order") {
     response = await stripeClient.paymentIntents.search({
-      query: `metadata["order_id"]: "${value}"`,
+      query: `metadata["order_id"]: "${escapeStripeSearchValue(value)}"`,
     });
     if (response.data.length === 0) {
       return null;
@@ -94,12 +97,14 @@ export const searchPayment = async (searchBy, value) => {
   }
 };
 
-export const cancelPayment = async (orderId) => {
-  const payment = await searchPayment("id", orderId);
-  if (payment && payment !== null) {
-    await stripeClient.paymentIntents.cancel(payment.id);
-    return true;
+export const cancelPayment = async (paymentId) => {
+  const payment = await searchPayment("id", paymentId);
+  // Stripe rejects cancelling a PaymentIntent that is already cancelled.
+  if (!payment || payment.status === "canceled") {
+    return false;
   }
+  await stripeClient.paymentIntents.cancel(payment.id);
+  return true;
 };
 
 export const searchPaymentMethod = async (paymentMethodId) => {

@@ -17,8 +17,8 @@ vi.mock("../src/config/stripe.js", async () => {
     default: {
       customers: {
         search: vi.fn().mockResolvedValue({ data: [] }),
-        create: vi.fn().mockResolvedValue({ id: "cus_e2e", phone: "5555555555" }),
-        update: vi.fn(),
+        create: vi.fn().mockResolvedValue({ id: "cus_e2e" }),
+        update: vi.fn().mockResolvedValue({ id: "cus_e2e", phone: "5555555555" }),
       },
       paymentIntents: {
         create: vi.fn().mockResolvedValue({ id: "pi_e2e", client_secret: "secret_e2e" }),
@@ -77,6 +77,7 @@ describe("End-to-end purchase flow", () => {
       const items = await db.collection("cartItems").where("cartId", "==", cartId).get();
       await Promise.all(items.docs.map((doc) => doc.ref.delete()));
     }
+    await db.collection("users").doc("e2e-user").delete();
   });
 
   it("products -> cart -> order -> shipping details -> webhook leaves the order paid", async () => {
@@ -144,11 +145,14 @@ describe("End-to-end purchase flow", () => {
     expect(createPaymentResult.errors).toBeUndefined();
     expect(createPaymentResult.data.createOrderPayment.data.paymentId).toBe("pi_e2e");
 
-    // 6. Webhook: Stripe confirms the payment with a genuinely signed event.
+    // 6. Webhook: Stripe confirms the payment with a genuinely signed event,
+    // charging the amount the PaymentIntent was created with.
+    const [{ amount }] = stripeClient.paymentIntents.create.mock.calls.at(-1);
+    expect(amount).toBeGreaterThan(0);
     const payload = JSON.stringify({
       id: `evt_e2e_${orderId}`,
       type: "payment_intent.succeeded",
-      data: { object: { id: "pi_e2e", metadata: { order_id: orderId } } },
+      data: { object: { id: "pi_e2e", amount_received: amount, metadata: { order_id: orderId } } },
     });
     const signature = stripeClient.webhooks.generateTestHeaderString({
       payload,

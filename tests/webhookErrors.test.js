@@ -12,12 +12,12 @@ vi.mock("../src/db/index.js", async (importOriginal) => {
   const original = await importOriginal();
   return {
     ...original,
-    markOrderComplete: vi.fn(async (id) => {
+    markOrderComplete: vi.fn(async (...args) => {
       if (failOnce.pending) {
         failOnce.pending = false;
         throw new Error("Firestore unavailable");
       }
-      return original.markOrderComplete(id);
+      return original.markOrderComplete(...args);
     }),
   };
 });
@@ -54,6 +54,7 @@ describe("Stripe webhook when processing fails (ECOMAPI-48)", () => {
     vi.restoreAllMocks();
     if (orderId) {
       await db.collection("orders").doc(orderId).delete();
+      await db.collection("cartItems").doc(`item-${orderId}`).delete();
     }
     await db.collection("processedWebhookEvents").doc(eventId).delete();
   });
@@ -69,11 +70,21 @@ describe("Stripe webhook when processing fails (ECOMAPI-48)", () => {
       paymentId: "pi_test_errors",
       userId: "user-1",
     });
+    // One item of 100 + 16% tax: the payment must be for exactly 116.
+    await db.collection("cartItems").doc(`item-${orderId}`).set({
+      cartId: "cart-webhook-errors-test",
+      orderId,
+      userId: "user-1",
+      productId: "fixture-product",
+      quantity: 1,
+      unitPrice: 100,
+      subtotal: 100,
+    });
 
     const payload = JSON.stringify({
       id: eventId,
       type: "payment_intent.succeeded",
-      data: { object: { id: "pi_test_errors", metadata: { order_id: orderId } } },
+      data: { object: { id: "pi_test_errors", amount_received: 116, metadata: { order_id: orderId } } },
     });
     const sign = () =>
       stripeClient.webhooks.generateTestHeaderString({ payload, secret: WEBHOOK_SECRET });

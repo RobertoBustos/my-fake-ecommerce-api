@@ -1,35 +1,30 @@
 import { GraphQLError } from "graphql";
 import {
   cancelOrder as cancelOrderDb,
+  CartAlreadyOrderedError,
   createOrder as createOrderDb,
   createPayment,
   getCart,
   getOrderTotals,
   getOrders,
+  OrderAlreadyCompleteError,
+  OrderClosedError,
   setOrderPayment,
-  updateCartItems,
   updateOrder as updateOrderDb,
 } from "../db/index.js";
 import {
-  cancelOrderValidator,
-  createOrderPaymentValidator,
-  createOrderValidator,
-  updateOrderValidator,
+  checkCancelOrder,
+  checkCreateOrder,
+  checkCreateOrderPayment,
+  checkUpdateOrder,
 } from "../schema/validators/index.js";
+import { assertValidInput, withContentionRetryHint } from "./errors.js";
 
 export const createOrder = async (input, userId) => {
-  if (!createOrderValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
-  }
+  assertValidInput(checkCreateOrder, input);
   const cart = await getCart({ cartId: input.cartId });
-  if (!cart || cart.length === 0) {
+  // Someone else's cart looks exactly like a missing one (H2).
+  if (!cart || cart.length === 0 || cart.some((item) => item.userId !== userId)) {
     throw new GraphQLError("Cart not found", {
       extensions: {
         code: "NOT_FOUND",
@@ -37,8 +32,20 @@ export const createOrder = async (input, userId) => {
       },
     });
   }
-  const order = await createOrderDb(input, userId);
-  await updateCartItems(input.cartId, order.id);
+  let order;
+  try {
+    order = await withContentionRetryHint(() => createOrderDb(input, userId));
+  } catch (err) {
+    if (err instanceof CartAlreadyOrderedError) {
+      throw new GraphQLError("This cart has already been ordered", {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "cartId",
+        },
+      });
+    }
+    throw err;
+  }
   return {
     code: 200,
     success: true,
@@ -47,18 +54,9 @@ export const createOrder = async (input, userId) => {
   };
 };
 
-export const updateOrder = async (input) => {
-  if (!updateOrderValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
-  }
-  const order = await getOrders({ id: input.id });
+export const updateOrder = async (input, userId) => {
+  assertValidInput(checkUpdateOrder, input);
+  const order = await getOrders({ id: input.id, userId });
   if (!order || order.length === 0) {
     throw new GraphQLError("Order not found", {
       extensions: {
@@ -67,7 +65,20 @@ export const updateOrder = async (input) => {
       },
     });
   }
-  const newOrder = await updateOrderDb(input);
+  let newOrder;
+  try {
+    newOrder = await withContentionRetryHint(() => updateOrderDb(input, userId));
+  } catch (err) {
+    if (err instanceof OrderClosedError) {
+      throw new GraphQLError(`A ${err.status} order can't be updated`, {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "id",
+        },
+      });
+    }
+    throw err;
+  }
   if (!newOrder) {
     return {
       code: 200,
@@ -84,18 +95,31 @@ export const updateOrder = async (input) => {
   };
 };
 
-export const cancelOrder = async (input) => {
-  if (!cancelOrderValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
+export const cancelOrder = async (input, userId) => {
+  assertValidInput(checkCancelOrder, input);
+  const order = await getOrders({ id: input.id, userId });
+  if (order.length === 0) {
+    throw new GraphQLError("Order not found", {
+      extensions: {
+        code: "NOT_FOUND",
+        invalidArgument: "id",
+      },
+    });
   }
-  const result = await cancelOrderDb(input);
+  let result;
+  try {
+    result = await withContentionRetryHint(() => cancelOrderDb(input));
+  } catch (err) {
+    if (err instanceof OrderAlreadyCompleteError) {
+      throw new GraphQLError("A paid order can't be cancelled", {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "id",
+        },
+      });
+    }
+    throw err;
+  }
   return {
     code: 200,
     success: result,
@@ -105,18 +129,9 @@ export const cancelOrder = async (input) => {
   };
 };
 
-export const createOrderPayment = async (input) => {
-  if (!createOrderPaymentValidator(input)) {
-    throw new GraphQLError(
-      "One or more parameters sent have an invalid value",
-      {
-        extensions: {
-          code: "BAD_REQUEST",
-        },
-      }
-    );
-  }
-  const order = await getOrders({ id: input.orderId });
+export const createOrderPayment = async (input, userId) => {
+  assertValidInput(checkCreateOrderPayment, input);
+  const order = await getOrders({ id: input.orderId, userId });
   if (!order || order.length === 0) {
     throw new GraphQLError("Order not found", {
       extensions: {
@@ -133,7 +148,26 @@ export const createOrderPayment = async (input) => {
       },
     });
   }
+  // Only an order with its details complete, and not yet paid or cancelled,
+  // can be charged.
+  if (order[0].status !== "PAYMENT_PENDING") {
+    throw new GraphQLError(`A ${order[0].status} order can't be paid`, {
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+      },
+    });
+  }
   const totals = await getOrderTotals(order[0].id);
+  // Stripe rejects a zero amount, which used to surface as an internal error.
+  if (totals.total <= 0) {
+    throw new GraphQLError("The order has no items to pay for", {
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+      },
+    });
+  }
   const payment = await createPayment(
     order[0].id,
     totals.total,

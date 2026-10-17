@@ -33,6 +33,7 @@ describe("Webhook event idempotency", () => {
   afterAll(async () => {
     if (orderId) {
       await db.collection("orders").doc(orderId).delete();
+      await db.collection("cartItems").doc(`item-${orderId}`).delete();
     }
     if (eventId) {
       await db.collection("processedWebhookEvents").doc(eventId).delete();
@@ -50,12 +51,22 @@ describe("Webhook event idempotency", () => {
       paymentId: "pi_idempotency_test",
       userId: "user-1",
     });
+    // One item of 100 + 16% tax: the payment must be for exactly 116.
+    await db.collection("cartItems").doc(`item-${orderId}`).set({
+      cartId: "cart-idempotency-test",
+      orderId,
+      userId: "user-1",
+      productId: "fixture-product",
+      quantity: 1,
+      unitPrice: 100,
+      subtotal: 100,
+    });
 
     eventId = `evt_idempotency_${orderId}`;
     const payload = JSON.stringify({
       id: eventId,
       type: "payment_intent.succeeded",
-      data: { object: { id: "pi_idempotency_test", metadata: { order_id: orderId } } },
+      data: { object: { id: "pi_idempotency_test", amount_received: 116, metadata: { order_id: orderId } } },
     });
     const signature = stripeClient.webhooks.generateTestHeaderString({
       payload,

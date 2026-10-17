@@ -1,10 +1,44 @@
 import db from "../config/firestore.js";
+import { runTransaction } from "./transactions.js";
 import { computeOrderTotals } from "../utils/orderTotals.js";
 import { getCart } from "./cart.js";
-import { cancelPayment, getCustomer } from "./payment.js";
+import { isOrderOpen } from "./orderStatus.js";
+import { cancelPayment, getCustomer, searchPayment } from "./payment.js";
+import { logger } from "../utils/logger.js";
+
+export { isOrderOpen };
 
 const COLLECTION = "orders";
+// Must match the collections in db/cart.js and db/products.js: cancelling
+// reads the order's cart items and products inside one transaction.
+const CART_COLLECTION = "cartItems";
+const PRODUCTS_COLLECTION = "products";
 const toOrder = (doc) => ({ id: doc.id, ...doc.data() });
+
+export class OrderClosedError extends Error {
+  constructor(orderId, status) {
+    super(`Order ${orderId} is ${status} and can't be changed`);
+    this.name = "OrderClosedError";
+    this.orderId = orderId;
+    this.status = status;
+  }
+}
+
+export class CartAlreadyOrderedError extends Error {
+  constructor(cartId) {
+    super(`Cart ${cartId} has no items left to order`);
+    this.name = "CartAlreadyOrderedError";
+    this.cartId = cartId;
+  }
+}
+
+export class OrderAlreadyCompleteError extends Error {
+  constructor(orderId) {
+    super(`Order ${orderId} is already paid and can't be cancelled`);
+    this.name = "OrderAlreadyCompleteError";
+    this.orderId = orderId;
+  }
+}
 
 export const getOrders = async ({ id, cart, status, userId } = {}) => {
   if (id !== undefined) {
@@ -34,62 +68,148 @@ export const getOrderTotals = async (id) => {
 
 export const getIncompleteOrders = async ({ cart, userId } = {}) => {
   const orders = await getOrders({ cart, userId });
-  return orders.filter(
-    (order) => order.status !== "COMPLETE" && order.status !== "CANCELLED"
-  );
+  return orders.filter(isOrderOpen);
 };
 
+// Creating the order and claiming the cart's free items happen in one
+// transaction: two concurrent createOrder calls for the same cart can't both
+// succeed, and a cart whose items are all ordered can't produce an empty order.
 export const createOrder = async (input, userId = null) => {
-  const docRef = db.collection(COLLECTION).doc();
-  const newOrder = {
-    customer: null,
-    address: null,
-    paymentId: null,
-    cart: input.cartId,
-    status: "INCOMPLETE",
-    userId,
-  };
-  await docRef.set(newOrder);
-  return { id: docRef.id, ...newOrder };
+  return runTransaction(async (tx) => {
+    const items = await tx.get(
+      db
+        .collection(CART_COLLECTION)
+        .where("cartId", "==", input.cartId)
+        .where("orderId", "==", null)
+    );
+    if (items.empty) {
+      throw new CartAlreadyOrderedError(input.cartId);
+    }
+    const docRef = db.collection(COLLECTION).doc();
+    const newOrder = {
+      customer: null,
+      address: null,
+      paymentId: null,
+      cart: input.cartId,
+      status: "INCOMPLETE",
+      userId,
+    };
+    tx.set(docRef, newOrder);
+    items.docs.forEach((itemDoc) => tx.update(itemDoc.ref, { orderId: docRef.id }));
+    return { id: docRef.id, ...newOrder };
+  });
 };
 
-export const updateOrder = async (input) => {
+export const updateOrder = async (input, userId) => {
   const docRef = db.collection(COLLECTION).doc(input.id);
-  const doc = await docRef.get();
-  if (!doc.exists) {
-    return undefined;
-  }
-  const existingOrder = toOrder(doc);
-  const updates = {};
-  // != null / == null (not !==/===) on purpose: GraphQL sends an omitted
-  // optional field as undefined, not null (H6).
-  if (input.customer != null) {
-    updates.customer = await getCustomer(input.customer);
-  }
-  if (input.address != null) {
-    updates.address = input.address;
-  }
-  const resultingCustomer = updates.customer ?? existingOrder.customer;
-  const resultingAddress = updates.address ?? existingOrder.address;
-  // The client no longer sends status (H3): the server only derives it once
-  // shipping data is complete, never from a value that arrives in input.
-  if (resultingCustomer !== null && resultingAddress !== null) {
-    updates.status = "PAYMENT_PENDING";
-  }
-  await docRef.update(updates);
-  return { ...existingOrder, ...updates };
+  // Stripe isn't part of the transaction (a retry would call it again), so
+  // the customer is resolved first. It only ever touches this user's own
+  // customer, so doing it for an order that turns out to be closed is harmless.
+  const customer =
+    // != null (not !==): GraphQL sends an omitted optional field as
+    // undefined, not null (H6).
+    input.customer != null ? await getCustomer(input.customer, userId) : undefined;
+
+  return runTransaction(async (tx) => {
+    const doc = await tx.get(docRef);
+    if (!doc.exists) {
+      return undefined;
+    }
+    const existingOrder = toOrder(doc);
+    if (!isOrderOpen(existingOrder)) {
+      throw new OrderClosedError(existingOrder.id, existingOrder.status);
+    }
+    const updates = {};
+    if (customer !== undefined) {
+      updates.customer = customer;
+    }
+    if (input.address != null) {
+      updates.address = input.address;
+    }
+    const resultingCustomer = updates.customer ?? existingOrder.customer;
+    const resultingAddress = updates.address ?? existingOrder.address;
+    // The client no longer sends status (H3): the server only derives it once
+    // shipping data is complete, never from a value that arrives in input.
+    if (resultingCustomer !== null && resultingAddress !== null) {
+      updates.status = "PAYMENT_PENDING";
+    }
+    tx.update(docRef, updates);
+    return { ...existingOrder, ...updates };
+  });
 };
 
+// A PaymentIntent in these states has been (or is being) charged; cancelling
+// the order would hand back stock that was paid for.
+const CHARGED_PAYMENT_STATUSES = new Set(["processing", "succeeded"]);
+
+// Cancelling puts the order's units back in stock, in the same transaction
+// as the status change so it happens exactly once: a second cancel finds the
+// order already CANCELLED and changes nothing. A COMPLETE order was paid, so
+// its stock is sold and it can't be cancelled here.
 export const cancelOrder = async (input) => {
   const docRef = db.collection(COLLECTION).doc(input.id);
-  const doc = await docRef.get();
-  if (!doc.exists) {
+
+  // A payment that went through before its webhook arrived still counts as paid.
+  const current = await docRef.get();
+  if (current.exists && current.data().paymentId && isOrderOpen(current.data())) {
+    const payment = await searchPayment("id", current.data().paymentId);
+    if (payment && CHARGED_PAYMENT_STATUSES.has(payment.status)) {
+      throw new OrderAlreadyCompleteError(input.id);
+    }
+  }
+
+  const outcome = await runTransaction(async (tx) => {
+    const doc = await tx.get(docRef);
+    if (!doc.exists) {
+      return { found: false };
+    }
+    const order = toOrder(doc);
+    if (order.status === "COMPLETE") {
+      throw new OrderAlreadyCompleteError(order.id);
+    }
+    if (order.status === "CANCELLED") {
+      return { found: true, order, changed: false };
+    }
+
+    const itemsSnapshot = await tx.get(
+      db.collection(CART_COLLECTION).where("orderId", "==", order.id)
+    );
+    const quantities = new Map();
+    for (const itemDoc of itemsSnapshot.docs) {
+      const { productId, quantity } = itemDoc.data();
+      const key = String(productId);
+      quantities.set(key, (quantities.get(key) ?? 0) + quantity);
+    }
+    const productRefs = [...quantities.keys()].map((id) =>
+      db.collection(PRODUCTS_COLLECTION).doc(id)
+    );
+    const productDocs = await Promise.all(productRefs.map((ref) => tx.get(ref)));
+
+    // Every read above happens before any write, as Firestore requires.
+    tx.update(docRef, { status: "CANCELLED" });
+    productDocs.forEach((productDoc, i) => {
+      if (!productDoc.exists) return;
+      tx.update(productRefs[i], {
+        stock: productDoc.data().stock + quantities.get(productRefs[i].id),
+      });
+    });
+    return { found: true, order, changed: true };
+  });
+
+  if (!outcome.found) {
     return false;
   }
-  const order = toOrder(doc);
-  await docRef.update({ status: "CANCELLED" });
-  if (order.paymentId) {
-    await cancelPayment(order.paymentId);
+  // Stripe isn't part of the Firestore transaction, so it goes after commit.
+  // The order is already cancelled; if Stripe fails here, a later payment on
+  // this order is caught by the webhook, which refuses to complete it.
+  if (outcome.changed && outcome.order.paymentId) {
+    await cancelPayment(outcome.order.paymentId).catch((err) => {
+      logger.error("Could not cancel the PaymentIntent of a cancelled order", {
+        orderId: outcome.order.id,
+        paymentId: outcome.order.paymentId,
+        error: err.message,
+      });
+    });
   }
   return true;
 };
@@ -108,12 +228,37 @@ export const deleteOrder = async (id) => {
   await db.collection(COLLECTION).doc(id).delete();
 };
 
-export const markOrderComplete = async (id) => {
+// Called only by the Stripe webhook. The order is completed only if the
+// event is for the order's own PaymentIntent and the amount Stripe charged
+// is the order's current total; items added after the PaymentIntent was
+// created would otherwise ship unpaid. Returns { completed, reason }.
+export const markOrderComplete = async (id, { paymentIntentId, amountReceived } = {}) => {
   const docRef = db.collection(COLLECTION).doc(id);
-  const doc = await docRef.get();
-  if (!doc.exists) {
-    return false;
-  }
-  await docRef.update({ status: "COMPLETE" });
-  return true;
+  return runTransaction(async (tx) => {
+    const doc = await tx.get(docRef);
+    if (!doc.exists) {
+      return { completed: false, reason: "order not found" };
+    }
+    const order = toOrder(doc);
+    if (order.status === "COMPLETE") {
+      return { completed: true, reason: "already complete" };
+    }
+    const items = await tx.get(db.collection(CART_COLLECTION).where("orderId", "==", id));
+    const { total } = computeOrderTotals(items.docs.map((itemDoc) => itemDoc.data()));
+
+    if (order.status !== "PAYMENT_PENDING") {
+      return { completed: false, reason: `order is ${order.status}` };
+    }
+    if (order.paymentId !== paymentIntentId) {
+      return { completed: false, reason: "payment intent doesn't belong to the order" };
+    }
+    if (amountReceived !== total) {
+      return {
+        completed: false,
+        reason: `amount received (${amountReceived}) doesn't match the order total (${total})`,
+      };
+    }
+    tx.update(docRef, { status: "COMPLETE" });
+    return { completed: true };
+  });
 };

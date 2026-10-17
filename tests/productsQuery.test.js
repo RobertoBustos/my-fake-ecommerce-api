@@ -53,4 +53,16 @@ describe("products query (H9)", () => {
       expect(node.category).toBe("jewelery");
     });
   });
+
+  it("answers BAD_USER_INPUT for an out-of-range page size", async () => {
+    const server = new ApolloServer({ typeDefs, resolvers });
+    const response = await server.executeOperation({
+      query: `query { products(first: 500) { edges { node { id } } } }`,
+    });
+    const { errors } = response.body.singleResult;
+    expect(errors[0].extensions).toMatchObject({
+      code: "BAD_USER_INPUT",
+      invalidArgument: "first",
+    });
+  });
 });
