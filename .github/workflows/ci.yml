@@ -16,8 +16,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # --legacy-peer-deps: works around an npm 11 bug resolving the eslint/vitest peer deps.
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
       - run: npm run lint
 
   test:
@@ -36,8 +35,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      # --legacy-peer-deps: works around an npm 11 bug resolving the eslint/vitest peer deps.
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
       - run: npm run test:emulator
 
   gitleaks:
