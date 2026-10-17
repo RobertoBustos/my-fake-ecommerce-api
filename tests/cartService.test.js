@@ -155,7 +155,7 @@ describe("cartService.addToCart", () => {
       "user-1"
     );
     expect(result).toEqual({
-      code: 200,
+      code: "200",
       success: true,
       message: "Product added",
       data: cartItem,
@@ -184,7 +184,7 @@ describe("cartService.removeFromCart", () => {
     const result = await removeFromCart({ id: "cart-item-1" });
 
     expect(result).toEqual({
-      code: 200,
+      code: "200",
       success: true,
       message: "Item Removed",
     });

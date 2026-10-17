@@ -11,3 +11,4 @@ coverage
 *.md
 *-debug.log
 .firebase
+dist
