@@ -2,10 +2,9 @@ import http from "http";
 import cors from "cors";
 import express from "express";
 import { ApolloServer } from "@apollo/server";
-import { expressMiddleware } from "@as-integrations/express4";
+import { expressMiddleware } from "@as-integrations/express5";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import { createContext } from "./context.js";
-import { asyncHandler } from "./middleware/asyncHandler.js";
 import { requestId } from "./middleware/requestId.js";
 import { validationRules } from "./schema/depthLimit.js";
 import { errorLoggingPlugin } from "./schema/errorLogging.js";
@@ -25,7 +24,6 @@ export const createApp = async () => {
   const server = new ApolloServer({
     typeDefs,
     resolvers,
-    status400ForVariableCoercionErrors: true,
     includeStacktraceInErrorResponses: false,
     formatError,
     validationRules,
@@ -60,11 +58,13 @@ export const createApp = async () => {
   });
 
   // express.raw (not express.json): Stripe's signature verification needs
-  // the exact raw bytes of the body, not the already-parsed object.
+  // the exact raw bytes of the body, not the already-parsed object. Express 5
+  // forwards a rejected promise from the async handler to the error handler
+  // below, so a Firestore failure answers 500 and Stripe retries (H15).
   app.post(
     "/webhooks/stripe",
     express.raw({ type: "application/json" }),
-    asyncHandler(handleStripeWebhook)
+    handleStripeWebhook
   );
 
   app.use(
