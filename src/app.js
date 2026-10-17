@@ -13,6 +13,7 @@ import { formatError } from "./schema/formatError.js";
 import resolvers from "./schema/resolvers.js";
 import typeDefs from "./schema/typeDefs/index.js";
 import { logger } from "./utils/logger.js";
+import { SHUTDOWN_GRACE_PERIOD_MS } from "./shutdown.js";
 import { handleStripeWebhook } from "./webhooks/stripeWebhook.js";
 
 // Separated from index.js so tests can build the app without binding a real
@@ -33,9 +34,15 @@ export const createApp = async () => {
     // sets NODE_ENV=production). Local runs and tests keep it on.
     introspection: process.env.NODE_ENV !== "production",
     // Recommended by Apollo when integrating with a self-managed
-    // http.Server: closes in-flight connections gracefully instead of
-    // dropping them.
-    plugins: [ApolloServerPluginDrainHttpServer({ httpServer }), errorLoggingPlugin],
+    // http.Server: on server.stop() (see shutdown.js), lets in-flight
+    // requests finish instead of dropping them.
+    plugins: [
+      ApolloServerPluginDrainHttpServer({
+        httpServer,
+        stopGracePeriodMillis: SHUTDOWN_GRACE_PERIOD_MS,
+      }),
+      errorLoggingPlugin,
+    ],
   });
 
   await server.start();
@@ -78,5 +85,5 @@ export const createApp = async () => {
     });
   });
 
-  return { app, httpServer };
+  return { app, httpServer, server };
 };
