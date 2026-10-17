@@ -15,6 +15,7 @@ const {
   createOrderValidatorMock,
   updateOrderValidatorMock,
   OrderAlreadyCompleteError,
+  TransactionContentionError,
 } = vi.hoisted(() => ({
   cancelOrderDbMock: vi.fn(),
   createOrderDbMock: vi.fn(),
@@ -30,6 +31,7 @@ const {
   createOrderValidatorMock: vi.fn(),
   updateOrderValidatorMock: vi.fn(),
   OrderAlreadyCompleteError: class OrderAlreadyCompleteError extends Error {},
+  TransactionContentionError: class TransactionContentionError extends Error {},
 }));
 
 vi.mock("../src/db/index.js", () => ({
@@ -40,6 +42,7 @@ vi.mock("../src/db/index.js", () => ({
   getOrderTotals: getOrderTotalsMock,
   getOrders: getOrdersMock,
   OrderAlreadyCompleteError,
+  TransactionContentionError,
   setOrderPayment: setOrderPaymentMock,
   updateCartItems: updateCartItemsMock,
   updateOrder: updateOrderDbMock,

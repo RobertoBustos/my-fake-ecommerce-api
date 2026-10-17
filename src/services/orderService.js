@@ -17,6 +17,7 @@ import {
   createOrderValidator,
   updateOrderValidator,
 } from "../schema/validators/index.js";
+import { withContentionRetryHint } from "./errors.js";
 
 export const createOrder = async (input, userId) => {
   if (!createOrderValidator(input)) {
@@ -108,7 +109,7 @@ export const cancelOrder = async (input, userId) => {
   }
   let result;
   try {
-    result = await cancelOrderDb(input);
+    result = await withContentionRetryHint(() => cancelOrderDb(input));
   } catch (err) {
     if (err instanceof OrderAlreadyCompleteError) {
       throw new GraphQLError("A paid order can't be cancelled", {
