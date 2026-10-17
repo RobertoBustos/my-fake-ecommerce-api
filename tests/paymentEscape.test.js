@@ -1,8 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterAll } from "vitest";
+import { randomUUID } from "crypto";
+import db from "../src/config/firestore.js";
 
-const { searchMock, createMock } = vi.hoisted(() => ({
+const { searchMock, createMock, updateMock, paymentSearchMock } = vi.hoisted(() => ({
   searchMock: vi.fn().mockResolvedValue({ data: [] }),
-  createMock: vi.fn().mockResolvedValue({ id: "cus_1", phone: "123" }),
+  createMock: vi.fn().mockResolvedValue({ id: "cus_1" }),
+  updateMock: vi.fn().mockResolvedValue({ id: "cus_1" }),
+  paymentSearchMock: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
 vi.mock("../src/config/stripe.js", () => ({
@@ -10,12 +14,21 @@ vi.mock("../src/config/stripe.js", () => ({
     customers: {
       search: searchMock,
       create: createMock,
-      update: vi.fn(),
+      update: updateMock,
+    },
+    paymentIntents: {
+      search: paymentSearchMock,
     },
   },
 }));
 
-import { escapeStripeSearchValue, getCustomer } from "../src/db/payment.js";
+import { escapeStripeSearchValue, getCustomer, searchPayment } from "../src/db/payment.js";
+
+const escapeTestUid = `escape-test-${randomUUID()}`;
+
+afterAll(async () => {
+  await db.collection("users").doc(escapeTestUid).delete();
+});
 
 describe("Stripe search query escaping (H4)", () => {
   it("escapes the single quote before building the query", () => {
@@ -30,15 +43,30 @@ describe("Stripe search query escaping (H4)", () => {
     );
   });
 
-  it("an email with a single quote produces a safe query to Stripe", async () => {
-    await getCustomer({
+  it("escapes double quotes and backslashes too", () => {
+    expect(escapeStripeSearchValue('a"b\\c')).toBe('a\\"b\\\\c');
+  });
+
+  it("an email with a single quote never reaches a Stripe search query", async () => {
+    await getCustomer(
+      { email: "o'brien@example.com", name: "O'Brien", phone: "123" },
+      escapeTestUid
+    );
+
+    // The customer is resolved by uid now, so the typed email is only data.
+    expect(searchMock).not.toHaveBeenCalled();
+    expect(updateMock).toHaveBeenCalledWith("cus_1", {
       email: "o'brien@example.com",
       name: "O'Brien",
       phone: "123",
     });
+  });
 
-    expect(searchMock).toHaveBeenCalledWith({
-      query: "email:'o\\'brien@example.com'",
+  it("escapes the order id in the PaymentIntent search", async () => {
+    await searchPayment("order", 'x" OR status:"succeeded');
+
+    expect(paymentSearchMock).toHaveBeenCalledWith({
+      query: 'metadata["order_id"]: "x\\" OR status:\\"succeeded"',
     });
   });
 });
