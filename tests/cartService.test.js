@@ -4,8 +4,8 @@ const {
   addToCartDbMock,
   getProductsMock,
   removeFromCartDbMock,
-  addToCartValidatorMock,
-  removeFromCartValidatorMock,
+  checkAddToCartMock,
+  checkRemoveFromCartMock,
   validateCartQuantityMock,
   InsufficientStockErrorStub,
   CartNotOwnedErrorStub,
@@ -22,8 +22,8 @@ const {
     addToCartDbMock: vi.fn(),
     getProductsMock: vi.fn(),
     removeFromCartDbMock: vi.fn(),
-    addToCartValidatorMock: vi.fn(),
-    removeFromCartValidatorMock: vi.fn(),
+    checkAddToCartMock: vi.fn(),
+    checkRemoveFromCartMock: vi.fn(),
     validateCartQuantityMock: vi.fn(),
     InsufficientStockErrorStub,
   };
@@ -40,8 +40,8 @@ vi.mock("../src/db/index.js", () => ({
 }));
 
 vi.mock("../src/schema/validators/index.js", () => ({
-  addToCartValidator: addToCartValidatorMock,
-  removeFromCartValidator: removeFromCartValidatorMock,
+  checkAddToCart: checkAddToCartMock,
+  checkRemoveFromCart: checkRemoveFromCartMock,
   validateCartQuantity: validateCartQuantityMock,
 }));
 
@@ -58,13 +58,13 @@ const product = {
 describe("cartService.addToCart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    addToCartValidatorMock.mockReturnValue(true);
+    checkAddToCartMock.mockReturnValue(null);
     validateCartQuantityMock.mockReturnValue(true);
     getProductsMock.mockResolvedValue([product]);
   });
 
   it("rejects an invalid input before touching the database", async () => {
-    addToCartValidatorMock.mockReturnValue(false);
+    checkAddToCartMock.mockReturnValue("id");
 
     await expect(addToCart({ productId: "x" })).rejects.toMatchObject({
       extensions: { code: "BAD_USER_INPUT" },
@@ -166,14 +166,14 @@ describe("cartService.addToCart", () => {
 describe("cartService.removeFromCart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    removeFromCartValidatorMock.mockReturnValue(true);
+    checkRemoveFromCartMock.mockReturnValue(null);
   });
 
   it("rejects an invalid input", async () => {
-    removeFromCartValidatorMock.mockReturnValue(false);
+    checkRemoveFromCartMock.mockReturnValue("id");
 
     await expect(removeFromCart({ id: "bad" })).rejects.toMatchObject({
-      extensions: { code: "BAD_REQUEST" },
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "id" },
     });
     expect(removeFromCartDbMock).not.toHaveBeenCalled();
   });

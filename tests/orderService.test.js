@@ -9,10 +9,10 @@ const {
   getOrdersMock,
   setOrderPaymentMock,
   updateOrderDbMock,
-  cancelOrderValidatorMock,
-  createOrderPaymentValidatorMock,
-  createOrderValidatorMock,
-  updateOrderValidatorMock,
+  checkCancelOrderMock,
+  checkCreateOrderPaymentMock,
+  checkCreateOrderMock,
+  checkUpdateOrderMock,
   CartAlreadyOrderedError,
   OrderAlreadyCompleteError,
   OrderClosedError,
@@ -26,10 +26,10 @@ const {
   getOrdersMock: vi.fn(),
   setOrderPaymentMock: vi.fn(),
   updateOrderDbMock: vi.fn(),
-  cancelOrderValidatorMock: vi.fn(),
-  createOrderPaymentValidatorMock: vi.fn(),
-  createOrderValidatorMock: vi.fn(),
-  updateOrderValidatorMock: vi.fn(),
+  checkCancelOrderMock: vi.fn(),
+  checkCreateOrderPaymentMock: vi.fn(),
+  checkCreateOrderMock: vi.fn(),
+  checkUpdateOrderMock: vi.fn(),
   CartAlreadyOrderedError: class CartAlreadyOrderedError extends Error {},
   OrderAlreadyCompleteError: class OrderAlreadyCompleteError extends Error {},
   OrderClosedError: class OrderClosedError extends Error {
@@ -57,10 +57,10 @@ vi.mock("../src/db/index.js", () => ({
 }));
 
 vi.mock("../src/schema/validators/index.js", () => ({
-  cancelOrderValidator: cancelOrderValidatorMock,
-  createOrderPaymentValidator: createOrderPaymentValidatorMock,
-  createOrderValidator: createOrderValidatorMock,
-  updateOrderValidator: updateOrderValidatorMock,
+  checkCancelOrder: checkCancelOrderMock,
+  checkCreateOrderPayment: checkCreateOrderPaymentMock,
+  checkCreateOrder: checkCreateOrderMock,
+  checkUpdateOrder: checkUpdateOrderMock,
 }));
 
 const { cancelOrder, createOrder, createOrderPayment, updateOrder } =
@@ -69,14 +69,14 @@ const { cancelOrder, createOrder, createOrderPayment, updateOrder } =
 describe("orderService.createOrder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    createOrderValidatorMock.mockReturnValue(true);
+    checkCreateOrderMock.mockReturnValue(null);
   });
 
   it("rejects an invalid input", async () => {
-    createOrderValidatorMock.mockReturnValue(false);
+    checkCreateOrderMock.mockReturnValue("id");
 
     await expect(createOrder({ cartId: "x" })).rejects.toMatchObject({
-      extensions: { code: "BAD_REQUEST" },
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "id" },
     });
     expect(getCartMock).not.toHaveBeenCalled();
   });
@@ -123,14 +123,14 @@ describe("orderService.createOrder", () => {
 describe("orderService.updateOrder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    updateOrderValidatorMock.mockReturnValue(true);
+    checkUpdateOrderMock.mockReturnValue(null);
   });
 
   it("rejects an invalid input", async () => {
-    updateOrderValidatorMock.mockReturnValue(false);
+    checkUpdateOrderMock.mockReturnValue("id");
 
     await expect(updateOrder({ id: "x" })).rejects.toMatchObject({
-      extensions: { code: "BAD_REQUEST" },
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "id" },
     });
     expect(getOrdersMock).not.toHaveBeenCalled();
   });
@@ -176,7 +176,7 @@ describe("orderService.updateOrder", () => {
 describe("orderService.updateOrder on a closed order", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    updateOrderValidatorMock.mockReturnValue(true);
+    checkUpdateOrderMock.mockReturnValue(null);
     getOrdersMock.mockResolvedValue([{ id: "order-1", status: "COMPLETE" }]);
   });
 
@@ -193,14 +193,14 @@ describe("orderService.updateOrder on a closed order", () => {
 describe("orderService.cancelOrder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    cancelOrderValidatorMock.mockReturnValue(true);
+    checkCancelOrderMock.mockReturnValue(null);
   });
 
   it("rejects an invalid input", async () => {
-    cancelOrderValidatorMock.mockReturnValue(false);
+    checkCancelOrderMock.mockReturnValue("id");
 
     await expect(cancelOrder({ id: "x" })).rejects.toMatchObject({
-      extensions: { code: "BAD_REQUEST" },
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "id" },
     });
     expect(cancelOrderDbMock).not.toHaveBeenCalled();
   });
@@ -242,14 +242,14 @@ describe("orderService.cancelOrder", () => {
 describe("orderService.createOrderPayment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    createOrderPaymentValidatorMock.mockReturnValue(true);
+    checkCreateOrderPaymentMock.mockReturnValue(null);
   });
 
   it("rejects an invalid input", async () => {
-    createOrderPaymentValidatorMock.mockReturnValue(false);
+    checkCreateOrderPaymentMock.mockReturnValue("id");
 
     await expect(createOrderPayment({ orderId: "x" })).rejects.toMatchObject({
-      extensions: { code: "BAD_REQUEST" },
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "id" },
     });
     expect(getOrdersMock).not.toHaveBeenCalled();
   });

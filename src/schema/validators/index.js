@@ -1,21 +1,17 @@
+import { checkAddToCart, checkRemoveFromCart, validateCartQuantity } from "./cartValidations.js";
 import {
-  addToCartValidator,
-  removeFromCartValidator,
-  validateCartQuantity,
-} from "./cartValidations.js";
-import {
-  cancelOrderValidator,
-  createOrderPaymentValidator,
-  createOrderValidator,
-  updateOrderValidator,
+  checkCancelOrder,
+  checkCreateOrder,
+  checkCreateOrderPayment,
+  checkUpdateOrder,
 } from "./orderValidators.js";
 
 export {
-  addToCartValidator,
-  cancelOrderValidator,
-  createOrderPaymentValidator,
-  createOrderValidator,
-  removeFromCartValidator,
-  updateOrderValidator,
+  checkAddToCart,
+  checkCancelOrder,
+  checkCreateOrder,
+  checkCreateOrderPayment,
+  checkRemoveFromCart,
+  checkUpdateOrder,
   validateCartQuantity,
 };
