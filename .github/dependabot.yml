@@ -1,0 +1,40 @@
+# Weekly update PRs into dev. They go through the same required checks as any
+# other PR and ship with the next release; see CLAUDE.md for how to review them.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Mexico_City
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+      prefix-development: deps-dev
+    groups:
+      # One PR for every minor and patch bump; majors come one per package so
+      # their breaking changes can be reviewed on their own.
+      production-minor-and-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+      development-minor-and-patch:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Mexico_City
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
