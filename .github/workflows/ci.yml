@@ -16,15 +16,36 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # --legacy-peer-deps: works around an npm 11 bug resolving the eslint/vitest peer deps.
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
       - run: npm run lint
+
+  # Type errors, and a src/generated/graphql.ts that no longer matches the
+  # schema in src/schema/typeDefs.
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run codegen
+      - name: Generated types are up to date
+        run: |
+          if ! git diff --exit-code -- src/generated; then
+            echo "::error::src/generated/graphql.ts is out of date; run npm run codegen and commit it." >&2
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm run build
 
   test:
     name: test
     runs-on: ubuntu-latest
     env:
-      # Placeholder: src/config/stripe.js needs a non-empty key at import time; no test calls Stripe for real.
+      # Placeholder: src/config/stripe.ts needs a non-empty key at import time; no test calls Stripe for real.
       STRIPE_SECRET_KEY: sk_test_ci_placeholder
     steps:
       - uses: actions/checkout@v7
@@ -36,9 +57,20 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      # --legacy-peer-deps: works around an npm 11 bug resolving the eslint/vitest peer deps.
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
       - run: npm run test:emulator
+
+  # Production dependencies only: the known dev findings live inside
+  # firebase-tools and have no fix that doesn't downgrade it.
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm audit --omit=dev --audit-level=high
 
   gitleaks:
     name: gitleaks

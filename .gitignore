@@ -4,3 +4,4 @@ node_modules
 .firebase/
 coverage/
 .vscode/
+dist/

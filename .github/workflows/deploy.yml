@@ -66,8 +66,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # --legacy-peer-deps: works around an npm 11 bug with the eslint/vitest peer deps.
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
       - name: Deploy Firebase Hosting
         run: npx firebase deploy --only hosting --project "${{ vars.GCP_PROJECT_ID }}" --non-interactive
 

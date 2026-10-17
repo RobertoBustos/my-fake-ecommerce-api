@@ -5,11 +5,12 @@ vi.mock("../src/auth/verifyIdToken.js", () => ({
   verifyIdToken: vi.fn().mockResolvedValue({ uid: "logging-test-user" }),
 }));
 
-vi.mock("../src/db/products.js", () => ({
-  getProducts: vi.fn(() => {
+vi.mock("../src/db/products.js", () => {
+  const explode = vi.fn(() => {
     throw new Error("Firestore exploded");
-  }),
-}));
+  });
+  return { getProducts: explode, listProducts: explode };
+});
 
 const { createApp } = await import("../src/app.js");
 

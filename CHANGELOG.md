@@ -4,6 +4,56 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-10-17
+
+The technical debt that was accepted for v1.2.0: lists are paginated inside
+Firestore, the API runs on Express 5 and is written in TypeScript, dependency
+updates are tracked automatically, and cart items left without an owner can be
+released. No change is visible to clients.
+
+### Changed
+
+- `products`, `carts`, `orders` and `incompleteOrders` are paginated inside the
+  Firestore query instead of reading the whole collection and cutting it in
+  memory: a page reads at most `first + 1` documents. Lists are still ordered by
+  document id, cursors keep the same format, and an unknown `after` still
+  answers `BAD_USER_INPUT`. `incompleteOrders` filters by status in the query.
+- Express 5 with `@as-integrations/express5`. Express 5 forwards rejected
+  promises from async handlers to the error handler, so the `asyncHandler`
+  wrapper is gone.
+- The code is TypeScript in strict mode. The types of the GraphQL schema and of
+  every resolver are generated from `src/schema/typeDefs` with graphql-codegen
+  (`npm run codegen`), and the Zod validators export their input types.
+- The Docker image is built in two stages: the first compiles TypeScript, the
+  final one ships only `dist/` and the production dependencies and starts with
+  `node dist/index.js`.
+- Dependencies are installed with `npm ci`, without `--legacy-peer-deps`.
+
+### Added
+
+- `npm run cleanup:cart-items`: finds cart items created before v1.2.0, which
+  have no owner and hold stock nobody can release, and with `--apply` deletes
+  them and returns their units, one transaction per item. Items of cancelled,
+  paid or open orders are only reported. A dry run against production found
+  none to release.
+- Dependabot opens weekly pull requests into `dev` for npm and GitHub Actions
+  updates (minor and patch versions grouped, each major on its own).
+- npm scripts: `build`, `typecheck`, `codegen` and `dev` (runs the sources with
+  `tsx`). `npm start` now runs the compiled `dist/index.js`.
+
+### CI
+
+- New `typecheck` job (types, build, and a check that
+  `src/generated/graphql.ts` matches the schema), required on `dev` and `main`.
+- New `audit` job: fails on high vulnerabilities in production dependencies. It
+  is not a required check.
+
+### Removed
+
+- `src/middleware/asyncHandler` (no longer needed with Express 5).
+- The `--legacy-peer-deps` flag from the README, CI, the deploy workflow and the
+  Dockerfile.
+
 ## [1.2.0] - 2026-10-17
 
 The technical debt left before the end-to-end suite: every write checks who
@@ -208,6 +258,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.3.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.0...v1.0.1

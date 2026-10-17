@@ -103,7 +103,7 @@ describe("orderService.createOrder", () => {
       "user-1"
     );
     expect(result).toEqual({
-      code: 200,
+      code: "200",
       success: true,
       message: "Order created",
       data: order,
@@ -150,7 +150,7 @@ describe("orderService.updateOrder", () => {
     const result = await updateOrder({ id: "order-1" });
 
     expect(result).toEqual({
-      code: 200,
+      code: "200",
       success: false,
       message: "There was an error updating the order",
       data: null,
@@ -165,7 +165,7 @@ describe("orderService.updateOrder", () => {
     const result = await updateOrder({ id: "order-1" });
 
     expect(result).toEqual({
-      code: 200,
+      code: "200",
       success: true,
       message: "Order updated",
       data: updated,
@@ -211,7 +211,7 @@ describe("orderService.cancelOrder", () => {
     const result = await cancelOrder({ id: "order-1" });
 
     expect(result).toEqual({
-      code: 200,
+      code: "200",
       success: true,
       message: "Order cancelled",
     });
@@ -232,7 +232,7 @@ describe("orderService.cancelOrder", () => {
     const result = await cancelOrder({ id: "order-1" });
 
     expect(result).toEqual({
-      code: 200,
+      code: "200",
       success: false,
       message: "There was an error cancelling the order",
     });
@@ -287,7 +287,7 @@ describe("orderService.createOrderPayment", () => {
     expect(createPaymentMock).toHaveBeenCalledWith("order-1", 500, "cus-1");
     expect(setOrderPaymentMock).toHaveBeenCalledWith("order-1", "pi_1");
     expect(result).toEqual({
-      code: 200,
+      code: "200",
       success: true,
       message: "Payment created",
       data: payment,

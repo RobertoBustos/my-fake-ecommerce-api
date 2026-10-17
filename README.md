@@ -43,18 +43,24 @@ install.
 
 ```bash
 cp .env.example .env        # then set STRIPE_SECRET_KEY
-npm install --legacy-peer-deps
+npm ci
 
 # Terminal 1: Firestore (port 8080) and Auth (port 9099) emulators
 npx firebase emulators:start --only firestore,auth --project demo-ecommerce-api
 
 # Terminal 2: load the sample catalog, then start the API on port 4000
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm run seed
-npm start
+npm run dev
 ```
 
-`npm install --legacy-peer-deps` is required: with npm 11 a plain install fails
-because of a bug resolving the eslint/vitest peer dependencies.
+`npm run dev` runs the TypeScript sources directly with `tsx`. To run what
+production runs, compile first: `npm run build && npm start` (`dist/index.js`).
+
+Use `npm ci` to install exactly what `package-lock.json` pins. Don't pass
+`--legacy-peer-deps` when adding or updating a dependency: the lock file has to
+keep the peer dependencies, and CI's `npm ci` fails if it doesn't. If npm 11
+crashes with `Cannot read properties of null (reading 'edgesOut')` while
+resolving a brand-new tree (no lock file), use npm 12 or later.
 
 Open `http://localhost:4000/graphql` in a browser to get Apollo Sandbox.
 
@@ -77,15 +83,28 @@ In Apollo Sandbox, paste the token as an `Authorization: Bearer <token>`
 header. Emulator tokens only work against the emulator; the deployed API needs
 a real Firebase token (see the end-to-end testing guide above).
 
+## TypeScript
+
+The code is TypeScript (`strict`), checked with `npm run typecheck` and
+compiled to `dist/` with `npm run build`. The types of the GraphQL schema and
+of every resolver are generated from `src/schema/typeDefs` into
+`src/generated/graphql.ts`: after changing the schema, run `npm run codegen`
+and commit the result. `codegen.ts` maps each schema type to what the
+resolvers really return (the Firestore documents in `src/types/models.ts`, or
+Stripe objects). Tests stay in JavaScript; Vitest resolves their `.js`
+imports to the `.ts` sources.
+
 ## Tests
 
 ```bash
 npm run lint
+npm run typecheck
 npm run test:emulator   # starts the Firestore and Auth emulators and runs Vitest with coverage
 ```
 
 `npm test` alone expects an emulator that is already running. CI runs the same
-`lint` and `test` jobs on every pull request, plus a secret scan (`gitleaks`), a
+`lint`, `typecheck` and `test` jobs on every pull request (`typecheck` also
+fails if `src/generated/graphql.ts` is out of date), plus a secret scan (`gitleaks`), a
 Docker build that checks `/healthcheck` (`docker-build`) and, on pull requests
 into `main`, `branch-guard`, which only accepts `release/*` and `hotfix/*`
 branches.
@@ -112,10 +131,10 @@ release. Details are in the runbook.
 - All development goes into `dev` through pull requests; `main` only receives
   releases (`release/sprint-<n>`) and hotfixes (`hotfix/ECOMAPI-<n>-<slug>`).
 - `dev` and `main` are protected: a pull request and green `lint`, `test`,
-  `gitleaks` and `docker-build` checks are required to merge (`main` also
+  `gitleaks`, `docker-build` and `typecheck` checks are required to merge (`main` also
   requires `branch-guard`).
 - Layering: GraphQL mutations go through `src/services/`; only the read-only
-  resolvers (`src/schema/resolvers/queries.js` and `fields.js`) may import
+  resolvers (`src/schema/resolvers/queries.ts` and `fields.ts`) may import
   `src/db/` directly. ESLint enforces this.
 - Branches are named `ECOMAPI-<n>-<short-slug>`, and commits and pull request
   titles start with the Jira key (`ECOMAPI-<n>: ...`).
