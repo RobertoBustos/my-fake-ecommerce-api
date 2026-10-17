@@ -8,13 +8,14 @@ const {
   getOrderTotalsMock,
   getOrdersMock,
   setOrderPaymentMock,
-  updateCartItemsMock,
   updateOrderDbMock,
   cancelOrderValidatorMock,
   createOrderPaymentValidatorMock,
   createOrderValidatorMock,
   updateOrderValidatorMock,
+  CartAlreadyOrderedError,
   OrderAlreadyCompleteError,
+  OrderClosedError,
   TransactionContentionError,
 } = vi.hoisted(() => ({
   cancelOrderDbMock: vi.fn(),
@@ -24,27 +25,34 @@ const {
   getOrderTotalsMock: vi.fn(),
   getOrdersMock: vi.fn(),
   setOrderPaymentMock: vi.fn(),
-  updateCartItemsMock: vi.fn(),
   updateOrderDbMock: vi.fn(),
   cancelOrderValidatorMock: vi.fn(),
   createOrderPaymentValidatorMock: vi.fn(),
   createOrderValidatorMock: vi.fn(),
   updateOrderValidatorMock: vi.fn(),
+  CartAlreadyOrderedError: class CartAlreadyOrderedError extends Error {},
   OrderAlreadyCompleteError: class OrderAlreadyCompleteError extends Error {},
+  OrderClosedError: class OrderClosedError extends Error {
+    constructor(orderId, status) {
+      super(`Order ${orderId} is ${status}`);
+      this.status = status;
+    }
+  },
   TransactionContentionError: class TransactionContentionError extends Error {},
 }));
 
 vi.mock("../src/db/index.js", () => ({
   cancelOrder: cancelOrderDbMock,
+  CartAlreadyOrderedError,
   createOrder: createOrderDbMock,
   createPayment: createPaymentMock,
   getCart: getCartMock,
   getOrderTotals: getOrderTotalsMock,
   getOrders: getOrdersMock,
   OrderAlreadyCompleteError,
+  OrderClosedError,
   TransactionContentionError,
   setOrderPayment: setOrderPaymentMock,
-  updateCartItems: updateCartItemsMock,
   updateOrder: updateOrderDbMock,
 }));
 
@@ -94,12 +102,20 @@ describe("orderService.createOrder", () => {
       { cartId: "cart-1" },
       "user-1"
     );
-    expect(updateCartItemsMock).toHaveBeenCalledWith("cart-1", "order-1");
     expect(result).toEqual({
       code: 200,
       success: true,
       message: "Order created",
       data: order,
+    });
+  });
+
+  it("rejects a cart whose items have all been ordered", async () => {
+    getCartMock.mockResolvedValue([{ id: "item-1", userId: "user-1", orderId: "order-0" }]);
+    createOrderDbMock.mockRejectedValue(new CartAlreadyOrderedError("cart-1"));
+
+    await expect(createOrder({ cartId: "cart-1" }, "user-1")).rejects.toMatchObject({
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "cartId" },
     });
   });
 });
@@ -153,6 +169,23 @@ describe("orderService.updateOrder", () => {
       success: true,
       message: "Order updated",
       data: updated,
+    });
+  });
+});
+
+describe("orderService.updateOrder on a closed order", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    updateOrderValidatorMock.mockReturnValue(true);
+    getOrdersMock.mockResolvedValue([{ id: "order-1", status: "COMPLETE" }]);
+  });
+
+  it("answers a domain error instead of reopening the order", async () => {
+    updateOrderDbMock.mockRejectedValue(new OrderClosedError("order-1", "COMPLETE"));
+
+    await expect(updateOrder({ id: "order-1" }, "user-1")).rejects.toMatchObject({
+      message: "A COMPLETE order can't be updated",
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "id" },
     });
   });
 });
@@ -243,7 +276,7 @@ describe("orderService.createOrderPayment", () => {
 
   it("creates the payment on the happy path", async () => {
     getOrdersMock.mockResolvedValue([
-      { id: "order-1", customer: { id: "cus-1" } },
+      { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
     ]);
     getOrderTotalsMock.mockResolvedValue({ total: 500 });
     const payment = { paymentId: "pi_1", clientSecret: "secret_1" };
@@ -259,5 +292,30 @@ describe("orderService.createOrderPayment", () => {
       message: "Payment created",
       data: payment,
     });
+  });
+
+  it.each(["INCOMPLETE", "COMPLETE", "CANCELLED"])(
+    "refuses to charge an order that is %s",
+    async (status) => {
+      getOrdersMock.mockResolvedValue([{ id: "order-1", status, customer: { id: "cus-1" } }]);
+
+      await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
+        extensions: { code: "BAD_USER_INPUT", invalidArgument: "orderId" },
+      });
+      expect(createPaymentMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("refuses to charge an order with nothing to pay", async () => {
+    getOrdersMock.mockResolvedValue([
+      { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
+    ]);
+    getOrderTotalsMock.mockResolvedValue({ total: 0 });
+
+    await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
+      message: "The order has no items to pay for",
+      extensions: { code: "BAD_USER_INPUT" },
+    });
+    expect(createPaymentMock).not.toHaveBeenCalled();
   });
 });

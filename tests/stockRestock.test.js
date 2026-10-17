@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { randomUUID } from "crypto";
 import db from "../src/config/firestore.js";
-import { addToCart, removeFromCart, updateCartItems } from "../src/db/cart.js";
+import { addToCart, removeFromCart } from "../src/db/cart.js";
 import {
   cancelOrder,
   createOrder,
@@ -10,8 +10,10 @@ import {
 } from "../src/db/orders.js";
 
 vi.mock("../src/db/payment.js", () => ({
-  cancelPayment: vi.fn(),
+  cancelPayment: vi.fn().mockResolvedValue(true),
   getCustomer: vi.fn(),
+  // An unpaid PaymentIntent: cancelling the order is allowed.
+  searchPayment: vi.fn().mockResolvedValue({ status: "requires_payment_method" }),
 }));
 
 const { cancelPayment } = await import("../src/db/payment.js");
@@ -40,7 +42,6 @@ const orderWithItems = async (lines, { paymentId = null } = {}) => {
   }
   const order = await createOrder({ cartId }, "user-restock");
   created.orders.push(order.id);
-  await updateCartItems(cartId, order.id);
   if (paymentId) {
     await db.collection("orders").doc(order.id).update({ paymentId });
   }

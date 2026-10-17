@@ -97,12 +97,14 @@ export const searchPayment = async (searchBy, value) => {
   }
 };
 
-export const cancelPayment = async (orderId) => {
-  const payment = await searchPayment("id", orderId);
-  if (payment && payment !== null) {
-    await stripeClient.paymentIntents.cancel(payment.id);
-    return true;
+export const cancelPayment = async (paymentId) => {
+  const payment = await searchPayment("id", paymentId);
+  // Stripe rejects cancelling a PaymentIntent that is already cancelled.
+  if (!payment || payment.status === "canceled") {
+    return false;
   }
+  await stripeClient.paymentIntents.cancel(payment.id);
+  return true;
 };
 
 export const searchPaymentMethod = async (paymentMethodId) => {

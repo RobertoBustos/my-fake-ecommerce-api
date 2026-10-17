@@ -145,11 +145,14 @@ describe("End-to-end purchase flow", () => {
     expect(createPaymentResult.errors).toBeUndefined();
     expect(createPaymentResult.data.createOrderPayment.data.paymentId).toBe("pi_e2e");
 
-    // 6. Webhook: Stripe confirms the payment with a genuinely signed event.
+    // 6. Webhook: Stripe confirms the payment with a genuinely signed event,
+    // charging the amount the PaymentIntent was created with.
+    const [{ amount }] = stripeClient.paymentIntents.create.mock.calls.at(-1);
+    expect(amount).toBeGreaterThan(0);
     const payload = JSON.stringify({
       id: `evt_e2e_${orderId}`,
       type: "payment_intent.succeeded",
-      data: { object: { id: "pi_e2e", metadata: { order_id: orderId } } },
+      data: { object: { id: "pi_e2e", amount_received: amount, metadata: { order_id: orderId } } },
     });
     const signature = stripeClient.webhooks.generateTestHeaderString({
       payload,

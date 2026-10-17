@@ -14,10 +14,11 @@ export class TransactionContentionError extends Error {
   }
 }
 
-// runTransaction for writes that touch stock. A transaction that still can't
-// get its locks after every retry becomes TransactionContentionError, so the
-// API can answer "try again" instead of an internal error.
-export const runStockTransaction = async (updateFunction) => {
+// db.runTransaction with more retries, for writes that many requests can race
+// on (stock, order status). A transaction that still can't get its locks
+// after every retry becomes TransactionContentionError, so the API can answer
+// "try again" instead of an internal error.
+export const runTransaction = async (updateFunction) => {
   try {
     return await db.runTransaction(updateFunction, { maxAttempts: MAX_ATTEMPTS });
   } catch (err) {

@@ -7,6 +7,23 @@ import { createLoaders } from "../src/dataloaders/index.js";
 import db from "../src/config/firestore.js";
 import { createOrder } from "../src/db/orders.js";
 
+// createOrder only orders a cart that has unordered items.
+const seedCartItem = (cartId, userId = null) =>
+  db.collection("cartItems").add({
+    cartId,
+    orderId: null,
+    userId,
+    productId: "fixture-product",
+    quantity: 1,
+    unitPrice: 100,
+    subtotal: 100,
+  });
+
+const deleteCartItems = async (cartId) => {
+  const items = await db.collection("cartItems").where("cartId", "==", cartId).get();
+  await Promise.all(items.docs.map((doc) => doc.ref.delete()));
+};
+
 describe("Orders isolated per user (H2)", () => {
   const cartId = `cart-ownership-${randomUUID()}`;
   let orderId;
@@ -15,6 +32,7 @@ describe("Orders isolated per user (H2)", () => {
     if (orderId) {
       await db.collection("orders").doc(orderId).delete();
     }
+    await deleteCartItems(cartId);
   });
 
   const queryOrder = async (uid) => {
@@ -31,6 +49,7 @@ describe("Orders isolated per user (H2)", () => {
   };
 
   it("user B doesn't see user A's order", async () => {
+    await seedCartItem(cartId, "user-a");
     const order = await createOrder({ cartId }, "user-a");
     orderId = order.id;
 
