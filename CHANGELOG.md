@@ -4,6 +4,94 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-10-17
+
+The technical debt left before the end-to-end suite: every write checks who
+owns the data, orders follow strict status rules, payments are checked against
+what Stripe charged, every input is validated, and the platform moves to
+Node 22 and Apollo Server 5.
+
+### Security
+
+- Every mutation now checks that the order or cart belongs to the
+  authenticated user. Before, any signed-in user who knew another user's order
+  id could update it, cancel it or start its payment, and the `carts` query
+  showed other users' carts. A foreign id now answers `NOT_FOUND`, exactly
+  like a missing one, so it doesn't reveal that the id exists.
+- Cart items store the `userId` of whoever created them, and a `cartId`
+  belongs to the first user who adds to it. Items created before this release
+  have no `userId`, so nobody can modify them any more.
+- The Stripe customer is tied to the Firebase user (`users/{uid}`) instead of
+  being looked up by the email typed in `updateOrder`. Before, a user who
+  typed someone else's email got that person's Stripe customer, and the
+  ephemeral key exposed their saved cards in the Payment Sheet. Customers that
+  were created by email are not migrated: each user gets a new one.
+- `firestore.rules` denies every direct read and write. The API uses the Admin
+  SDK, which bypasses the rules, so nothing changes for it; the old rules in
+  the repo (`allow read, write: if true`) would have opened the database if
+  they had ever been deployed.
+- In production, GraphQL validation errors no longer suggest field names
+  ("did you mean ...").
+
+### Fixed
+
+- Stock is returned to the product when a cart item is removed or an order is
+  cancelled. Before, `addToCart` took units out of stock and nothing put them
+  back. Cancelling happens in one transaction, so a second cancel doesn't
+  return the stock again.
+- Order status follows fixed transitions: `INCOMPLETE` -> `PAYMENT_PENDING`
+  (`updateOrder`), `INCOMPLETE`/`PAYMENT_PENDING` -> `CANCELLED`
+  (`cancelOrder`) and `PAYMENT_PENDING` -> `COMPLETE` (Stripe webhook only).
+  Before, `updateOrder` moved a paid order back to `PAYMENT_PENDING` and
+  revived cancelled orders, and a cancelled order could still be paid.
+- The Stripe webhook completes an order only when the event's PaymentIntent is
+  the order's and `amount_received` equals the current order total.
+  Otherwise it answers 200 (so Stripe stops retrying) and logs an error with
+  the reason.
+- `createOrder` on a cart that was already turned into an order answers
+  `BAD_USER_INPUT` instead of creating an empty second order.
+- `addToCart` with an `orderId` now puts the item in that order's total, and
+  `removeFromCart` can't return stock from a paid order.
+- Concurrent purchases of the same product retry the stock transaction up to
+  10 times and, if they still lose, answer `CONFLICT` with
+  `retryable: true` instead of an internal error.
+- The server shuts down gracefully on `SIGTERM`: Cloud Run sends it on every
+  deploy, and the process used to stop immediately, cutting requests in
+  flight. It now waits up to 8 seconds for them to finish.
+
+### Changed
+
+These change what clients see; review them before updating the app.
+
+- Invalid input answers `BAD_USER_INPUT` everywhere, with the failing field in
+  `extensions.invalidArgument` (for example `customer.email`). The order
+  mutations and `removeFromCart` used to answer `BAD_REQUEST`.
+- Every mutation validates its input: valid email, name of 1 to 100
+  characters, phone of 10 to 15 digits with an optional `+`, non-blank
+  address, zip code of 3 to 10 characters, latitude within +/-90 and longitude
+  within +/-180. `updateOrder` needs `customer` or `address`.
+- Lists are paginated with `first` between 1 and 100. Without `first` a list
+  returns at most 20 items (it used to return everything), and an unknown
+  `after` cursor answers `BAD_USER_INPUT` instead of an empty page.
+- `COMPLETE` and `CANCELLED` orders are final: `updateOrder`, `addToCart`
+  and `removeFromCart` on them answer `BAD_USER_INPUT`. `cancelOrder` answers
+  `BAD_USER_INPUT` for a paid order and does nothing for an order that is
+  already cancelled. `createOrderPayment` needs a `PAYMENT_PENDING` order with
+  a total above 0.
+- `removeFromCart` answers `NOT_FOUND` for a missing item instead of
+  `success: false`.
+- Node 22 is required (`engines`), in the container image and in CI; Node 20
+  is out of support. Apollo Server moves from 4 to 5 through
+  `@as-integrations/express4`. `npm audit --omit=dev` reports no
+  vulnerabilities.
+
+### Added
+
+- Local development with the Firebase Auth emulator: `npm run token:local`
+  prints an ID token the local API accepts (pass an email for a second user),
+  and `npm run test:emulator` now starts both the Firestore and Auth
+  emulators.
+
 ## [1.1.0] - 2026-10-16
 
 Technical debt cleanup after Sprint 2: stricter quality gates, documentation
@@ -120,6 +208,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.2.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v0.1.1...v1.0.0
