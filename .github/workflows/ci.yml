@@ -38,6 +38,18 @@ jobs:
       - run: npm ci
       - run: npm run test:emulator
 
+  # Production dependencies only: the known dev findings live inside
+  # firebase-tools and have no fix that doesn't downgrade it.
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm audit --omit=dev --audit-level=high
+
   gitleaks:
     name: gitleaks
     runs-on: ubuntu-latest
