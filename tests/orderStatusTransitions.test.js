@@ -149,6 +149,8 @@ describe("order status transitions", () => {
     expect(errorOf(result)).toMatchObject({ code: "BAD_USER_INPUT", invalidArgument: "cartId" });
   });
 
+  // The emulator serializes the two transactions and the loser waits out a
+  // retry backoff, so under the full parallel suite this can pass 5 s.
   it("two concurrent createOrder calls for one cart create a single order", async () => {
     const cartId = `cart-transitions-${randomUUID()}`;
     carts.push(cartId);
@@ -167,7 +169,7 @@ describe("order status transitions", () => {
       code: "BAD_USER_INPUT",
       invalidArgument: "cartId",
     });
-  });
+  }, 20000);
 
   it("addToCart with an open order puts the item in the order total", async () => {
     const { cartId, orderId } = await placeOrder();
