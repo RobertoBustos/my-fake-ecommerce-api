@@ -1,14 +1,15 @@
 import { GraphQLError } from "graphql";
 import {
   cancelOrder as cancelOrderDb,
+  CartAlreadyOrderedError,
   createOrder as createOrderDb,
   createPayment,
   getCart,
   getOrderTotals,
   getOrders,
   OrderAlreadyCompleteError,
+  OrderClosedError,
   setOrderPayment,
-  updateCartItems,
   updateOrder as updateOrderDb,
 } from "../db/index.js";
 import {
@@ -40,8 +41,20 @@ export const createOrder = async (input, userId) => {
       },
     });
   }
-  const order = await createOrderDb(input, userId);
-  await updateCartItems(input.cartId, order.id);
+  let order;
+  try {
+    order = await withContentionRetryHint(() => createOrderDb(input, userId));
+  } catch (err) {
+    if (err instanceof CartAlreadyOrderedError) {
+      throw new GraphQLError("This cart has already been ordered", {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "cartId",
+        },
+      });
+    }
+    throw err;
+  }
   return {
     code: 200,
     success: true,
@@ -70,7 +83,20 @@ export const updateOrder = async (input, userId) => {
       },
     });
   }
-  const newOrder = await updateOrderDb(input, userId);
+  let newOrder;
+  try {
+    newOrder = await withContentionRetryHint(() => updateOrderDb(input, userId));
+  } catch (err) {
+    if (err instanceof OrderClosedError) {
+      throw new GraphQLError(`A ${err.status} order can't be updated`, {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "id",
+        },
+      });
+    }
+    throw err;
+  }
   if (!newOrder) {
     return {
       code: 200,
@@ -158,7 +184,26 @@ export const createOrderPayment = async (input, userId) => {
       },
     });
   }
+  // Only an order with its details complete, and not yet paid or cancelled,
+  // can be charged.
+  if (order[0].status !== "PAYMENT_PENDING") {
+    throw new GraphQLError(`A ${order[0].status} order can't be paid`, {
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+      },
+    });
+  }
   const totals = await getOrderTotals(order[0].id);
+  // Stripe rejects a zero amount, which used to surface as an internal error.
+  if (totals.total <= 0) {
+    throw new GraphQLError("The order has no items to pay for", {
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+      },
+    });
+  }
   const payment = await createPayment(
     order[0].id,
     totals.total,

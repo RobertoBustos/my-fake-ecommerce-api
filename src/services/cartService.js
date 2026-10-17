@@ -5,6 +5,8 @@ import {
   getOrders,
   getProducts,
   InsufficientStockError,
+  isOrderOpen,
+  OrderItemLockedError,
   removeFromCart as removeFromCartDb,
 } from "../db/index.js";
 import {
@@ -60,6 +62,25 @@ export const addToCart = async (input, userId) => {
         },
       });
     }
+    // A paid or cancelled order's items are settled. If the order already
+    // has a PaymentIntent, the client must call createOrderPayment again,
+    // which updates its amount; the webhook refuses a payment for less.
+    if (!isOrderOpen(order[0])) {
+      throw new GraphQLError(`Items can't be added to a ${order[0].status} order`, {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "orderId",
+        },
+      });
+    }
+    if (order[0].cart !== input.cartId) {
+      throw new GraphQLError("cartId doesn't match the order's cart", {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "cartId",
+        },
+      });
+    }
   }
   let cartItem;
   try {
@@ -102,7 +123,20 @@ export const removeFromCart = async (input, userId) => {
       }
     );
   }
-  const removed = await withContentionRetryHint(() => removeFromCartDb(input, userId));
+  let removed;
+  try {
+    removed = await withContentionRetryHint(() => removeFromCartDb(input, userId));
+  } catch (err) {
+    if (err instanceof OrderItemLockedError) {
+      throw new GraphQLError(`Items can't be removed from a ${err.status} order`, {
+        extensions: {
+          code: "BAD_USER_INPUT",
+          invalidArgument: "id",
+        },
+      });
+    }
+    throw err;
+  }
   if (!removed) {
     throw new GraphQLError("Cart item not found", {
       extensions: {
