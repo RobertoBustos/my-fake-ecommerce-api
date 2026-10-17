@@ -1,4 +1,5 @@
 import db from "../config/firestore.js";
+import { runStockTransaction } from "./transactions.js";
 import { computeOrderTotals } from "../utils/orderTotals.js";
 import { getCart } from "./cart.js";
 import { cancelPayment, getCustomer } from "./payment.js";
@@ -98,7 +99,7 @@ export class OrderAlreadyCompleteError extends Error {
 // its stock is sold and it can't be cancelled here.
 export const cancelOrder = async (input) => {
   const docRef = db.collection(COLLECTION).doc(input.id);
-  const outcome = await db.runTransaction(async (tx) => {
+  const outcome = await runStockTransaction(async (tx) => {
     const doc = await tx.get(docRef);
     if (!doc.exists) {
       return { found: false };

@@ -26,6 +26,7 @@ import {
   searchPaymentMethod,
 } from "./payment.js";
 import { getProducts } from "./products.js";
+import { TransactionContentionError } from "./transactions.js";
 
 export {
   addToCart,
@@ -48,6 +49,7 @@ export {
   searchPayment,
   searchPaymentMethod,
   setOrderPayment,
+  TransactionContentionError,
   updateCartItems,
   updateOrder,
 };

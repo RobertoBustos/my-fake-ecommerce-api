@@ -12,6 +12,7 @@ import {
   removeFromCartValidator,
   validateCartQuantity,
 } from "../schema/validators/index.js";
+import { withContentionRetryHint } from "./errors.js";
 
 // Every write takes the authenticated user's uid and only touches what that
 // user owns; anything else answers NOT_FOUND, as if it didn't exist (H2).
@@ -62,7 +63,7 @@ export const addToCart = async (input, userId) => {
   }
   let cartItem;
   try {
-    cartItem = await addToCartDb(product[0], input, userId);
+    cartItem = await withContentionRetryHint(() => addToCartDb(product[0], input, userId));
   } catch (err) {
     if (err instanceof CartNotOwnedError) {
       throw new GraphQLError("Cart not found", {
@@ -101,7 +102,7 @@ export const removeFromCart = async (input, userId) => {
       }
     );
   }
-  const removed = await removeFromCartDb(input, userId);
+  const removed = await withContentionRetryHint(() => removeFromCartDb(input, userId));
   if (!removed) {
     throw new GraphQLError("Cart item not found", {
       extensions: {

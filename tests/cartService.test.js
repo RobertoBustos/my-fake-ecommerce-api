@@ -9,11 +9,14 @@ const {
   validateCartQuantityMock,
   InsufficientStockErrorStub,
   CartNotOwnedErrorStub,
+  TransactionContentionErrorStub,
   getOrdersMock,
 } = vi.hoisted(() => {
   class InsufficientStockErrorStub extends Error {}
   class CartNotOwnedErrorStub extends Error {}
+  class TransactionContentionErrorStub extends Error {}
   return {
+    TransactionContentionErrorStub,
     CartNotOwnedErrorStub,
     getOrdersMock: vi.fn(),
     addToCartDbMock: vi.fn(),
@@ -33,6 +36,7 @@ vi.mock("../src/db/index.js", () => ({
   getProducts: getProductsMock,
   removeFromCart: removeFromCartDbMock,
   InsufficientStockError: InsufficientStockErrorStub,
+  TransactionContentionError: TransactionContentionErrorStub,
 }));
 
 vi.mock("../src/schema/validators/index.js", () => ({
@@ -118,6 +122,16 @@ describe("cartService.addToCart", () => {
     });
     expect(getOrdersMock).toHaveBeenCalledWith({ id: "order-a", userId: "user-b" });
     expect(addToCartDbMock).not.toHaveBeenCalled();
+  });
+
+  it("turns a lost lock fight into a retryable CONFLICT", async () => {
+    addToCartDbMock.mockRejectedValue(new TransactionContentionErrorStub());
+
+    await expect(
+      addToCart({ productId: product.id, quantity: 1 }, "user-1")
+    ).rejects.toMatchObject({
+      extensions: { code: "CONFLICT", retryable: true },
+    });
   });
 
   it("lets any other database error pass through unwrapped", async () => {
