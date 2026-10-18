@@ -1,10 +1,9 @@
 import type { Connection, Page, Product } from "../types/models.js";
 import { listProducts } from "../db/products.js";
-import type { CatalogSource, Reservation, SourceProduct } from "./ports.js";
+import type { CatalogSource, SourceProduct } from "./ports.js";
 import { UnknownSourceError } from "./ports.js";
 import { parseProductId, toGlobalProductId } from "./productId.js";
 import { DEFAULT_SOURCE_KEY, getCatalogSource } from "./registry.js";
-import { logger } from "../utils/logger.js";
 
 export {
   OutOfStockError,
@@ -18,6 +17,12 @@ export type { ProductRef } from "./productId.js";
 export { DEFAULT_SOURCE_KEY, getCatalogSource } from "./registry.js";
 export { withCoreReservations } from "./coreReservations.js";
 export { reservationTtlMs } from "./reservationTtl.js";
+export {
+  processInventoryTasks,
+  retryInventoryTask,
+  runInventoryTask,
+  runInventoryTasks,
+} from "./inventoryQueue.js";
 
 // The shape the rest of the API (and the GraphQL Product type) uses.
 export const toProduct = (
@@ -102,27 +107,4 @@ export const listCatalogProducts = async (
       },
     })),
   };
-};
-
-// Puts reserved units back. Callers run it after their own write has
-// committed, so a failure here can't be rolled back with it: it is logged
-// with everything needed to return the units by hand.
-export const releaseReservation = async (
-  sourceKey: string,
-  reservation: Reservation,
-  reason: string
-) => {
-  try {
-    const source = getCatalogSource(sourceKey);
-    await source.release(reservation, `${reservation.reservationId}-release`);
-  } catch (err) {
-    logger.error("Could not release reserved stock", {
-      reason,
-      sourceKey,
-      productId: reservation.localId,
-      quantity: reservation.quantity,
-      reservationId: reservation.reservationId,
-      error: (err as Error).message,
-    });
-  }
 };

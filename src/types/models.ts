@@ -61,6 +61,9 @@ export interface CartItem {
   exchangeRate?: number | null;
   rateAsOf?: string | null;
   reservations?: CartItemReservation[];
+  // The reservationId of each reservation, so a query (array-contains) can
+  // find the item that holds one.
+  reservationIds?: string[];
 }
 
 // updateOrder stores the whole Stripe customer returned by Stripe.

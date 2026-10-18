@@ -5,9 +5,10 @@ import {
   getCatalogSource,
   OutOfStockError,
   parseProductId,
-  releaseReservation,
   toGlobalProductId,
+  type Reservation,
 } from "../catalog/index.js";
+import { runInventoryTasks } from "../catalog/inventoryQueue.js";
 import db from "../config/firestore.js";
 import type { PriceQuote } from "../pricing/index.js";
 import type {
@@ -18,9 +19,11 @@ import type {
   Page,
   Product,
 } from "../types/models.js";
+import { queueInventoryTasks, type InventoryTaskDraft } from "./inventoryTasks.js";
 import { isOrderOpen } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
 import { runTransaction } from "./transactions.js";
+import { logger } from "../utils/logger.js";
 
 const COLLECTION = "cartItems";
 const toDate = (value: unknown): Date | null =>
@@ -45,6 +48,34 @@ export const reservationsToRelease = (item: CartItem) => {
     held.push({ reservationId: `cartItem-${item.id}`, quantity: unreserved, expiresAt: null });
   }
   return held.map((r) => ({ sourceKey, reservation: { ...r, localId } }));
+};
+
+// The outbox tasks that give an item's units back.
+export const releaseTasks = (
+  item: CartItem,
+  reason: string,
+  orderId: string | null = item.orderId
+): InventoryTaskDraft[] =>
+  reservationsToRelease(item).map(({ sourceKey, reservation }) => ({
+    action: "release",
+    sourceKey,
+    reservation,
+    reason,
+    orderId,
+  }));
+
+// The outbox tasks that mark a paid item's units sold. Units added before
+// reservations existed left the stock for good when they were added, so
+// they have nothing to confirm.
+export const confirmTasks = (item: CartItem, orderId: string): InventoryTaskDraft[] => {
+  const { sourceKey, localId } = parseProductId(String(item.productId));
+  return (item.reservations ?? []).map((r) => ({
+    action: "confirm",
+    sourceKey,
+    reservation: { ...r, localId },
+    reason: "orderComplete",
+    orderId,
+  }));
 };
 
 // Kept under its old name: callers and tests catch it as InsufficientStockError.
@@ -177,8 +208,33 @@ export const addToCart = async (
       isForeign
     );
   } catch (err) {
-    await releaseReservation(sourceKey, reservation, "addToCart failed after reserving");
+    // No item holds the units, so nothing else would give them back before
+    // the sweep finds the reservation expired.
+    await queueAndRunRelease(sourceKey, reservation, input.orderId ?? null);
     throw err;
+  }
+};
+
+const queueAndRunRelease = async (
+  sourceKey: string,
+  reservation: Reservation,
+  orderId: string | null
+) => {
+  try {
+    const ids = await runTransaction((tx) =>
+      queueInventoryTasks(tx, [
+        { action: "release", sourceKey, reservation, reason: "addToCart failed after reserving", orderId },
+      ])
+    );
+    await runInventoryTasks(ids);
+  } catch (err) {
+    logger.error("Could not queue the release of reserved stock", {
+      sourceKey,
+      productId: reservation.localId,
+      quantity: reservation.quantity,
+      reservationId: reservation.reservationId,
+      error: (err as Error).message,
+    });
   }
 };
 
@@ -216,6 +272,8 @@ const writeCartItem = (
         // An item from before reservations keeps its old units unreserved;
         // only the units added now get a reservation.
         reservations: [...(existingItem.reservations ?? []), reservation],
+        // Lets the sweep find the item that holds a reservation.
+        reservationIds: [...(existingItem.reservationIds ?? []), reservation.reservationId],
       };
       tx.update(existingDoc.ref, updates);
       return { ...existingItem, ...updates };
@@ -233,17 +291,19 @@ const writeCartItem = (
       subtotal: snapshot.unitPrice * input.quantity,
       ...snapshot,
       reservations: [reservation],
+      reservationIds: [reservation.reservationId],
     };
     tx.set(docRef, newItem);
     return { id: docRef.id, ...newItem };
   });
 
-// addToCart reserved these units; removing the item releases them once the
-// delete has committed, so they come back exactly once.
+// addToCart reserved these units; removing the item queues their release in
+// the same transaction as the delete, so they come back exactly once even if
+// the source is down right now (the inventory job retries it).
 // Returns false both for a missing item and for someone else's, so the caller
 // can't tell which (same reasoning as H2).
 export const removeFromCart = async (input: { id: string }, userId: string): Promise<boolean> => {
-  const removed = await runTransaction(async (tx): Promise<CartItem | null> => {
+  const taskIds = await runTransaction(async (tx): Promise<string[] | null> => {
     const docRef = db.collection(COLLECTION).doc(input.id);
     const doc = await tx.get(docRef);
     if (!doc.exists || doc.get("userId") !== userId) {
@@ -259,15 +319,14 @@ export const removeFromCart = async (input: { id: string }, userId: string): Pro
         throw new OrderItemLockedError(item.orderId, order.status);
       }
     }
+    const ids = await queueInventoryTasks(tx, releaseTasks(item, "removeFromCart"));
     tx.delete(docRef);
-    return item;
+    return ids;
   });
-  if (!removed) {
+  if (!taskIds) {
     return false;
   }
-  for (const { sourceKey, reservation } of reservationsToRelease(removed)) {
-    await releaseReservation(sourceKey, reservation, "removeFromCart");
-  }
+  await runInventoryTasks(taskIds);
   return true;
 };
 
