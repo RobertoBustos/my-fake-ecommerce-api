@@ -22,6 +22,17 @@ follows [Semantic Versioning](https://semver.org/).
   and checked against the source when confirmed.
 - A daily exchange rates job (`src/jobs/refreshExchangeRates.ts`, `npm run
   rates:refresh`) with Banxico's FIX rate as its first provider.
+- An inventory queue (`inventoryTasks`): the webhook, `removeFromCart` and
+  `cancelOrder` record the confirm or release of each reservation in the same
+  write that changes the order or the item, so a source that is down doesn't
+  lose the sale or the stock. The inventory job (`src/jobs/processInventory.ts`,
+  `npm run inventory:process`) retries them with backoff up to
+  `INVENTORY_TASK_MAX_ATTEMPTS` times and logs the ones that still fail
+  (`Sold units not confirmed in their source`, `Reserved stock not released`);
+  `npm run inventory:retry -- <taskId>` retries one by hand.
+- The inventory job also releases reservations that expired in abandoned carts,
+  except for orders being paid (`PAYMENT_PENDING`) or paid.
+- Composite indexes for the job's queries in `firestore.indexes.json`.
 
 - `Product.source`: display name of the catalog source the product comes from.
 - `scripts/migrateCartItemProductIds.ts` (`npm run migrate:product-ids`, dry run
@@ -45,10 +56,18 @@ follows [Semantic Versioning](https://semver.org/).
 - `createOrderPayment` refuses an order with an expired stock reservation
   (`BAD_USER_INPUT` with `expiredItemIds`); removing those items and adding them
   again reserves their units anew.
+- A paid order's reservations are confirmed in their sources, so they can no
+  longer be released.
 - `createOrderPayment` also converts again with today's rate and settlement
   currency; `priceChanges` now carries `previousCurrency` and `currency`. The
   PaymentIntent is created in the settlement currency. A product without a usable
   exchange rate can't be added to a cart or paid for (`CONFLICT`, `retryable`).
+
+### Removed
+
+- `npm run cleanup:cart-items` (`scripts/cleanupOrphanCartItems.ts`): the
+  inventory job's sweep releases abandoned reservations instead. Its last
+  production run, after v1.3.0, found nothing to release.
 
 ## [1.3.0] - 2026-10-17
 

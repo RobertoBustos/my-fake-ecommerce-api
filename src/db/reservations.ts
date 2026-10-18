@@ -44,3 +44,22 @@ export const readReservation = async (tx: Transaction, id: string) =>
   fromSnapshot(await tx.get(reservationRef(id)));
 
 export const getReservation = async (id: string) => fromSnapshot(await reservationRef(id).get());
+
+// HELD reservations whose expiresAt has passed, oldest first, one page at a
+// time (pass the last id seen as `after`). Needs the composite index on
+// (status, expiresAt) in firestore.indexes.json.
+export const listExpiredHeldReservations = async (
+  now: Date,
+  limit: number,
+  after?: { id: string; expiresAt: Date }
+) => {
+  let query = db
+    .collection(COLLECTION)
+    .where("status", "==", "HELD")
+    .where("expiresAt", "<=", now)
+    .orderBy("expiresAt")
+    .orderBy("__name__");
+  if (after) query = query.startAfter(after.expiresAt, after.id);
+  const snapshot = await query.limit(limit).get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...(fromSnapshot(doc) as ReservationDoc) }));
+};

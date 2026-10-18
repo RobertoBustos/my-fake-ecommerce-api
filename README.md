@@ -127,7 +127,28 @@ branches.
    An item whose reservation expired answers `BAD_USER_INPUT` with
    `expiredItemIds`: remove it and add it again to reserve its units anew
 6. Stripe sends `payment_intent.succeeded` to the webhook, which marks the
-   order `COMPLETE`
+   order `COMPLETE` and confirms its reservations in their sources
+
+## Inventory queue
+
+Confirming and releasing reservations is a saga across the catalog sources:
+the webhook, `removeFromCart` and `cancelOrder` write each confirm or release
+to `inventoryTasks` in the same transaction that changes the order or the
+item, then run it right away. What a source refuses stays queued and is
+retried with backoff (1, 2, 4… minutes, at most an hour) by the inventory job,
+up to `INVENTORY_TASK_MAX_ATTEMPTS` attempts (8 by default). A task out of
+attempts is `FAILED` and logged as an error; a paid order stays `COMPLETE`.
+
+The same job sweeps reservations that expired in abandoned carts and releases
+their units, except for orders that are `PAYMENT_PENDING` or `COMPLETE`.
+
+```bash
+npm run inventory:process              # one pass of the job: sweep, then run due tasks
+npm run inventory:retry -- <taskId>    # put a FAILED task back and run it
+```
+
+The queries of the job need the composite indexes in `firestore.indexes.json`
+(`npx firebase deploy --only firestore:indexes`).
 
 ## Prices and currency
 

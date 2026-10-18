@@ -11,12 +11,13 @@ import type {
 import db from "../config/firestore.js";
 import { runTransaction } from "./transactions.js";
 import { computeOrderTotals } from "../utils/orderTotals.js";
-import { getCart, reservationsToRelease } from "./cart.js";
+import { confirmTasks, getCart, releaseTasks } from "./cart.js";
 import { isOrderOpen, OPEN_STATUSES } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
 import { cancelPayment, getCustomer, searchPayment, type CustomerDetails } from "./payment.js";
 import { logger } from "../utils/logger.js";
-import { releaseReservation } from "../catalog/index.js";
+import { runInventoryTasks } from "../catalog/inventoryQueue.js";
+import { queueInventoryTasks } from "./inventoryTasks.js";
 
 export { isOrderOpen };
 
@@ -201,9 +202,9 @@ export const updateOrder = async (
 // the order would hand back stock that was paid for.
 const CHARGED_PAYMENT_STATUSES = new Set(["processing", "succeeded"]);
 
-// Cancelling puts the order's units back in stock once the status change has
-// committed, so it happens exactly once: a second cancel finds the order
-// already CANCELLED and changes nothing. A COMPLETE order was paid, so its
+// Cancelling queues the release of the order's units in the same
+// transaction as the status change, so it happens exactly once: a second
+// cancel finds the order already CANCELLED and changes nothing. A COMPLETE order was paid, so its
 // stock is sold and it can't be cancelled here.
 export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
   const docRef = db.collection(COLLECTION).doc(input.id);
@@ -220,7 +221,7 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
   type Outcome =
     | { found: false }
     | { found: true; order: Order; changed: false }
-    | { found: true; order: Order; changed: true; items: CartItem[] };
+    | { found: true; order: Order; changed: true; taskIds: string[] };
   const outcome = await runTransaction(async (tx): Promise<Outcome> => {
     const doc = await tx.get(docRef);
     if (!doc.exists) {
@@ -238,22 +239,20 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
       db.collection(CART_COLLECTION).where("orderId", "==", order.id)
     );
     const items = itemsSnapshot.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }) as CartItem);
+    const taskIds = await queueInventoryTasks(
+      tx,
+      items.flatMap((item) => releaseTasks(item, "cancelOrder", order.id))
+    );
     tx.update(docRef, { status: "CANCELLED" });
-    return { found: true, order, changed: true, items };
+    return { found: true, order, changed: true, taskIds };
   });
 
   if (!outcome.found) {
     return false;
   }
-  // The status changed exactly once (a second cancel finds CANCELLED), and
-  // each release is idempotent by its reservation id, so the units go back to
-  // their source exactly once, after the commit.
+  // Run right away; what the source refuses now stays queued for the job.
   if (outcome.changed) {
-    for (const item of outcome.items) {
-      for (const { sourceKey, reservation } of reservationsToRelease(item)) {
-        await releaseReservation(sourceKey, reservation, "cancelOrder");
-      }
-    }
+    await runInventoryTasks(outcome.taskIds);
   }
   // Stripe isn't part of the Firestore transaction, so it goes after commit.
   // The order is already cancelled; if Stripe fails here, a later payment on
@@ -311,37 +310,53 @@ export const deleteOrder = async (id: string): Promise<void> => {
 // Called only by the Stripe webhook. The order is completed only if the
 // event is for the order's own PaymentIntent and the amount Stripe charged
 // is the order's current total; items added after the PaymentIntent was
-// created would otherwise ship unpaid. Returns { completed, reason }.
+// created would otherwise ship unpaid. Completing it queues the confirm of
+// every reservation in the same transaction; they run after the commit and,
+// if a source is down, from the inventory job. Returns { completed, reason }.
 export const markOrderComplete = async (
   id: string,
   { paymentIntentId, amountReceived }: { paymentIntentId?: string; amountReceived?: number } = {}
 ): Promise<{ completed: boolean; reason?: string }> => {
   const docRef = db.collection(COLLECTION).doc(id);
-  return runTransaction(async (tx) => {
-    const doc = await tx.get(docRef);
-    if (!doc.exists) {
-      return { completed: false, reason: "order not found" };
-    }
-    const order = toOrder(doc);
-    if (order.status === "COMPLETE") {
-      return { completed: true, reason: "already complete" };
-    }
-    const items = await tx.get(db.collection(CART_COLLECTION).where("orderId", "==", id));
-    const { total } = computeOrderTotals(items.docs.map((itemDoc) => itemDoc.data() as CartItem));
+  const result = await runTransaction(
+    async (tx): Promise<{ completed: boolean; reason?: string; taskIds?: string[] }> => {
+      const doc = await tx.get(docRef);
+      if (!doc.exists) {
+        return { completed: false, reason: "order not found" };
+      }
+      const order = toOrder(doc);
+      if (order.status === "COMPLETE") {
+        return { completed: true, reason: "already complete" };
+      }
+      const items = await tx.get(db.collection(CART_COLLECTION).where("orderId", "==", id));
+      const cartItems = items.docs.map(
+        (itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }) as CartItem
+      );
+      const { total } = computeOrderTotals(cartItems);
 
-    if (order.status !== "PAYMENT_PENDING") {
-      return { completed: false, reason: `order is ${order.status}` };
+      if (order.status !== "PAYMENT_PENDING") {
+        return { completed: false, reason: `order is ${order.status}` };
+      }
+      if (order.paymentId !== paymentIntentId) {
+        return { completed: false, reason: "payment intent doesn't belong to the order" };
+      }
+      if (amountReceived !== total) {
+        return {
+          completed: false,
+          reason: `amount received (${amountReceived}) doesn't match the order total (${total})`,
+        };
+      }
+      const taskIds = await queueInventoryTasks(
+        tx,
+        cartItems.flatMap((item) => confirmTasks(item, id))
+      );
+      tx.update(docRef, { status: "COMPLETE" });
+      return { completed: true, taskIds };
     }
-    if (order.paymentId !== paymentIntentId) {
-      return { completed: false, reason: "payment intent doesn't belong to the order" };
-    }
-    if (amountReceived !== total) {
-      return {
-        completed: false,
-        reason: `amount received (${amountReceived}) doesn't match the order total (${total})`,
-      };
-    }
-    tx.update(docRef, { status: "COMPLETE" });
-    return { completed: true };
-  });
+  );
+  // A confirm that fails never undoes the order: the money was charged.
+  if (result.taskIds) {
+    await runInventoryTasks(result.taskIds);
+  }
+  return { completed: result.completed, ...(result.reason ? { reason: result.reason } : {}) };
 };
