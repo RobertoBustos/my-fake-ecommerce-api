@@ -1,12 +1,17 @@
 import env from "../config/env.js";
+import { withCoreReservations } from "./coreReservations.js";
 import { UnknownSourceError, type CatalogSource } from "./ports.js";
 import { firestoreCatalogSource } from "./sources/firestore/adapter.js";
 
 // Every adapter the code knows about, by key. CATALOG_SOURCES (a comma
 // separated list, "fs" by default) says which of them are switched on.
-const knownSources: Record<string, CatalogSource> = {
-  [firestoreCatalogSource.key]: firestoreCatalogSource,
-};
+// A source that can't reserve stock gets its reservations kept by us.
+const withReservations = (source: CatalogSource) =>
+  source.capabilities.reservations ? source : withCoreReservations(source);
+
+const knownSources: Record<string, CatalogSource> = Object.fromEntries(
+  [firestoreCatalogSource].map((source) => [source.key, withReservations(source)])
+);
 
 // Every product id today belongs to Firestore. Global ids that name their
 // source replace this default.

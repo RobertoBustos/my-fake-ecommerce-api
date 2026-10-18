@@ -14,6 +14,12 @@ follows [Semantic Versioning](https://semver.org/).
   exchange rate (`exchangeRates`); the cart item keeps the original price and
   currency, the rate and its date.
 - `CartItem.currency`.
+- Stock reservations: each `addToCart` reserves its units in the product's
+  source (`reservations` collection for Firestore) with an idempotency key and an
+  expiry (`RESERVATION_TTL_MINUTES_<SOURCE>`, 60 minutes by default);
+  `removeFromCart` and `cancelOrder` release them, once however often they are
+  retried. Sources that can't reserve get their reservations kept in Firestore
+  and checked against the source when confirmed.
 - A daily exchange rates job (`src/jobs/refreshExchangeRates.ts`, `npm run
   rates:refresh`) with Banxico's FIX rate as its first provider.
 
@@ -36,6 +42,9 @@ follows [Semantic Versioning](https://semver.org/).
   `previousUnitPrice`, `unitPrice`); calling it again charges the new total. A
   product the source no longer has answers `BAD_USER_INPUT` with
   `unavailableProductIds`.
+- `createOrderPayment` refuses an order with an expired stock reservation
+  (`BAD_USER_INPUT` with `expiredItemIds`); removing those items and adding them
+  again reserves their units anew.
 - `createOrderPayment` also converts again with today's rate and settlement
   currency; `priceChanges` now carries `previousCurrency` and `currency`. The
   PaymentIntent is created in the settlement currency. A product without a usable

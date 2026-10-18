@@ -23,6 +23,15 @@ export interface Product {
   source?: string | null;
 }
 
+// A reservation of the item's units in its source. An item holds one per
+// addToCart that added units to it; items added before reservations
+// existed hold none and give their units back directly.
+export interface CartItemReservation {
+  reservationId: string;
+  quantity: number;
+  expiresAt: Date | null;
+}
+
 export interface CartItem {
   id: string;
   cartId: string;
@@ -51,6 +60,7 @@ export interface CartItem {
   originalCurrency?: string | null;
   exchangeRate?: number | null;
   rateAsOf?: string | null;
+  reservations?: CartItemReservation[];
 }
 
 // updateOrder stores the whole Stripe customer returned by Stripe.

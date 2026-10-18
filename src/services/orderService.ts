@@ -154,6 +154,23 @@ export const cancelOrder = async (input: CancelOrder, userId: string): Promise<M
 // prices so it can show the new total and pay again.
 const assertCurrentPrices = async (orderId: string): Promise<void> => {
   const items = await getCart({ orderId });
+
+  // A reservation past its expiry may be released at any moment, so the
+  // order isn't charged for units it might no longer hold. The app reserves
+  // again by removing those items and adding them back.
+  const now = Date.now();
+  const expired = items.filter((item) =>
+    (item.reservations ?? []).some((r) => r.expiresAt !== null && r.expiresAt.getTime() <= now)
+  );
+  if (expired.length > 0) {
+    throw new GraphQLError("The stock reservation of some items expired; add them to the cart again", {
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+        expiredItemIds: expired.map((item) => item.id),
+      },
+    });
+  }
   const products = await getCatalogProducts(items.map((item) => item.productId));
 
   const unavailable = items.filter((_, i) => products[i] === null);

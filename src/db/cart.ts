@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { DocumentSnapshot, Query } from "firebase-admin/firestore";
 import {
   canonicalProductId,
@@ -11,13 +10,42 @@ import {
 } from "../catalog/index.js";
 import db from "../config/firestore.js";
 import type { PriceQuote } from "../pricing/index.js";
-import type { CartItem, Order, OrderStatus, Page, Product } from "../types/models.js";
+import type {
+  CartItem,
+  CartItemReservation,
+  Order,
+  OrderStatus,
+  Page,
+  Product,
+} from "../types/models.js";
 import { isOrderOpen } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
 import { runTransaction } from "./transactions.js";
 
 const COLLECTION = "cartItems";
-const toCartItem = (doc: DocumentSnapshot): CartItem => ({ id: doc.id, ...doc.data() }) as CartItem;
+const toDate = (value: unknown): Date | null =>
+  value == null ? null : value instanceof Date ? value : (value as { toDate(): Date }).toDate();
+
+const toCartItem = (doc: DocumentSnapshot): CartItem => {
+  const item = { id: doc.id, ...doc.data() } as CartItem;
+  if (item.reservations) {
+    item.reservations = item.reservations.map((r) => ({ ...r, expiresAt: toDate(r.expiresAt) }));
+  }
+  return item;
+};
+
+// The reservations to give back for an item. Units added before
+// reservations existed have none; they go back under a stable id, so
+// releasing the item twice is still a no-op.
+export const reservationsToRelease = (item: CartItem) => {
+  const { sourceKey, localId } = parseProductId(String(item.productId));
+  const held: CartItemReservation[] = [...(item.reservations ?? [])];
+  const unreserved = item.quantity - held.reduce((sum, r) => sum + r.quantity, 0);
+  if (unreserved > 0) {
+    held.push({ reservationId: `cartItem-${item.id}`, quantity: unreserved, expiresAt: null });
+  }
+  return held.map((r) => ({ sourceKey, reservation: { ...r, localId } }));
+};
 
 // Kept under its old name: callers and tests catch it as InsufficientStockError.
 export { OutOfStockError as InsufficientStockError };
@@ -128,17 +156,22 @@ export const addToCart = async (
   // The stock belongs to the product's source, so it can't be part of the
   // cart's Firestore transaction: the units are reserved first and put back
   // if the cart write fails.
+  // The key names the item this call creates, so a retried reserve finds
+  // the reservation it already made instead of taking the units again.
   const { sourceKey, localId } = parseProductId(String(product.id));
   const source = getCatalogSource(sourceKey);
-  const reservation = await source.reserve(
-    localId,
-    input.quantity,
-    `cartItem-${randomUUID()}-reserve`
-  );
+  const newItemId = db.collection(COLLECTION).doc().id;
+  const reservation = await source.reserve(localId, input.quantity, `cartItem-${newItemId}-reserve`);
   try {
     return await writeCartItem(
       { ...input, productId: toGlobalProductId(sourceKey, localId) },
       productSnapshot(product, sourceKey, quote),
+      newItemId,
+      {
+        reservationId: reservation.reservationId,
+        quantity: reservation.quantity,
+        expiresAt: reservation.expiresAt,
+      },
       userId,
       cartQuery,
       isForeign
@@ -154,6 +187,8 @@ export const addToCart = async (
 const writeCartItem = (
   input: AddToCartInput,
   snapshot: ReturnType<typeof productSnapshot>,
+  newItemId: string,
+  reservation: CartItemReservation,
   userId: string | null,
   cartQuery: Query,
   isForeign: (docs: DocumentSnapshot[]) => boolean
@@ -178,12 +213,15 @@ const writeCartItem = (
       const updates = {
         quantity: existingItem.quantity + input.quantity,
         subtotal: existingItem.subtotal + snapshot.unitPrice * input.quantity,
+        // An item from before reservations keeps its old units unreserved;
+        // only the units added now get a reservation.
+        reservations: [...(existingItem.reservations ?? []), reservation],
       };
       tx.update(existingDoc.ref, updates);
       return { ...existingItem, ...updates };
     }
 
-    const docRef = db.collection(COLLECTION).doc();
+    const docRef = db.collection(COLLECTION).doc(newItemId);
     const newItem = {
       cartId: input.cartId,
       // Adding to an existing order puts the item straight into it, so it
@@ -194,6 +232,7 @@ const writeCartItem = (
       quantity: input.quantity,
       subtotal: snapshot.unitPrice * input.quantity,
       ...snapshot,
+      reservations: [reservation],
     };
     tx.set(docRef, newItem);
     return { id: docRef.id, ...newItem };
@@ -226,17 +265,9 @@ export const removeFromCart = async (input: { id: string }, userId: string): Pro
   if (!removed) {
     return false;
   }
-  const { sourceKey, localId } = parseProductId(String(removed.productId));
-  await releaseReservation(
-    sourceKey,
-    {
-      reservationId: `cartItem-${removed.id}`,
-      localId,
-      quantity: removed.quantity,
-      expiresAt: null,
-    },
-    "removeFromCart"
-  );
+  for (const { sourceKey, reservation } of reservationsToRelease(removed)) {
+    await releaseReservation(sourceKey, reservation, "removeFromCart");
+  }
   return true;
 };
 

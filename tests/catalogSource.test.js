@@ -82,11 +82,12 @@ describe("Firestore catalog source (ECOMAPI-72)", () => {
   it("reserve takes units out of stock and release puts them back", async () => {
     const id = await newProduct(5);
 
-    const reservation = await firestoreCatalogSource.reserve(id, 3, "test-reserve");
-    expect(reservation).toEqual({ reservationId: "test-reserve", localId: id, quantity: 3, expiresAt: null });
+    const key = `test-reserve-${randomUUID()}`;
+    const reservation = await firestoreCatalogSource.reserve(id, 3, key);
+    expect(reservation).toEqual({ reservationId: key, localId: id, quantity: 3, expiresAt: expect.any(Date) });
     expect(await stockOf(id)).toBe(2);
 
-    await firestoreCatalogSource.release(reservation, "test-release");
+    await firestoreCatalogSource.release(reservation, `${key}-release`);
     expect(await stockOf(id)).toBe(5);
   });
 

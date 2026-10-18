@@ -16,6 +16,8 @@ export type { CatalogSource, Reservation, SourceProduct } from "./ports.js";
 export { canonicalProductId, parseProductId, toGlobalProductId } from "./productId.js";
 export type { ProductRef } from "./productId.js";
 export { DEFAULT_SOURCE_KEY, getCatalogSource } from "./registry.js";
+export { withCoreReservations } from "./coreReservations.js";
+export { reservationTtlMs } from "./reservationTtl.js";
 
 // The shape the rest of the API (and the GraphQL Product type) uses.
 export const toProduct = (
