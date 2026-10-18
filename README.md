@@ -214,7 +214,12 @@ npm run catalog:sync -- --reconcile           # reconcile every source now
 npm run catalog:sync -- --source fs           # only one source
 ```
 
-The API doesn't read the index yet; `products` still reads each source.
+The `products` query and `CartItem.product` read the index, so listing the
+catalog is one Firestore query and a source that is down doesn't hide its
+products. Their price and stock are as of the last sync; `addToCart` and
+`createOrderPayment` still ask the product's source, and answer `CONFLICT` with
+`retryable` while it can't be reached. Products of sources outside
+`CATALOG_SOURCES` aren't listed. `npm run seed` indexes what it writes.
 
 ## Prices and currency
 

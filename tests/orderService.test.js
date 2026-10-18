@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { SourceUnavailableError } from "../src/catalog/ports.js";
 
 const {
   cancelOrderDbMock,
@@ -382,6 +383,18 @@ describe("orderService.createOrderPayment", () => {
       },
     });
     expect(repriceOrderItemsMock).not.toHaveBeenCalled();
+    expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("answers CONFLICT with retryable when a product's source can't be reached", async () => {
+    getOrdersMock.mockResolvedValue([
+      { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
+    ]);
+    getCatalogProductsMock.mockRejectedValue(new SourceUnavailableError("fs"));
+
+    await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
+      extensions: { code: "CONFLICT", retryable: true },
+    });
     expect(createPaymentMock).not.toHaveBeenCalled();
   });
 

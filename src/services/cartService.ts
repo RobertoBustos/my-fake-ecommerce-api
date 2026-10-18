@@ -16,7 +16,12 @@ import {
 } from "../schema/validators/index.js";
 import type { AddToCart, RemoveFromCart } from "../generated/graphql.js";
 import type { CartItem, MutationAck, MutationResult } from "../types/models.js";
-import { assertValidInput, quoteOrConflict, withContentionRetryHint } from "./errors.js";
+import {
+  assertValidInput,
+  quoteOrConflict,
+  withContentionRetryHint,
+  withSourceRetryHint,
+} from "./errors.js";
 
 // Every write takes the authenticated user's uid and only touches what that
 // user owns; anything else answers NOT_FOUND, as if it didn't exist (H2).
@@ -25,7 +30,7 @@ export const addToCart = async (
   userId: string
 ): Promise<MutationResult<CartItem>> => {
   assertValidInput(checkAddToCart, input);
-  const product = await getCatalogProduct(input.productId);
+  const product = await withSourceRetryHint(() => getCatalogProduct(input.productId));
   if (!product) {
     throw new GraphQLError("Product not found", {
       extensions: {
@@ -82,7 +87,9 @@ export const addToCart = async (
   const quote = await quoteOrConflict(product);
   let cartItem: CartItem;
   try {
-    cartItem = await withContentionRetryHint(() => addToCartDb(product, input, userId, quote));
+    cartItem = await withSourceRetryHint(() =>
+      withContentionRetryHint(() => addToCartDb(product, input, userId, quote))
+    );
   } catch (err) {
     if (err instanceof CartNotOwnedError) {
       throw new GraphQLError("Cart not found", {

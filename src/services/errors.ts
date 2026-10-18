@@ -1,4 +1,5 @@
 import { GraphQLError } from "graphql";
+import { SourceUnavailableError } from "../catalog/ports.js";
 import { TransactionContentionError } from "../db/index.js";
 import { ExchangeRateUnavailableError, quotePrice, type PriceQuote } from "../pricing/index.js";
 
@@ -25,6 +26,23 @@ export const quoteOrConflict = async (price: {
   } catch (err) {
     if (err instanceof ExchangeRateUnavailableError) {
       throw new GraphQLError(`Prices in ${err.from} can't be converted right now, please try again later`, {
+        extensions: { code: "CONFLICT", retryable: true },
+      });
+    }
+    throw err;
+  }
+};
+
+// Runs a call that reaches a catalog source live (reading a product's
+// current price and stock, reserving units). A source that can't answer
+// right now is worth retrying: the product stays listed from the catalog
+// index, it just can't be sold this moment.
+export const withSourceRetryHint = async <T>(operation: () => Promise<T>): Promise<T> => {
+  try {
+    return await operation();
+  } catch (err) {
+    if (err instanceof SourceUnavailableError) {
+      throw new GraphQLError("This product's catalog can't be reached right now, please try again", {
         extensions: { code: "CONFLICT", retryable: true },
       });
     }

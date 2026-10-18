@@ -3,11 +3,12 @@ import { ApolloServer } from "@apollo/server";
 import typeDefs from "../src/schema/typeDefs/index.js";
 import { formatError } from "../src/schema/formatError.js";
 
-vi.mock("../src/db/products.js", () => {
+// The products query reads the catalog index.
+vi.mock("../src/db/catalogIndex.js", async (importOriginal) => {
   const leak = vi.fn(() => {
     throw new Error("ENOENT: no such file or directory, open '/etc/secret.json'");
   });
-  return { getProducts: leak, listProducts: leak };
+  return { ...(await importOriginal()), listCatalogEntries: leak };
 });
 
 import resolvers from "../src/schema/resolvers.js";

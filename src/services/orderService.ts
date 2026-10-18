@@ -29,7 +29,12 @@ import type {
 } from "../generated/graphql.js";
 import type { MutationAck, MutationResult, Order, Product } from "../types/models.js";
 import { LEGACY_CURRENCY } from "../pricing/index.js";
-import { assertValidInput, quoteOrConflict, withContentionRetryHint } from "./errors.js";
+import {
+  assertValidInput,
+  quoteOrConflict,
+  withContentionRetryHint,
+  withSourceRetryHint,
+} from "./errors.js";
 
 export const createOrder = async (
   input: CreateOrder,
@@ -171,7 +176,7 @@ const assertCurrentPrices = async (orderId: string): Promise<void> => {
       },
     });
   }
-  const products = await getCatalogProducts(items.map((item) => item.productId));
+  const products = await withSourceRetryHint(() => getCatalogProducts(items.map((item) => item.productId)));
 
   const unavailable = items.filter((_, i) => products[i] === null);
   if (unavailable.length > 0) {

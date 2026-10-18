@@ -5,6 +5,7 @@ import typeDefs from "../src/schema/typeDefs/index.js";
 import resolvers from "../src/schema/resolvers.js";
 import { createLoaders } from "../src/dataloaders/index.js";
 import db from "../src/config/firestore.js";
+import { indexFirestoreProducts, unindexFirestoreProducts } from "./helpers/catalogIndex.js";
 import { toGlobalProductId } from "../src/catalog/index.js";
 import {
   convertPrice,
@@ -283,12 +284,14 @@ describe("a product priced in another currency (ECOMAPI-80)", () => {
       purchaseLimits: { min: 1, max: 10 },
       stock: 50,
     });
+    await indexFirestoreProducts(localId);
   });
 
   afterEach(resetPricing);
 
   afterAll(async () => {
     await db.collection("products").doc(localId).delete();
+    await unindexFirestoreProducts(localId);
     await Promise.all(orderIds.map((id) => db.collection("orders").doc(id).delete()));
     for (const cartId of cartIds) {
       const items = await db.collection("cartItems").where("cartId", "==", cartId).get();

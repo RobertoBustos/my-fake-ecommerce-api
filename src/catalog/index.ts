@@ -1,9 +1,17 @@
+import { GraphQLError } from "graphql";
+import { getCatalogEntries, listCatalogEntries, type CatalogEntry } from "../db/catalogIndex.js";
+import { TransactionContentionError } from "../db/transactions.js";
 import type { Connection, Page, Product } from "../types/models.js";
-import { listProducts } from "../db/products.js";
+import { logger } from "../utils/logger.js";
 import type { CatalogSource, SourceProduct } from "./ports.js";
-import { UnknownSourceError } from "./ports.js";
-import { parseProductId, toGlobalProductId } from "./productId.js";
-import { DEFAULT_SOURCE_KEY, getCatalogSource } from "./registry.js";
+import {
+  OutOfStockError,
+  ReservationExpiredError,
+  SourceUnavailableError,
+  UnknownSourceError,
+} from "./ports.js";
+import { canonicalProductId, parseProductId, toGlobalProductId } from "./productId.js";
+import { getCatalogSource, listEnabledSources } from "./registry.js";
 
 export {
   OutOfStockError,
@@ -14,7 +22,7 @@ export {
 export type { CatalogSource, Reservation, SourceProduct } from "./ports.js";
 export { canonicalProductId, parseProductId, toGlobalProductId } from "./productId.js";
 export type { ProductRef } from "./productId.js";
-export { DEFAULT_SOURCE_KEY, getCatalogSource } from "./registry.js";
+export { DEFAULT_SOURCE_KEY, getCatalogSource, listEnabledSources } from "./registry.js";
 export { withCoreReservations } from "./coreReservations.js";
 export { reservationTtlMs } from "./reservationTtl.js";
 export {
@@ -34,6 +42,28 @@ export const toProduct = (
   stock: available,
   source: source.displayName,
 });
+
+// Errors the callers already turn into an answer for the client.
+const isExpected = (err: unknown) =>
+  err instanceof GraphQLError ||
+  err instanceof OutOfStockError ||
+  err instanceof ReservationExpiredError ||
+  err instanceof SourceUnavailableError ||
+  err instanceof TransactionContentionError;
+
+// Runs a live call to a source. Anything else it throws (a timeout, a
+// refused connection, a bug in its adapter) means the source can't answer
+// right now: it becomes SourceUnavailableError, which the services answer
+// with CONFLICT and retryable, and is logged since the client won't see it.
+export const callSource = async <T>(source: Pick<CatalogSource, "key">, call: () => Promise<T>): Promise<T> => {
+  try {
+    return await call();
+  } catch (err) {
+    if (isExpected(err)) throw err;
+    logger.warn("Catalog source call failed", { sourceKey: source.key, error: (err as Error).message });
+    throw new SourceUnavailableError(source.key, err);
+  }
+};
 
 // The source that owns a product id, and the product's id inside it. An
 // unknown or switched-off source answers NOT_FOUND, like a missing product.
@@ -62,7 +92,7 @@ export const getCatalogProducts = async (ids: readonly string[]): Promise<(Produ
   const found = new Map<string, Product>();
   await Promise.all(
     [...bySource.values()].map(async ({ source, localIds }) => {
-      for (const product of await source.getProducts([...new Set(localIds)])) {
+      for (const product of await callSource(source, () => source.getProducts([...new Set(localIds)]))) {
         found.set(`${source.key}:${product.localId}`, toProduct(source, product));
       }
     })
@@ -76,35 +106,73 @@ export const getCatalogProduct = async (id: string): Promise<Product | null> => 
   return (await getCatalogProducts([id]))[0];
 };
 
-// The products query. Until the catalog has its own index, every listed
-// product comes from the Firestore source, so the page is read there and
-// only the ids are turned into global ones; cursors stay as they were.
+// A product as the catalog index has it. stock is the source's count at
+// the last sync: good enough to show, never to sell (addToCart asks the
+// source).
+const fromEntry = (entry: CatalogEntry, displayName: string): Product => ({
+  id: entry.id,
+  title: entry.title,
+  description: entry.description,
+  category: entry.category,
+  image: entry.image,
+  stock: entry.available,
+  currency: entry.currency,
+  unitPrice: entry.unitPrice,
+  purchaseLimits: entry.purchaseLimits,
+  source: displayName,
+});
+
+const enabledDisplayNames = () =>
+  new Map(listEnabledSources().map((source) => [source.key, source.displayName]));
+
+// The product loader (CartItem.product): from the index, so showing a cart
+// doesn't call every source. A product of a switched-off source is null, as
+// before; one the index doesn't hold yet (added to its source since the
+// last sync) is asked to its source.
+export const getIndexedCatalogProducts = async (ids: readonly string[]): Promise<(Product | null)[]> => {
+  const names = enabledDisplayNames();
+  const globalIds = ids.map((id) => canonicalProductId(id));
+  const entries = await getCatalogEntries([...new Set(globalIds)]);
+  const byId = new Map(entries.flatMap((entry) => (entry ? [[entry.id, entry] as const] : [])));
+
+  const results = globalIds.map((id): Product | null | undefined => {
+    const entry = byId.get(id);
+    if (!entry) return undefined;
+    const name = names.get(entry.sourceKey);
+    return name === undefined ? null : fromEntry(entry, name);
+  });
+  const missing = globalIds.filter((_, i) => results[i] === undefined);
+  if (missing.length > 0) {
+    const live = new Map((await getCatalogProducts(missing)).flatMap((p) => (p ? [[p.id, p] as const] : [])));
+    return results.map((result, i) => (result === undefined ? (live.get(globalIds[i]) ?? null) : result));
+  }
+  return results as (Product | null)[];
+};
+
+// The products query, served from the catalog index: one Firestore query
+// whatever the number of sources, and a source that is down doesn't hide its
+// products. Only switched-on sources are listed. Cursors are the global
+// product ids in base64.
 export const listCatalogProducts = async (
   { id, category }: { id?: string | null; category?: string | null } = {},
   page: Page = {}
 ): Promise<Connection<Product>> => {
-  const source = getCatalogSource(DEFAULT_SOURCE_KEY);
-  let localId: string | undefined;
+  const names = enabledDisplayNames();
+  let globalId: string | undefined;
   if (id != null) {
-    const ref = resolveProductId(id);
-    if (ref.source.key !== source.key) {
-      return { edges: [], pageInfo: { hasNextPage: false, endCursor: null } };
-    }
-    localId = ref.localId;
+    // An unknown or switched-off source answers NOT_FOUND, as before.
+    const { source, localId } = resolveProductId(id);
+    globalId = toGlobalProductId(source.key, localId);
   }
-  const connection = await listProducts(
-    { id: localId, category: category ?? undefined },
+  const connection = await listCatalogEntries(
+    { sourceKeys: [...names.keys()], id: globalId, category: category ?? undefined },
     page
   );
   return {
     ...connection,
     edges: connection.edges.map((edge) => ({
       ...edge,
-      node: {
-        ...edge.node,
-        id: toGlobalProductId(source.key, edge.node.id),
-        source: source.displayName,
-      },
+      node: fromEntry(edge.node, names.get(edge.node.sourceKey) as string),
     })),
   };
 };
