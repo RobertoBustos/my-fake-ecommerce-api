@@ -18,6 +18,18 @@ const dataLayerImports = {
   ],
 };
 
+// Catalog sources: only an adapter under src/catalog/sources/ may talk to a
+// product database. The rest of the catalog and the services reach products
+// and stock through the CatalogSource contract.
+const databaseClientImports = {
+  patterns: [
+    {
+      regex: "(^|/)config/firestore(\\.js)?$|^firebase-admin/firestore$|^(mysql2|mongodb|pg)(/|$)|^@supabase/",
+      message: "Only a catalog adapter in src/catalog/sources/ may use a database client; go through CatalogSource.",
+    },
+  ],
+};
+
 export default tseslint.config(
   { ignores: ["dist/", "coverage/", "src/generated/"] },
   js.configs.recommended,
@@ -48,6 +60,13 @@ export default tseslint.config(
     ignores: ["src/schema/resolvers/queries.ts", "src/schema/resolvers/fields.ts"],
     rules: {
       "no-restricted-imports": ["error", dataLayerImports],
+    },
+  },
+  {
+    files: ["src/catalog/**/*.ts", "src/services/**/*.ts"],
+    ignores: ["src/catalog/sources/**"],
+    rules: {
+      "no-restricted-imports": ["error", databaseClientImports],
     },
   }
 );

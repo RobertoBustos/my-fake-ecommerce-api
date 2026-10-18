@@ -135,7 +135,9 @@ release. Details are in the runbook.
   requires `branch-guard`).
 - Layering: GraphQL mutations go through `src/services/`; only the read-only
   resolvers (`src/schema/resolvers/queries.ts` and `fields.ts`) may import
-  `src/db/` directly. ESLint enforces this.
+  `src/db/` directly. Products and stock are reached through the
+  `CatalogSource` contract in `src/catalog/`; only an adapter under
+  `src/catalog/sources/` may use a database client. ESLint enforces both.
 - Branches are named `ECOMAPI-<n>-<short-slug>`, and commits and pull request
   titles start with the Jira key (`ECOMAPI-<n>: ...`).
 - Everything that reaches GitHub is written in English: commits, pull requests,

@@ -1,9 +1,9 @@
 import { GraphQLError } from "graphql";
+import { getCatalogProduct } from "../catalog/index.js";
 import {
   addToCart as addToCartDb,
   CartNotOwnedError,
   getOrders,
-  getProducts,
   InsufficientStockError,
   isOrderOpen,
   OrderItemLockedError,
@@ -25,8 +25,8 @@ export const addToCart = async (
   userId: string
 ): Promise<MutationResult<CartItem>> => {
   assertValidInput(checkAddToCart, input);
-  const product = await getProducts({ id: input.productId });
-  if (!product || product.length === 0) {
+  const product = await getCatalogProduct(input.productId);
+  if (!product) {
     throw new GraphQLError("Product not found", {
       extensions: {
         code: "NOT_FOUND",
@@ -34,11 +34,11 @@ export const addToCart = async (
       },
     });
   }
-  if (!validateCartQuantity(input.quantity, product[0])) {
+  if (!validateCartQuantity(input.quantity, product)) {
     throw new GraphQLError(
-      `quantity must be between ${product[0].purchaseLimits.min} and ${Math.min(
-        product[0].purchaseLimits.max,
-        product[0].stock
+      `quantity must be between ${product.purchaseLimits.min} and ${Math.min(
+        product.purchaseLimits.max,
+        product.stock
       )}`,
       {
         extensions: {
@@ -80,7 +80,7 @@ export const addToCart = async (
   }
   let cartItem: CartItem;
   try {
-    cartItem = await withContentionRetryHint(() => addToCartDb(product[0], input, userId));
+    cartItem = await withContentionRetryHint(() => addToCartDb(product, input, userId));
   } catch (err) {
     if (err instanceof CartNotOwnedError) {
       throw new GraphQLError("Cart not found", {
