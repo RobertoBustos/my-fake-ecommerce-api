@@ -11,12 +11,12 @@ import type {
 import db from "../config/firestore.js";
 import { runTransaction } from "./transactions.js";
 import { computeOrderTotals } from "../utils/orderTotals.js";
-import { getCart } from "./cart.js";
+import { getCart, reservationsToRelease } from "./cart.js";
 import { isOrderOpen, OPEN_STATUSES } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
 import { cancelPayment, getCustomer, searchPayment, type CustomerDetails } from "./payment.js";
 import { logger } from "../utils/logger.js";
-import { canonicalProductId, parseProductId, releaseReservation } from "../catalog/index.js";
+import { releaseReservation } from "../catalog/index.js";
 
 export { isOrderOpen };
 
@@ -220,7 +220,7 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
   type Outcome =
     | { found: false }
     | { found: true; order: Order; changed: false }
-    | { found: true; order: Order; changed: true; quantities: Map<string, number> };
+    | { found: true; order: Order; changed: true; items: CartItem[] };
   const outcome = await runTransaction(async (tx): Promise<Outcome> => {
     const doc = await tx.get(docRef);
     if (!doc.exists) {
@@ -237,35 +237,22 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
     const itemsSnapshot = await tx.get(
       db.collection(CART_COLLECTION).where("orderId", "==", order.id)
     );
-    const quantities = new Map<string, number>();
-    for (const itemDoc of itemsSnapshot.docs) {
-      const { productId, quantity } = itemDoc.data() as CartItem;
-      // Migrated and unmigrated items of one product count together.
-      const key = canonicalProductId(String(productId));
-      quantities.set(key, (quantities.get(key) ?? 0) + quantity);
-    }
+    const items = itemsSnapshot.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }) as CartItem);
     tx.update(docRef, { status: "CANCELLED" });
-    return { found: true, order, changed: true, quantities };
+    return { found: true, order, changed: true, items };
   });
 
   if (!outcome.found) {
     return false;
   }
-  // The status changed exactly once (a second cancel finds CANCELLED), so the
-  // units go back to their source exactly once, after the commit.
+  // The status changed exactly once (a second cancel finds CANCELLED), and
+  // each release is idempotent by its reservation id, so the units go back to
+  // their source exactly once, after the commit.
   if (outcome.changed) {
-    for (const [productId, quantity] of outcome.quantities) {
-      const { sourceKey, localId } = parseProductId(productId);
-      await releaseReservation(
-        sourceKey,
-        {
-          reservationId: `order-${outcome.order.id}-${localId}`,
-          localId,
-          quantity,
-          expiresAt: null,
-        },
-        "cancelOrder"
-      );
+    for (const item of outcome.items) {
+      for (const { sourceKey, reservation } of reservationsToRelease(item)) {
+        await releaseReservation(sourceKey, reservation, "cancelOrder");
+      }
     }
   }
   // Stripe isn't part of the Firestore transaction, so it goes after commit.

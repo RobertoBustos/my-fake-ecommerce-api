@@ -1,6 +1,7 @@
 import { fileURLToPath } from "url";
 import type { Query } from "firebase-admin/firestore";
-import { canonicalProductId, getCatalogSource, parseProductId } from "../src/catalog/index.js";
+import { canonicalProductId, getCatalogSource } from "../src/catalog/index.js";
+import { reservationsToRelease } from "../src/db/cart.js";
 import db from "../src/config/firestore.js";
 import type { CartItem, OrderStatus } from "../src/types/models.js";
 
@@ -85,16 +86,9 @@ export const releaseCartItem = async (itemId: string): Promise<boolean> => {
   if (!item) {
     return false;
   }
-  const { sourceKey, localId } = parseProductId(String(item.productId));
-  await getCatalogSource(sourceKey).release(
-    {
-      reservationId: `cleanup-${itemId}`,
-      localId,
-      quantity: item.quantity,
-      expiresAt: null,
-    },
-    `cleanup-${itemId}-release`
-  );
+  for (const { sourceKey, reservation } of reservationsToRelease({ ...item, id: itemId })) {
+    await getCatalogSource(sourceKey).release(reservation, `${reservation.reservationId}-release`);
+  }
   return true;
 };
 

@@ -1,15 +1,20 @@
 import { FieldPath, type DocumentSnapshot } from "firebase-admin/firestore";
 import db from "../../../config/firestore.js";
 import { getProductsByIds } from "../../../db/products.js";
+import { readReservation, reservationRef, type ReservationDoc } from "../../../db/reservations.js";
 import { runTransaction } from "../../../db/transactions.js";
 import type { Product } from "../../../types/models.js";
+import { reservationTtlMs } from "../../reservationTtl.js";
 import {
   OutOfStockError,
+  ReservationExpiredError,
   type CatalogSource,
   type ChangedProducts,
   type Reservation,
   type SourceProduct,
 } from "../../ports.js";
+
+const SOURCE_KEY = "fs";
 
 // Must match COLLECTION in db/products.ts.
 const PRODUCTS_COLLECTION = "products";
@@ -24,12 +29,13 @@ const fromProduct = ({ id, stock, ...rest }: Product): SourceProduct => ({
 const fromDoc = (doc: DocumentSnapshot): SourceProduct =>
   fromProduct({ id: doc.id, ...doc.data() } as Product);
 
-// Stock lives on the product document. Reservations don't expire yet and
-// their key isn't stored, so they are not idempotent: reserve takes the units
-// out and release puts them back, exactly as addToCart and cancelOrder did
-// before this adapter existed.
+// Stock lives on the product document; reservations live in the
+// reservations collection, keyed by their idempotency key. Taking the units
+// and writing the reservation happen in one transaction, so a repeated call
+// with the same key, or two calls racing for the last units, can't take
+// stock twice.
 export const firestoreCatalogSource: CatalogSource = {
-  key: "fs",
+  key: SOURCE_KEY,
   displayName: "Main catalog",
   capabilities: { reservations: true, changeFeed: false },
 
@@ -54,27 +60,68 @@ export const firestoreCatalogSource: CatalogSource = {
 
   async reserve(localId, quantity, key): Promise<Reservation> {
     const productRef = db.collection(PRODUCTS_COLLECTION).doc(localId);
-    await runTransaction(async (tx) => {
+    return runTransaction(async (tx) => {
+      const existing = await readReservation(tx, key);
+      if (existing) {
+        return { reservationId: key, localId: existing.localId, quantity: existing.quantity, expiresAt: existing.expiresAt };
+      }
       const productDoc = await tx.get(productRef);
       const stock: number = productDoc.exists ? productDoc.get("stock") : 0;
       if (stock < quantity) {
         throw new OutOfStockError(localId);
       }
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + reservationTtlMs(SOURCE_KEY));
       tx.update(productRef, { stock: stock - quantity });
+      tx.set(reservationRef(key), {
+        sourceKey: SOURCE_KEY,
+        localId,
+        quantity,
+        status: "HELD",
+        expiresAt,
+        updatedAt: now,
+      } satisfies ReservationDoc);
+      return { reservationId: key, localId, quantity, expiresAt };
     });
-    return { reservationId: key, localId, quantity, expiresAt: null };
   },
 
-  // The units already left the stock in reserve; nothing else to do here.
-  async confirm() {},
+  // The units already left the stock in reserve; confirming only marks them
+  // sold, so a later release can't put them back. Late is fine: a held
+  // reservation past its expiry still holds its units until it is released.
+  async confirm({ reservationId }) {
+    await runTransaction(async (tx) => {
+      const existing = await readReservation(tx, reservationId);
+      if (!existing || existing.status === "RELEASED") {
+        throw new ReservationExpiredError(reservationId);
+      }
+      if (existing.status === "CONFIRMED") return;
+      tx.update(reservationRef(reservationId), { status: "CONFIRMED", updatedAt: new Date() });
+    });
+  },
 
-  async release({ localId, quantity }) {
+  // Puts held units back once. A reservation made before the reservations
+  // collection existed has no document: its units are put back from the
+  // reservation passed in, and a RELEASED marker keeps a repeat from doing
+  // it again.
+  async release({ reservationId, localId, quantity }) {
     const productRef = db.collection(PRODUCTS_COLLECTION).doc(localId);
     await runTransaction(async (tx) => {
+      const existing = await readReservation(tx, reservationId);
+      if (existing && existing.status !== "HELD") return;
       const productDoc = await tx.get(productRef);
+      const units = existing?.quantity ?? quantity;
       // A deleted product has no stock to put the units back into.
-      if (!productDoc.exists) return;
-      tx.update(productRef, { stock: productDoc.get("stock") + quantity });
+      if (productDoc.exists) {
+        tx.update(productRef, { stock: productDoc.get("stock") + units });
+      }
+      tx.set(reservationRef(reservationId), {
+        sourceKey: SOURCE_KEY,
+        localId: existing?.localId ?? localId,
+        quantity: units,
+        status: "RELEASED",
+        expiresAt: existing?.expiresAt ?? null,
+        updatedAt: new Date(),
+      } satisfies ReservationDoc);
     });
   },
 };
