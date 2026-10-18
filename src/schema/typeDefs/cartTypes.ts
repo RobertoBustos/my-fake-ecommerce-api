@@ -4,6 +4,7 @@ const cartTypes = /* GraphQL */ `#graphql
     id: ID!
     orderId: String
     cartId: String!
+    "Global id of the product (Product.id)."
     productId: String!
     quantity: Int!
     unitPrice: Int!

@@ -30,6 +30,7 @@ const fromDoc = (doc: DocumentSnapshot): SourceProduct =>
 // before this adapter existed.
 export const firestoreCatalogSource: CatalogSource = {
   key: "fs",
+  displayName: "Main catalog",
   capabilities: { reservations: true, changeFeed: false },
 
   // Products carry no updatedAt yet, so every call lists the whole catalog

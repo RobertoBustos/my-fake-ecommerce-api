@@ -1,4 +1,5 @@
 import { GraphQLError } from "graphql";
+import { canonicalProductId, getCatalogProducts } from "../catalog/index.js";
 import {
   cancelOrder as cancelOrderDb,
   CartAlreadyOrderedError,
@@ -9,6 +10,7 @@ import {
   getOrders,
   OrderAlreadyCompleteError,
   OrderClosedError,
+  repriceOrderItems,
   setOrderPayment,
   updateOrder as updateOrderDb,
 } from "../db/index.js";
@@ -25,7 +27,7 @@ import type {
   CreateOrderPayment,
   UpdateOrder,
 } from "../generated/graphql.js";
-import type { MutationAck, MutationResult, Order } from "../types/models.js";
+import type { MutationAck, MutationResult, Order, Product } from "../types/models.js";
 import { assertValidInput, withContentionRetryHint } from "./errors.js";
 
 export const createOrder = async (
@@ -143,6 +145,64 @@ export const cancelOrder = async (input: CancelOrder, userId: string): Promise<M
   };
 };
 
+// The order is charged at the prices its sources quote now, not at the ones
+// copied when the items were added. A changed price is never charged
+// silently: the items move to the new price, nothing is charged, and the
+// client gets the new prices so it can show the new total and pay again.
+const assertCurrentPrices = async (orderId: string): Promise<void> => {
+  const items = await getCart({ orderId });
+  const products = await getCatalogProducts(items.map((item) => item.productId));
+
+  const unavailable = items.filter((_, i) => products[i] === null);
+  if (unavailable.length > 0) {
+    throw new GraphQLError("Some products in the order are no longer available", {
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+        unavailableProductIds: unavailable.map((item) => canonicalProductId(item.productId)),
+      },
+    });
+  }
+
+  const changes = items.flatMap((item, i) => {
+    const { unitPrice } = products[i] as Product;
+    // subtotal too: an item added twice while the price changed holds a
+    // subtotal that no longer matches unitPrice × quantity.
+    const changed = item.unitPrice !== unitPrice || item.subtotal !== unitPrice * item.quantity;
+    return changed ? [{ item, unitPrice }] : [];
+  });
+  if (changes.length === 0) {
+    return;
+  }
+
+  try {
+    await withContentionRetryHint(() =>
+      repriceOrderItems(orderId, new Map(changes.map(({ item, unitPrice }) => [item.id, unitPrice])))
+    );
+  } catch (err) {
+    if (err instanceof OrderClosedError) {
+      throw new GraphQLError(`A ${err.status} order can't be paid`, {
+        extensions: { code: "BAD_USER_INPUT", invalidArgument: "orderId" },
+      });
+    }
+    throw err;
+  }
+  throw new GraphQLError(
+    "Prices changed since the products were added; review the new total and pay again",
+    {
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+        priceChanges: changes.map(({ item, unitPrice }) => ({
+          productId: canonicalProductId(item.productId),
+          previousUnitPrice: item.unitPrice,
+          unitPrice,
+        })),
+      },
+    }
+  );
+};
+
 export const createOrderPayment = async (
   input: CreateOrderPayment,
   userId: string
@@ -175,6 +235,7 @@ export const createOrderPayment = async (
       },
     });
   }
+  await assertCurrentPrices(order[0].id);
   const totals = await getOrderTotals(order[0].id);
   // Stripe rejects a zero amount, which used to surface as an internal error.
   if (totals.total <= 0) {

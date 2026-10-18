@@ -15,7 +15,7 @@ import { isOrderOpen, OPEN_STATUSES } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
 import { cancelPayment, getCustomer, searchPayment, type CustomerDetails } from "./payment.js";
 import { logger } from "../utils/logger.js";
-import { releaseReservation } from "../catalog/index.js";
+import { canonicalProductId, parseProductId, releaseReservation } from "../catalog/index.js";
 
 export { isOrderOpen };
 
@@ -239,7 +239,8 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
     const quantities = new Map<string, number>();
     for (const itemDoc of itemsSnapshot.docs) {
       const { productId, quantity } = itemDoc.data() as CartItem;
-      const key = String(productId);
+      // Migrated and unmigrated items of one product count together.
+      const key = canonicalProductId(String(productId));
       quantities.set(key, (quantities.get(key) ?? 0) + quantity);
     }
     tx.update(docRef, { status: "CANCELLED" });
@@ -253,10 +254,12 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
   // units go back to their source exactly once, after the commit.
   if (outcome.changed) {
     for (const [productId, quantity] of outcome.quantities) {
+      const { sourceKey, localId } = parseProductId(productId);
       await releaseReservation(
+        sourceKey,
         {
-          reservationId: `order-${outcome.order.id}-${productId}`,
-          localId: productId,
+          reservationId: `order-${outcome.order.id}-${localId}`,
+          localId,
           quantity,
           expiresAt: null,
         },
@@ -277,6 +280,30 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
     });
   }
   return true;
+};
+
+// The price each item of an order is paid at, by cart item id.
+export type ItemPrices = Map<string, number>;
+
+// Moves an order's items to the prices their sources quote now, so the next
+// createOrderPayment charges them. Inside a transaction with the order, so
+// an order that stopped being payable in the meantime isn't touched.
+export const repriceOrderItems = async (orderId: string, prices: ItemPrices): Promise<void> => {
+  const docRef = db.collection(COLLECTION).doc(orderId);
+  await runTransaction(async (tx) => {
+    const doc = await tx.get(docRef);
+    const order = doc.exists ? toOrder(doc) : null;
+    if (!order || order.status !== "PAYMENT_PENDING") {
+      throw new OrderClosedError(orderId, order?.status ?? "CANCELLED");
+    }
+    const items = await tx.get(db.collection(CART_COLLECTION).where("orderId", "==", orderId));
+    for (const itemDoc of items.docs) {
+      const unitPrice = prices.get(itemDoc.id);
+      if (unitPrice === undefined) continue;
+      const { quantity } = itemDoc.data() as CartItem;
+      tx.update(itemDoc.ref, { unitPrice, subtotal: unitPrice * quantity });
+    }
+  });
 };
 
 export const setOrderPayment = async (orderId: string, paymentId: string): Promise<boolean> => {

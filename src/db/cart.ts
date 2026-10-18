@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { DocumentSnapshot, Query } from "firebase-admin/firestore";
-import { DEFAULT_SOURCE_KEY, getCatalogSource, OutOfStockError, releaseReservation } from "../catalog/index.js";
+import {
+  canonicalProductId,
+  DEFAULT_SOURCE_KEY,
+  getCatalogSource,
+  OutOfStockError,
+  parseProductId,
+  releaseReservation,
+  toGlobalProductId,
+} from "../catalog/index.js";
 import db from "../config/firestore.js";
 import type { CartItem, Order, OrderStatus, Page, Product } from "../types/models.js";
 import { isOrderOpen } from "./orderStatus.js";
@@ -13,6 +21,14 @@ const toCartItem = (doc: DocumentSnapshot): CartItem => ({ id: doc.id, ...doc.da
 // Kept under its old name: callers and tests catch it as InsufficientStockError.
 export { OutOfStockError as InsufficientStockError };
 
+// The values a product's items can hold in productId: its global id and,
+// for Firestore items not migrated yet, the bare document id.
+const storedProductIds = (id: string): string[] => {
+  const { sourceKey, localId } = parseProductId(id);
+  const globalId = toGlobalProductId(sourceKey, localId);
+  return sourceKey === DEFAULT_SOURCE_KEY ? [globalId, localId] : [globalId];
+};
+
 export const getCart = async ({
   cartId,
   orderId,
@@ -21,7 +37,7 @@ export const getCart = async ({
   let query: Query = db.collection(COLLECTION);
   if (cartId !== undefined) query = query.where("cartId", "==", cartId);
   if (orderId !== undefined) query = query.where("orderId", "==", orderId);
-  if (productId !== undefined) query = query.where("productId", "==", productId);
+  if (productId !== undefined) query = query.where("productId", "in", storedProductIds(productId));
   const snapshot = await query.get();
   return snapshot.docs.map(toCartItem);
 };
@@ -63,7 +79,7 @@ export const listCartItemsWithoutOrder = async (
   // Like getOrders (H2): a user only ever sees their own cart items.
   if (userId !== undefined) query = query.where("userId", "==", userId);
   if (cartId !== undefined) query = query.where("cartId", "==", cartId);
-  if (productId !== undefined) query = query.where("productId", "==", productId);
+  if (productId != null) query = query.where("productId", "in", storedProductIds(productId));
   return paginateQuery(query, page, toCartItem);
 };
 
@@ -75,6 +91,15 @@ export interface AddToCartInput {
   quantity: number;
   orderId?: string | null;
 }
+
+// The copy of the product an item keeps, so paying for it never depends on
+// the source answering again.
+const productSnapshot = (product: Product, sourceKey: string) => ({
+  sourceKey,
+  title: product.title ?? null,
+  image: product.image ?? null,
+  currency: product.currency ?? null,
+});
 
 export const addToCart = async (
   product: Product,
@@ -95,23 +120,34 @@ export const addToCart = async (
   // The stock belongs to the product's source, so it can't be part of the
   // cart's Firestore transaction: the units are reserved first and put back
   // if the cart write fails.
-  const source = getCatalogSource(DEFAULT_SOURCE_KEY);
+  const { sourceKey, localId } = parseProductId(String(product.id));
+  const source = getCatalogSource(sourceKey);
   const reservation = await source.reserve(
-    String(product.id),
+    localId,
     input.quantity,
     `cartItem-${randomUUID()}-reserve`
   );
   try {
-    return await writeCartItem(product, input, userId, cartQuery, isForeign);
+    return await writeCartItem(
+      product,
+      { ...input, productId: toGlobalProductId(sourceKey, localId) },
+      productSnapshot(product, sourceKey),
+      userId,
+      cartQuery,
+      isForeign
+    );
   } catch (err) {
-    await releaseReservation(reservation, "addToCart failed after reserving");
+    await releaseReservation(sourceKey, reservation, "addToCart failed after reserving");
     throw err;
   }
 };
 
+// input.productId is already the global id; items written before global ids
+// hold the bare one, so both forms count as the same product.
 const writeCartItem = (
   product: Product,
   input: AddToCartInput,
+  snapshot: ReturnType<typeof productSnapshot>,
   userId: string | null,
   cartQuery: Query,
   isForeign: (docs: DocumentSnapshot[]) => boolean
@@ -124,7 +160,10 @@ const writeCartItem = (
     }
     const existingDocs = cartSnapshot.docs.filter((doc) => {
       const item = doc.data();
-      return item.productId === input.productId && item.orderId === (input.orderId ?? null);
+      return (
+        canonicalProductId(String(item.productId)) === input.productId &&
+        item.orderId === (input.orderId ?? null)
+      );
     });
 
     if (existingDocs.length > 0) {
@@ -149,6 +188,7 @@ const writeCartItem = (
       quantity: input.quantity,
       unitPrice: product.unitPrice,
       subtotal: product.unitPrice * input.quantity,
+      ...snapshot,
     };
     tx.set(docRef, newItem);
     return { id: docRef.id, ...newItem };
@@ -181,10 +221,12 @@ export const removeFromCart = async (input: { id: string }, userId: string): Pro
   if (!removed) {
     return false;
   }
+  const { sourceKey, localId } = parseProductId(String(removed.productId));
   await releaseReservation(
+    sourceKey,
     {
       reservationId: `cartItem-${removed.id}`,
-      localId: String(removed.productId),
+      localId,
       quantity: removed.quantity,
       expiresAt: null,
     },

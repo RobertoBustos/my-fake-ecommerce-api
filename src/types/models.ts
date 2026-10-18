@@ -7,6 +7,8 @@ import type Stripe from "stripe";
 export type OrderStatus = "INCOMPLETE" | "PAYMENT_PENDING" | "COMPLETE" | "CANCELLED";
 
 export interface Product {
+  // Global id (catalog/productId.ts) when it comes from the catalog; the
+  // Firestore document id inside db/products.ts.
   id: string;
   title: string;
   description: string;
@@ -17,6 +19,8 @@ export interface Product {
   // Centavos (10995 = 109.95 MXN).
   unitPrice: number;
   purchaseLimits: { min: number; max: number };
+  // Display name of the product's source; set by the catalog.
+  source?: string | null;
 }
 
 export interface CartItem {
@@ -26,10 +30,22 @@ export interface CartItem {
   orderId: string | null;
   // null for items created before v1.2.0 (ownership checks).
   userId: string | null;
+  // Global product id; items written before global ids keep the bare
+  // Firestore id until the migration script rewrites them.
   productId: string;
   quantity: number;
+  // Copy of the product taken when it was added: the order, its totals, the
+  // PaymentIntent and the webhook read only this copy, never the source.
+  // unitPrice and currency are in the settlement currency; the price and
+  // currency the source quoted will sit next to them once prices are
+  // converted. sourceKey, title, image and currency are missing on items
+  // written before the copy existed.
   unitPrice: number;
   subtotal: number;
+  sourceKey?: string;
+  title?: string | null;
+  image?: string | null;
+  currency?: string | null;
 }
 
 // updateOrder stores the whole Stripe customer returned by Stripe.
