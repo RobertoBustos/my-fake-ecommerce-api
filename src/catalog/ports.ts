@@ -53,6 +53,14 @@ export interface CatalogSource {
   ): Promise<ChangedProducts>;
   getProducts(localIds: readonly string[]): Promise<SourceProduct[]>;
 
+  // Push (optional, for capabilities.changeFeed): change streams, Postgres
+  // Changes, a binlog reader or a vendor webhook call onChanges with what
+  // changed, and the catalog sync applies it to the index the same way it
+  // applies a pulled page (applyCatalogChanges). Returns a function that
+  // stops listening. No source implements it yet; the scheduled pull and the
+  // reconciliation still run for sources that do, to catch missed events.
+  subscribeChanges?(onChanges: (changes: ChangedProducts) => Promise<void>): () => void;
+
   // Inventory (writes). Every call carries an idempotency key.
   reserve(localId: string, quantity: number, key: string): Promise<Reservation>;
   confirm(reservation: Reservation, key: string): Promise<void>;

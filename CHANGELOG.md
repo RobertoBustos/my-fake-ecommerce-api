@@ -33,6 +33,14 @@ follows [Semantic Versioning](https://semver.org/).
 - The inventory job also releases reservations that expired in abandoned carts,
   except for orders being paid (`PAYMENT_PENDING`) or paid.
 - Composite indexes for the job's queries in `firestore.indexes.json`.
+- A catalog index (`catalog` collection) and its sync job
+  (`src/jobs/syncCatalog.ts`, `npm run catalog:sync`): an incremental pull of
+  each switched-on source from its last mark, resumable halfway, and a full
+  reconciliation every `CATALOG_RECONCILE_HOURS` that removes what a source no
+  longer has. Sources can push their changes through the optional
+  `subscribeChanges` hook (not used by any source yet).
+- `updatedAt` on Firestore products, set by the seed and by every stock change,
+  so the Firestore source lists only what changed since a date.
 - A contract test suite every catalog source adapter must pass
   (`tests/contract/catalogSource.contract.ts`), run in CI against the Firestore
   adapter and a source whose reservations the core keeps, and the shared

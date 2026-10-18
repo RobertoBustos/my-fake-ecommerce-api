@@ -32,3 +32,8 @@ export const getCatalogSource = (key: string): CatalogSource => {
   }
   return source;
 };
+
+// The switched-on sources, in CATALOG_SOURCES order; keys the code doesn't
+// know are skipped.
+export const listEnabledSources = (): CatalogSource[] =>
+  [...enabledKeys()].flatMap((key) => (knownSources[key] ? [knownSources[key]] : []));

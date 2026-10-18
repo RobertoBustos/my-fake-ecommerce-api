@@ -24,7 +24,7 @@ describeCatalogSourceContract("Firestore adapter", async () => {
     source: firestoreCatalogSource,
     async seed(products) {
       const batch = db.batch();
-      for (const { localId, category, available } of products) {
+      for (const { localId, category, available, updatedAt } of products) {
         seeded.push(localId);
         // The Firestore catalog stores the shared category names as they are.
         batch.set(db.collection("products").doc(localId), {
@@ -36,6 +36,7 @@ describeCatalogSourceContract("Firestore adapter", async () => {
           unitPrice: 1500,
           purchaseLimits: { min: 1, max: 10 },
           stock: available,
+          updatedAt: updatedAt ?? new Date(),
         });
       }
       await batch.commit();

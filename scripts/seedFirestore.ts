@@ -10,8 +10,10 @@ export const seedProducts = async () => {
     readFileSync(path.join(__dirname, "seed-data/products.json"), "utf8")
   );
   const batch = db.batch();
+  // updatedAt lets the catalog sync pick up the reseeded products.
+  const updatedAt = new Date();
   for (const { id, ...data } of products) {
-    batch.set(db.collection("products").doc(id), data);
+    batch.set(db.collection("products").doc(id), { ...data, updatedAt });
   }
   await batch.commit();
   return products.length;
