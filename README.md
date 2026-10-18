@@ -109,6 +109,46 @@ Docker build that checks `/healthcheck` (`docker-build`) and, on pull requests
 into `main`, `branch-guard`, which only accepts `release/*` and `hotfix/*`
 branches.
 
+## Catalog source contract
+
+Every catalog source adapter must pass the same contract suite before it is
+registered: `tests/contract/catalogSource.contract.ts` checks the product
+shape, missing ids, the shared categories (`src/catalog/categories.ts`), paging
+and incremental `listChanged`, and that `reserve`, `confirm` and `release` are
+idempotent, expire with the source's TTL and throw `OutOfStockError` or
+`ReservationExpiredError` where the purchase flow expects them. CI runs it
+against the Firestore adapter and against a source without its own
+reservations wrapped with `withCoreReservations`;
+`tests/contract/contractSuite.test.js` proves that an adapter breaking any one
+rule fails its check.
+
+To run it against a new source, add a test file that gives the suite a
+harness: the source as the registry serves it, a `seed` that writes products
+into the source's own store (with its own category names) and a `cleanup`.
+
+```js
+// tests/contract/mysqlOutletSource.contract.test.js
+import { describeCatalogSourceContract } from "./catalogSource.contract.js";
+
+describeCatalogSourceContract("MySQL outlet adapter", async () => {
+  const db = await startTestDatabase(); // Testcontainers or the source's emulator
+  const source = createMysqlOutletSource(db);
+  return {
+    source, // or withCoreReservations(source) if it can't reserve
+    seed: (products) => insertProducts(db, products),
+    cleanup: () => db.stop(),
+  };
+});
+```
+
+For a database with a Docker image (MySQL, Postgres/Supabase, MongoDB), start
+it in the factory with [Testcontainers](https://node.testcontainers.org/) and
+stop it in `cleanup`; GitHub's Ubuntu runners have Docker. For a service with
+an emulator, start the emulator around the test run the way
+`npm run test:emulator` does for Firestore. Run one suite with
+`npx vitest run tests/contract/<file>` (under the emulator if the source needs
+Firestore, as sources without reservations do).
+
 ## Purchase flow
 
 1. `products`: browse the catalog. `Product.id` is an opaque global id that

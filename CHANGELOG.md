@@ -33,6 +33,10 @@ follows [Semantic Versioning](https://semver.org/).
 - The inventory job also releases reservations that expired in abandoned carts,
   except for orders being paid (`PAYMENT_PENDING`) or paid.
 - Composite indexes for the job's queries in `firestore.indexes.json`.
+- A contract test suite every catalog source adapter must pass
+  (`tests/contract/catalogSource.contract.ts`), run in CI against the Firestore
+  adapter and a source whose reservations the core keeps, and the shared
+  category list sources map their categories to (`src/catalog/categories.ts`).
 
 - `Product.source`: display name of the catalog source the product comes from.
 - `scripts/migrateCartItemProductIds.ts` (`npm run migrate:product-ids`, dry run
