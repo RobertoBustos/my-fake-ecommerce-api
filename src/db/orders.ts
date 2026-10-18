@@ -15,14 +15,14 @@ import { isOrderOpen, OPEN_STATUSES } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
 import { cancelPayment, getCustomer, searchPayment, type CustomerDetails } from "./payment.js";
 import { logger } from "../utils/logger.js";
+import { releaseReservation } from "../catalog/index.js";
 
 export { isOrderOpen };
 
 const COLLECTION = "orders";
-// Must match the collections in db/cart.ts and db/products.ts: cancelling
-// reads the order's cart items and products inside one transaction.
+// Must match COLLECTION in db/cart.ts: cancelling reads the order's cart
+// items inside its transaction.
 const CART_COLLECTION = "cartItems";
-const PRODUCTS_COLLECTION = "products";
 const toOrder = (doc: DocumentSnapshot): Order => ({ id: doc.id, ...doc.data() }) as Order;
 
 export class OrderClosedError extends Error {
@@ -200,10 +200,10 @@ export const updateOrder = async (
 // the order would hand back stock that was paid for.
 const CHARGED_PAYMENT_STATUSES = new Set(["processing", "succeeded"]);
 
-// Cancelling puts the order's units back in stock, in the same transaction
-// as the status change so it happens exactly once: a second cancel finds the
-// order already CANCELLED and changes nothing. A COMPLETE order was paid, so
-// its stock is sold and it can't be cancelled here.
+// Cancelling puts the order's units back in stock once the status change has
+// committed, so it happens exactly once: a second cancel finds the order
+// already CANCELLED and changes nothing. A COMPLETE order was paid, so its
+// stock is sold and it can't be cancelled here.
 export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
   const docRef = db.collection(COLLECTION).doc(input.id);
 
@@ -216,7 +216,10 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
     }
   }
 
-  type Outcome = { found: false } | { found: true; order: Order; changed: boolean };
+  type Outcome =
+    | { found: false }
+    | { found: true; order: Order; changed: false }
+    | { found: true; order: Order; changed: true; quantities: Map<string, number> };
   const outcome = await runTransaction(async (tx): Promise<Outcome> => {
     const doc = await tx.get(docRef);
     if (!doc.exists) {
@@ -239,24 +242,27 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
       const key = String(productId);
       quantities.set(key, (quantities.get(key) ?? 0) + quantity);
     }
-    const productRefs = [...quantities.keys()].map((id) =>
-      db.collection(PRODUCTS_COLLECTION).doc(id)
-    );
-    const productDocs = await Promise.all(productRefs.map((ref) => tx.get(ref)));
-
-    // Every read above happens before any write, as Firestore requires.
     tx.update(docRef, { status: "CANCELLED" });
-    productDocs.forEach((productDoc, i) => {
-      if (!productDoc.exists) return;
-      tx.update(productRefs[i], {
-        stock: productDoc.get("stock") + (quantities.get(productRefs[i].id) ?? 0),
-      });
-    });
-    return { found: true, order, changed: true };
+    return { found: true, order, changed: true, quantities };
   });
 
   if (!outcome.found) {
     return false;
+  }
+  // The status changed exactly once (a second cancel finds CANCELLED), so the
+  // units go back to their source exactly once, after the commit.
+  if (outcome.changed) {
+    for (const [productId, quantity] of outcome.quantities) {
+      await releaseReservation(
+        {
+          reservationId: `order-${outcome.order.id}-${productId}`,
+          localId: productId,
+          quantity,
+          expiresAt: null,
+        },
+        "cancelOrder"
+      );
+    }
   }
   // Stripe isn't part of the Firestore transaction, so it goes after commit.
   // The order is already cancelled; if Stripe fails here, a later payment on

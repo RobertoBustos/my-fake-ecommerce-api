@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { DocumentSnapshot, Query } from "firebase-admin/firestore";
+import { DEFAULT_SOURCE_KEY, getCatalogSource, OutOfStockError, releaseReservation } from "../catalog/index.js";
 import db from "../config/firestore.js";
 import type { CartItem, Order, OrderStatus, Page, Product } from "../types/models.js";
 import { isOrderOpen } from "./orderStatus.js";
@@ -6,19 +8,10 @@ import { paginateQuery } from "./pagination.js";
 import { runTransaction } from "./transactions.js";
 
 const COLLECTION = "cartItems";
-// Must match COLLECTION in db/products.ts: the stock transaction needs the
-// product doc directly, it can't go through getProducts().
-const PRODUCTS_COLLECTION = "products";
 const toCartItem = (doc: DocumentSnapshot): CartItem => ({ id: doc.id, ...doc.data() }) as CartItem;
 
-export class InsufficientStockError extends Error {
-  productId: string;
-  constructor(productId: string) {
-    super(`Not enough stock for product ${productId}`);
-    this.name = "InsufficientStockError";
-    this.productId = productId;
-  }
-}
+// Kept under its old name: callers and tests catch it as InsufficientStockError.
+export { OutOfStockError as InsufficientStockError };
 
 export const getCart = async ({
   cartId,
@@ -88,28 +81,51 @@ export const addToCart = async (
   input: AddToCartInput,
   userId: string | null = null
 ): Promise<CartItem> => {
-  return runTransaction(async (tx) => {
-    const productRef = db.collection(PRODUCTS_COLLECTION).doc(String(product.id));
-    const cartQuery = db.collection(COLLECTION).where("cartId", "==", input.cartId);
+  const cartQuery = db.collection(COLLECTION).where("cartId", "==", input.cartId);
+  const isForeign = (docs: DocumentSnapshot[]) =>
+    docs.some((doc) => doc.get("userId") !== userId);
 
-    // All reads in a Firestore transaction must happen before any write:
-    // current stock first, then the cart's items.
-    const productDoc = await tx.get(productRef);
+  // Checked before reserving so someone else's cart answers "not found"
+  // even when the product is out of stock, as it did before; the
+  // transaction below checks it again.
+  if (isForeign((await cartQuery.get()).docs)) {
+    throw new CartNotOwnedError(input.cartId);
+  }
+
+  // The stock belongs to the product's source, so it can't be part of the
+  // cart's Firestore transaction: the units are reserved first and put back
+  // if the cart write fails.
+  const source = getCatalogSource(DEFAULT_SOURCE_KEY);
+  const reservation = await source.reserve(
+    String(product.id),
+    input.quantity,
+    `cartItem-${randomUUID()}-reserve`
+  );
+  try {
+    return await writeCartItem(product, input, userId, cartQuery, isForeign);
+  } catch (err) {
+    await releaseReservation(reservation, "addToCart failed after reserving");
+    throw err;
+  }
+};
+
+const writeCartItem = (
+  product: Product,
+  input: AddToCartInput,
+  userId: string | null,
+  cartQuery: Query,
+  isForeign: (docs: DocumentSnapshot[]) => boolean
+): Promise<CartItem> =>
+  runTransaction(async (tx) => {
     const cartSnapshot = await tx.get(cartQuery);
 
-    if (cartSnapshot.docs.some((doc) => doc.data().userId !== userId)) {
+    if (isForeign(cartSnapshot.docs)) {
       throw new CartNotOwnedError(input.cartId);
     }
     const existingDocs = cartSnapshot.docs.filter((doc) => {
       const item = doc.data();
       return item.productId === input.productId && item.orderId === (input.orderId ?? null);
     });
-
-    const currentStock: number = productDoc.exists ? productDoc.get("stock") : 0;
-    if (currentStock < input.quantity) {
-      throw new InsufficientStockError(product.id);
-    }
-    tx.update(productRef, { stock: currentStock - input.quantity });
 
     if (existingDocs.length > 0) {
       const existingDoc = existingDocs[0];
@@ -137,22 +153,19 @@ export const addToCart = async (
     tx.set(docRef, newItem);
     return { id: docRef.id, ...newItem };
   });
-};
 
-// addToCart took these units out of stock; removing the item puts them back
-// in the same transaction, so a concurrent purchase can't see a stale value.
+// addToCart reserved these units; removing the item releases them once the
+// delete has committed, so they come back exactly once.
 // Returns false both for a missing item and for someone else's, so the caller
 // can't tell which (same reasoning as H2).
 export const removeFromCart = async (input: { id: string }, userId: string): Promise<boolean> => {
-  return runTransaction(async (tx) => {
+  const removed = await runTransaction(async (tx): Promise<CartItem | null> => {
     const docRef = db.collection(COLLECTION).doc(input.id);
     const doc = await tx.get(docRef);
     if (!doc.exists || doc.get("userId") !== userId) {
-      return false;
+      return null;
     }
     const item = toCartItem(doc);
-    const productRef = db.collection(PRODUCTS_COLLECTION).doc(String(item.productId));
-    const productDoc = await tx.get(productRef);
     // A paid or cancelled order's items are settled: removing one would put
     // sold (or already returned) units back in stock.
     if (item.orderId) {
@@ -162,13 +175,22 @@ export const removeFromCart = async (input: { id: string }, userId: string): Pro
         throw new OrderItemLockedError(item.orderId, order.status);
       }
     }
-
     tx.delete(docRef);
-    if (productDoc.exists) {
-      tx.update(productRef, { stock: productDoc.get("stock") + item.quantity });
-    }
-    return true;
+    return item;
   });
+  if (!removed) {
+    return false;
+  }
+  await releaseReservation(
+    {
+      reservationId: `cartItem-${removed.id}`,
+      localId: String(removed.productId),
+      quantity: removed.quantity,
+      expiresAt: null,
+    },
+    "removeFromCart"
+  );
+  return true;
 };
 
 const FIRESTORE_IN_QUERY_LIMIT = 30;

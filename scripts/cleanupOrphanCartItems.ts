@@ -1,5 +1,6 @@
 import { fileURLToPath } from "url";
 import type { Query } from "firebase-admin/firestore";
+import { DEFAULT_SOURCE_KEY, getCatalogSource } from "../src/catalog/index.js";
 import db from "../src/config/firestore.js";
 import type { CartItem, OrderStatus } from "../src/types/models.js";
 
@@ -20,7 +21,6 @@ import type { CartItem, OrderStatus } from "../src/types/models.js";
 
 const CART_COLLECTION = "cartItems";
 const ORDERS_COLLECTION = "orders";
-const PRODUCTS_COLLECTION = "products";
 
 const hasOwner = (item: Pick<CartItem, "userId">) => item.userId != null;
 
@@ -62,30 +62,40 @@ export const findOrphanCartItems = async ({ cartIds }: { cartIds?: string[] } = 
 };
 
 // One transaction per item, re-checked inside it: running the script twice,
-// or while a user is active, can't return the same units twice.
-export const releaseCartItem = async (itemId: string): Promise<boolean> =>
-  db.runTransaction(async (tx) => {
+// or while a user is active, can't return the same units twice. The units go
+// back to the product's source after the delete commits; a failure there is
+// thrown so whoever runs the script sees it.
+export const releaseCartItem = async (itemId: string): Promise<boolean> => {
+  const item = await db.runTransaction(async (tx): Promise<CartItem | null> => {
     const itemRef = db.collection(CART_COLLECTION).doc(itemId);
     const itemDoc = await tx.get(itemRef);
-    const item = itemDoc.data() as CartItem | undefined;
-    if (!item || hasOwner(item)) {
-      return false;
+    const found = itemDoc.data() as CartItem | undefined;
+    if (!found || hasOwner(found)) {
+      return null;
     }
-    if (item.orderId != null) {
-      const orderDoc = await tx.get(db.collection(ORDERS_COLLECTION).doc(item.orderId));
+    if (found.orderId != null) {
+      const orderDoc = await tx.get(db.collection(ORDERS_COLLECTION).doc(found.orderId));
       if (orderDoc.exists) {
-        return false;
+        return null;
       }
     }
-    const productRef = db.collection(PRODUCTS_COLLECTION).doc(String(item.productId));
-    const productDoc = await tx.get(productRef);
-
     tx.delete(itemRef);
-    if (productDoc.exists) {
-      tx.update(productRef, { stock: productDoc.get("stock") + item.quantity });
-    }
-    return true;
+    return found;
   });
+  if (!item) {
+    return false;
+  }
+  await getCatalogSource(DEFAULT_SOURCE_KEY).release(
+    {
+      reservationId: `cleanup-${itemId}`,
+      localId: String(item.productId),
+      quantity: item.quantity,
+      expiresAt: null,
+    },
+    `cleanup-${itemId}-release`
+  );
+  return true;
+};
 
 export const cleanupOrphanCartItems = async ({
   apply = false,

@@ -33,10 +33,15 @@ vi.mock("../src/db/index.js", () => ({
   addToCart: addToCartDbMock,
   CartNotOwnedError: CartNotOwnedErrorStub,
   getOrders: getOrdersMock,
-  getProducts: getProductsMock,
   removeFromCart: removeFromCartDbMock,
   InsufficientStockError: InsufficientStockErrorStub,
   TransactionContentionError: TransactionContentionErrorStub,
+}));
+
+// Products come from the catalog source; getProductsMock keeps returning a
+// list, as the old db lookup did.
+vi.mock("../src/catalog/index.js", () => ({
+  getCatalogProduct: async (id) => (await getProductsMock(id))[0] ?? null,
 }));
 
 vi.mock("../src/schema/validators/index.js", () => ({

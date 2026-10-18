@@ -7,6 +7,9 @@
   `lint`, `test`, `gitleaks`, `docker-build` y `typecheck`; en `main` además `branch-guard`.
 - Capas: las mutations de GraphQL pasan por `src/services/`. Solo los resolvers de lectura
   (`src/schema/resolvers/queries.ts` y `fields.ts`) pueden importar `src/db/`; ESLint lo hace cumplir.
+- Catálogo: productos y stock se leen y se apartan a través del contrato `CatalogSource`
+  (`src/catalog/`). Solo un adaptador en `src/catalog/sources/` puede usar el cliente de una
+  base de datos de productos; ESLint lo hace cumplir en `src/catalog/` y `src/services/`.
 - TypeScript: `src/` y `scripts/` son `.ts` en modo `strict`; los imports llevan extensión
   `.js` (nodenext). Si cambias `src/schema/typeDefs`, corre `npm run codegen` y commitea
   `src/generated/graphql.ts` (el job `typecheck` falla si quedó desactualizado). Los tests
