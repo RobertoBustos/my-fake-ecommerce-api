@@ -24,6 +24,9 @@ export const withCoreReservations = (source: CatalogSource): CatalogSource => {
     capabilities: source.capabilities,
     listChanged: (since, page) => source.listChanged(since, page),
     getProducts: (localIds) => source.getProducts(localIds),
+    ...(source.subscribeChanges
+      ? { subscribeChanges: (onChanges) => source.subscribeChanges!(onChanges) }
+      : {}),
 
     async reserve(localId, quantity, key): Promise<Reservation> {
       // The source can't join our transaction, so it is asked first.

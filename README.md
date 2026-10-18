@@ -190,6 +190,32 @@ npm run inventory:retry -- <taskId>    # put a FAILED task back and run it
 The queries of the job need the composite indexes in `firestore.indexes.json`
 (`npx firebase deploy --only firestore:indexes`).
 
+## Catalog index
+
+The `catalog` collection holds a copy of every product of every switched-on
+source (global id, `sourceKey`, title, description, image, category, price and
+currency in the source, approximate `available` and `syncedAt`), so the
+catalog can be listed and filtered with one Firestore query. The catalog sync
+job keeps it up to date:
+
+- **Pull:** `listChanged(since)` from the mark saved in `catalogSync/{source}`.
+  Each page is written and its cursor saved, so a run that stops halfway
+  resumes there. `deletedIds` are removed from the index.
+- **Reconciliation:** a full pass that also deletes what the source no longer
+  has. It runs on the first sync of a source and then every
+  `CATALOG_RECONCILE_HOURS` (24 by default).
+- Only the sources in `CATALOG_SOURCES` are synced. Firestore products carry an
+  `updatedAt` (set by the seed and by every stock change), so its pulls are
+  incremental; products without it are picked up by the reconciliation.
+
+```bash
+npm run catalog:sync                          # one run: pull, or reconcile when due
+npm run catalog:sync -- --reconcile           # reconcile every source now
+npm run catalog:sync -- --source fs           # only one source
+```
+
+The API doesn't read the index yet; `products` still reads each source.
+
 ## Prices and currency
 
 Everything is shown and charged in one settlement currency, MXN today. It lives
