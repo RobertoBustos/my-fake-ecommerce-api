@@ -12,6 +12,8 @@
   base de datos de productos; ESLint lo hace cumplir en `src/catalog/` y `src/services/`.
   Los ids de producto son globales (`<origen>:<idLocal>` en base64url) y solo se leen con
   `parseProductId` de `src/catalog/productId.ts`; nunca se parte un id a mano.
+- Precios: la moneda de liquidación vive en `settings/pricing` (Firestore), nunca en el
+  código; un precio solo cambia de moneda con `convertPrice` (`src/pricing/convert.ts`).
 - TypeScript: `src/` y `scripts/` son `.ts` en modo `strict`; los imports llevan extensión
   `.js` (nodenext). Si cambias `src/schema/typeDefs`, corre `npm run codegen` y commitea
   `src/generated/graphql.ts` (el job `typecheck` falla si quedó desactualizado). Los tests

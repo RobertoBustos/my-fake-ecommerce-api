@@ -28,7 +28,8 @@ import type {
   UpdateOrder,
 } from "../generated/graphql.js";
 import type { MutationAck, MutationResult, Order, Product } from "../types/models.js";
-import { assertValidInput, withContentionRetryHint } from "./errors.js";
+import { LEGACY_CURRENCY } from "../pricing/index.js";
+import { assertValidInput, quoteOrConflict, withContentionRetryHint } from "./errors.js";
 
 export const createOrder = async (
   input: CreateOrder,
@@ -145,10 +146,12 @@ export const cancelOrder = async (input: CancelOrder, userId: string): Promise<M
   };
 };
 
-// The order is charged at the prices its sources quote now, not at the ones
-// copied when the items were added. A changed price is never charged
-// silently: the items move to the new price, nothing is charged, and the
-// client gets the new prices so it can show the new total and pay again.
+// The order is charged at the prices its sources quote now, converted with
+// today's exchange rate to today's settlement currency, not at the ones
+// copied when the items were added. A changed price (in the source, in the
+// rate or in the settlement currency) is never charged silently: the items
+// move to the new price, nothing is charged, and the client gets the new
+// prices so it can show the new total and pay again.
 const assertCurrentPrices = async (orderId: string): Promise<void> => {
   const items = await getCart({ orderId });
   const products = await getCatalogProducts(items.map((item) => item.productId));
@@ -164,12 +167,16 @@ const assertCurrentPrices = async (orderId: string): Promise<void> => {
     });
   }
 
+  const quotes = await Promise.all(products.map((product) => quoteOrConflict(product as Product)));
   const changes = items.flatMap((item, i) => {
-    const { unitPrice } = products[i] as Product;
+    const quote = quotes[i];
     // subtotal too: an item added twice while the price changed holds a
     // subtotal that no longer matches unitPrice × quantity.
-    const changed = item.unitPrice !== unitPrice || item.subtotal !== unitPrice * item.quantity;
-    return changed ? [{ item, unitPrice }] : [];
+    const changed =
+      item.unitPrice !== quote.unitPrice ||
+      (item.currency ?? LEGACY_CURRENCY) !== quote.currency ||
+      item.subtotal !== quote.unitPrice * item.quantity;
+    return changed ? [{ item, quote }] : [];
   });
   if (changes.length === 0) {
     return;
@@ -177,7 +184,7 @@ const assertCurrentPrices = async (orderId: string): Promise<void> => {
 
   try {
     await withContentionRetryHint(() =>
-      repriceOrderItems(orderId, new Map(changes.map(({ item, unitPrice }) => [item.id, unitPrice])))
+      repriceOrderItems(orderId, new Map(changes.map(({ item, quote }) => [item.id, quote])))
     );
   } catch (err) {
     if (err instanceof OrderClosedError) {
@@ -193,10 +200,12 @@ const assertCurrentPrices = async (orderId: string): Promise<void> => {
       extensions: {
         code: "BAD_USER_INPUT",
         invalidArgument: "orderId",
-        priceChanges: changes.map(({ item, unitPrice }) => ({
+        priceChanges: changes.map(({ item, quote }) => ({
           productId: canonicalProductId(item.productId),
           previousUnitPrice: item.unitPrice,
-          unitPrice,
+          previousCurrency: item.currency ?? LEGACY_CURRENCY,
+          unitPrice: quote.unitPrice,
+          currency: quote.currency,
         })),
       },
     }
@@ -249,7 +258,8 @@ export const createOrderPayment = async (
   const payment = await createPayment(
     order[0].id,
     totals.total,
-    order[0].customer.id
+    order[0].customer.id,
+    totals.currency
   );
   await setOrderPayment(order[0].id, payment.paymentId);
   return {

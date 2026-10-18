@@ -18,7 +18,9 @@ const productTypes = /* GraphQL */ `#graphql
     category: String!
     image: String!
     stock: Int!
+    "ISO 4217 code of unitPrice: the settlement currency, or the source's own currency while no exchange rate is available."
     currency: String!
+    "Cents of currency."
     unitPrice: Int!
     purchaseLimits: PurchaseLimit!
     "Display name of the catalog source the product comes from."

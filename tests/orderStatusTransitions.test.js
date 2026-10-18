@@ -138,7 +138,7 @@ describe("order status transitions", () => {
     const result = await run(CREATE_PAYMENT, { input: { orderId } });
 
     expect(result.errors).toBeUndefined();
-    expect(payment.createPayment).toHaveBeenCalledWith(orderId, 116, "cus_transitions");
+    expect(payment.createPayment).toHaveBeenCalledWith(orderId, 116, "cus_transitions", "MXN");
   });
 
   it("createOrder rejects a cart that was already ordered", async () => {
@@ -181,7 +181,7 @@ describe("order status transitions", () => {
     expect(item.data().orderId).toBe(orderId);
     await run(CREATE_PAYMENT, { input: { orderId } });
     // 3 units of 100, plus 16% tax.
-    expect(payment.createPayment).toHaveBeenCalledWith(orderId, 348, "cus_transitions");
+    expect(payment.createPayment).toHaveBeenCalledWith(orderId, 348, "cus_transitions", "MXN");
   });
 
   it.each(["COMPLETE", "CANCELLED"])("addToCart refuses a %s order", async (status) => {

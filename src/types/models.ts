@@ -36,16 +36,21 @@ export interface CartItem {
   quantity: number;
   // Copy of the product taken when it was added: the order, its totals, the
   // PaymentIntent and the webhook read only this copy, never the source.
-  // unitPrice and currency are in the settlement currency; the price and
-  // currency the source quoted will sit next to them once prices are
-  // converted. sourceKey, title, image and currency are missing on items
-  // written before the copy existed.
+  // unitPrice, subtotal and currency are in the settlement currency
+  // (settings/pricing). When the source quoted another currency, the
+  // original price and currency, the rate and its date sit next to them;
+  // they are null when no conversion was needed. All of these are missing on
+  // items written before the copy existed, which were in MXN.
   unitPrice: number;
   subtotal: number;
   sourceKey?: string;
   title?: string | null;
   image?: string | null;
   currency?: string | null;
+  originalUnitPrice?: number | null;
+  originalCurrency?: string | null;
+  exchangeRate?: number | null;
+  rateAsOf?: string | null;
 }
 
 // updateOrder stores the whole Stripe customer returned by Stripe.

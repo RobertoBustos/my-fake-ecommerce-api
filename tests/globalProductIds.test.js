@@ -231,6 +231,6 @@ describe("createOrderPayment with a changed price (ECOMAPI-73)", () => {
     const paid = await run(PAY, { input: { orderId } });
     expect(paid.errors).toBeUndefined();
     // 2400 plus 16% tax.
-    expect(payment.createPayment).toHaveBeenCalledWith(orderId, 2784, "cus_global_ids");
+    expect(payment.createPayment).toHaveBeenCalledWith(orderId, 2784, "cus_global_ids", "MXN");
   });
 });

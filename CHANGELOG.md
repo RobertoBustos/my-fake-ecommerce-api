@@ -8,6 +8,15 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A configurable settlement currency (MXN), read from the Firestore document
+  `settings/pricing` and applied without a deploy. Products priced in another
+  currency are shown, added to the cart and charged converted with a daily
+  exchange rate (`exchangeRates`); the cart item keeps the original price and
+  currency, the rate and its date.
+- `CartItem.currency`.
+- A daily exchange rates job (`src/jobs/refreshExchangeRates.ts`, `npm run
+  rates:refresh`) with Banxico's FIX rate as its first provider.
+
 - `Product.source`: display name of the catalog source the product comes from.
 - `scripts/migrateCartItemProductIds.ts` (`npm run migrate:product-ids`, dry run
   unless `--apply`) rewrites the product id of existing cart items to the global
@@ -27,6 +36,10 @@ follows [Semantic Versioning](https://semver.org/).
   `previousUnitPrice`, `unitPrice`); calling it again charges the new total. A
   product the source no longer has answers `BAD_USER_INPUT` with
   `unavailableProductIds`.
+- `createOrderPayment` also converts again with today's rate and settlement
+  currency; `priceChanges` now carries `previousCurrency` and `currency`. The
+  PaymentIntent is created in the settlement currency. A product without a usable
+  exchange rate can't be added to a cart or paid for (`CONFLICT`, `retryable`).
 
 ## [1.3.0] - 2026-10-17
 

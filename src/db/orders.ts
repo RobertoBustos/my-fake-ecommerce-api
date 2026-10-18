@@ -1,4 +1,5 @@
 import { FieldPath, type DocumentSnapshot, type Query } from "firebase-admin/firestore";
+import type { PriceQuote } from "../pricing/index.js";
 import type {
   Address,
   CartItem,
@@ -283,7 +284,7 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
 };
 
 // The price each item of an order is paid at, by cart item id.
-export type ItemPrices = Map<string, number>;
+export type ItemPrices = Map<string, PriceQuote>;
 
 // Moves an order's items to the prices their sources quote now, so the next
 // createOrderPayment charges them. Inside a transaction with the order, so
@@ -298,10 +299,10 @@ export const repriceOrderItems = async (orderId: string, prices: ItemPrices): Pr
     }
     const items = await tx.get(db.collection(CART_COLLECTION).where("orderId", "==", orderId));
     for (const itemDoc of items.docs) {
-      const unitPrice = prices.get(itemDoc.id);
-      if (unitPrice === undefined) continue;
+      const quote = prices.get(itemDoc.id);
+      if (quote === undefined) continue;
       const { quantity } = itemDoc.data() as CartItem;
-      tx.update(itemDoc.ref, { unitPrice, subtotal: unitPrice * quantity });
+      tx.update(itemDoc.ref, { ...quote, subtotal: quote.unitPrice * quantity });
     }
   });
 };

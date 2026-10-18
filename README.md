@@ -125,6 +125,24 @@ branches.
 6. Stripe sends `payment_intent.succeeded` to the webhook, which marks the
    order `COMPLETE`
 
+## Prices and currency
+
+Everything is shown and charged in one settlement currency, MXN today. It lives
+in the Firestore document `settings/pricing`, not in the code:
+
+```json
+{ "settlementCurrency": "MXN", "rateProvider": "banxico", "maxRateAgeHours": 24 }
+```
+
+Each instance re-reads it every 30 seconds (`PRICING_SETTINGS_TTL_MS`); without
+the document, those defaults apply. A product whose source quotes another
+currency is converted with `exchangeRates/{FROM}_{TO}`, which the daily rates job
+(`npm run rates:refresh`, needs `BANXICO_TOKEN`) keeps up to date. A rate the job
+hasn't confirmed within `maxRateAgeHours` can't be used: the product is shown in
+its own currency and `addToCart` answers `CONFLICT` with `retryable`. Conversion
+happens only in `convertPrice` (`src/pricing/convert.ts`). Clients should show
+the symbol from each price's `currency` field instead of assuming MXN.
+
 ## Deployment
 
 Pushing a `v*` tag from `main` runs `.github/workflows/deploy.yml`: it builds the
