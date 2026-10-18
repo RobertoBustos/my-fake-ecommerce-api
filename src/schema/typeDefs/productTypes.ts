@@ -11,6 +11,7 @@ const productTypes = /* GraphQL */ `#graphql
   }
 
   type Product {
+    "Opaque global id. Bare ids from before global ids existed are still accepted as input for one release."
     id: ID!
     title: String!
     description: String!
@@ -20,6 +21,8 @@ const productTypes = /* GraphQL */ `#graphql
     currency: String!
     unitPrice: Int!
     purchaseLimits: PurchaseLimit!
+    "Display name of the catalog source the product comes from."
+    source: String
   }
 
   type ProductEdge {

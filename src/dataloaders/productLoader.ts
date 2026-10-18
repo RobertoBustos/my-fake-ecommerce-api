@@ -4,9 +4,6 @@ import type { Product } from "../types/models.js";
 
 // New instance per request (don't share across requests): batches every
 // .load(productId) call made in the same tick into a single batch call.
+// Answers in the same order as the ids, null for a missing product.
 export const createProductLoader = () =>
-  new DataLoader<string, Product | null>(async (ids) => {
-    const products = await getCatalogProducts(ids);
-    const byId = new Map(products.map((product) => [product.id, product]));
-    return ids.map((id) => byId.get(id) ?? null);
-  });
+  new DataLoader<string, Product | null>((ids) => getCatalogProducts(ids));

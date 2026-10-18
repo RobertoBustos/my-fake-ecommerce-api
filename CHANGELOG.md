@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `Product.source`: display name of the catalog source the product comes from.
+- `scripts/migrateCartItemProductIds.ts` (`npm run migrate:product-ids`, dry run
+  unless `--apply`) rewrites the product id of existing cart items to the global
+  id and fills in their copy of the product.
+
+### Changed
+
+- `Product.id` (and `CartItem.productId`) is now an opaque global id that names
+  the product's catalog source. The bare ids from before are still accepted as
+  input (`products(id:)`, `addToCart`, `carts(productId:)`) for one release.
+- Cart items keep a copy of the product (title, image, currency and source)
+  next to the price, so an order no longer depends on the source after the
+  product is added.
+- `createOrderPayment` checks every item against the price its source quotes
+  now. If a price changed, nothing is charged: the items move to the new price
+  and the call answers `BAD_USER_INPUT` with `priceChanges` (`productId`,
+  `previousUnitPrice`, `unitPrice`); calling it again charges the new total. A
+  product the source no longer has answers `BAD_USER_INPUT` with
+  `unavailableProductIds`.
+
 ## [1.3.0] - 2026-10-17
 
 The technical debt that was accepted for v1.2.0: lists are paginated inside

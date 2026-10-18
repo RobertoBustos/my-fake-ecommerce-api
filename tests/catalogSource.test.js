@@ -6,6 +6,7 @@ import {
   getCatalogProduct,
   getCatalogSource,
   OutOfStockError,
+  toGlobalProductId,
   toProduct,
 } from "../src/catalog/index.js";
 import { firestoreCatalogSource } from "../src/catalog/sources/firestore/adapter.js";
@@ -65,9 +66,16 @@ describe("Firestore catalog source (ECOMAPI-72)", () => {
     const [source] = await firestoreCatalogSource.getProducts([id, "missing-product"]);
 
     expect(source).toMatchObject({ localId: id, available: 7, unitPrice: 1500, updatedAt: null });
-    expect(toProduct(source)).toMatchObject({ id, stock: 7, unitPrice: 1500 });
-    expect(toProduct(source)).not.toHaveProperty("localId");
-    expect(await getCatalogProduct(id)).toMatchObject({ id, stock: 7 });
+    const globalId = toGlobalProductId("fs", id);
+    expect(toProduct(firestoreCatalogSource, source)).toMatchObject({
+      id: globalId,
+      stock: 7,
+      unitPrice: 1500,
+      source: firestoreCatalogSource.displayName,
+    });
+    expect(toProduct(firestoreCatalogSource, source)).not.toHaveProperty("localId");
+    expect(await getCatalogProduct(id)).toMatchObject({ id: globalId, stock: 7 });
+    expect(await getCatalogProduct(globalId)).toMatchObject({ id: globalId, stock: 7 });
     expect(await getCatalogProduct("missing-product")).toBeNull();
   });
 

@@ -39,8 +39,11 @@ export interface ChangedProducts {
 }
 
 export interface CatalogSource {
-  // Short, stable name: "fs", "mysql-outlet"...
+  // Short, stable name: "fs", "mysql-outlet"... Part of every global
+  // product id, so it never changes once products are in carts.
   readonly key: string;
+  // What the app may show as the product's origin (Product.source).
+  readonly displayName: string;
   readonly capabilities: { reservations: boolean; changeFeed: boolean };
 
   // Catalog (reads)

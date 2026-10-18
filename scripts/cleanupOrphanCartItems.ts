@@ -1,6 +1,6 @@
 import { fileURLToPath } from "url";
 import type { Query } from "firebase-admin/firestore";
-import { DEFAULT_SOURCE_KEY, getCatalogSource } from "../src/catalog/index.js";
+import { canonicalProductId, getCatalogSource, parseProductId } from "../src/catalog/index.js";
 import db from "../src/config/firestore.js";
 import type { CartItem, OrderStatus } from "../src/types/models.js";
 
@@ -55,7 +55,7 @@ export const findOrphanCartItems = async ({ cartIds }: { cartIds?: string[] } = 
 
   const unitsByProduct: Record<string, number> = {};
   for (const item of toRelease) {
-    const key = String(item.productId);
+    const key = canonicalProductId(String(item.productId));
     unitsByProduct[key] = (unitsByProduct[key] ?? 0) + item.quantity;
   }
   return { toRelease, reportOnly, unitsByProduct };
@@ -85,10 +85,11 @@ export const releaseCartItem = async (itemId: string): Promise<boolean> => {
   if (!item) {
     return false;
   }
-  await getCatalogSource(DEFAULT_SOURCE_KEY).release(
+  const { sourceKey, localId } = parseProductId(String(item.productId));
+  await getCatalogSource(sourceKey).release(
     {
       reservationId: `cleanup-${itemId}`,
-      localId: String(item.productId),
+      localId,
       quantity: item.quantity,
       expiresAt: null,
     },

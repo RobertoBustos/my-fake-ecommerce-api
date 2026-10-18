@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "crypto";
 import db from "../src/config/firestore.js";
 import { cleanupOrphanCartItems } from "../scripts/cleanupOrphanCartItems.js";
+import { toGlobalProductId } from "../src/catalog/index.js";
 
 describe("cleanupOrphanCartItems script (ECOMAPI-67)", () => {
   const suffix = randomUUID();
@@ -60,7 +61,7 @@ describe("cleanupOrphanCartItems script (ECOMAPI-67)", () => {
     expect(result.toRelease.map((i) => i.id).sort()).toEqual(
       [itemIds.abandoned, itemIds.lostOrder].sort()
     );
-    expect(result.unitsByProduct).toEqual({ [productId]: 3 });
+    expect(result.unitsByProduct).toEqual({ [toGlobalProductId("fs", productId)]: 3 });
     expect(result.reportOnly.map((i) => i.orderStatus).sort()).toEqual(["CANCELLED", "COMPLETE"]);
     expect(result.released).toBe(0);
     expect(await productStock()).toBe(10);

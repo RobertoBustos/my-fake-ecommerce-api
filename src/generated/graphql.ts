@@ -72,6 +72,7 @@ export type CartItem = {
   id: Scalars['ID']['output'];
   orderId?: Maybe<Scalars['String']['output']>;
   product: Product;
+  /** Global id of the product (Product.id). */
   productId: Scalars['String']['output'];
   quantity: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];
@@ -253,9 +254,12 @@ export type Product = {
   category: Scalars['String']['output'];
   currency: Scalars['String']['output'];
   description: Scalars['String']['output'];
+  /** Opaque global id. Bare ids from before global ids existed are still accepted as input for one release. */
   id: Scalars['ID']['output'];
   image: Scalars['String']['output'];
   purchaseLimits: PurchaseLimit;
+  /** Display name of the catalog source the product comes from. */
+  source?: Maybe<Scalars['String']['output']>;
   stock: Scalars['Int']['output'];
   title: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
@@ -699,6 +703,7 @@ export type ProductResolvers<ContextType = Context, ParentType extends Resolvers
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   image?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   purchaseLimits?: Resolver<ResolversTypes['PurchaseLimit'], ParentType, ContextType>;
+  source?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   stock?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   unitPrice?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;

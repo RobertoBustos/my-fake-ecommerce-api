@@ -20,6 +20,7 @@ import {
   isOrderOpen,
   OrderAlreadyCompleteError,
   OrderClosedError,
+  repriceOrderItems,
   setOrderPayment,
   updateOrder,
 } from "./orders.js";
@@ -57,6 +58,7 @@ export {
   OrderClosedError,
   OrderItemLockedError,
   removeFromCart,
+  repriceOrderItems,
   searchPayment,
   searchPaymentMethod,
   setOrderPayment,

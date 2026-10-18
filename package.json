@@ -21,7 +21,8 @@
     "test:emulator": "firebase emulators:exec --only firestore,auth --project demo-ecommerce-api \"npm run test\"",
     "seed": "tsx scripts/seedFirestore.ts",
     "token:local": "tsx scripts/localToken.ts",
-    "cleanup:cart-items": "tsx scripts/cleanupOrphanCartItems.ts"
+    "cleanup:cart-items": "tsx scripts/cleanupOrphanCartItems.ts",
+    "migrate:product-ids": "tsx scripts/migrateCartItemProductIds.ts"
   },
   "dependencies": {
     "@apollo/server": "^5.5.1",

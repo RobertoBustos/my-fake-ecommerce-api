@@ -10,6 +10,8 @@
 - Catálogo: productos y stock se leen y se apartan a través del contrato `CatalogSource`
   (`src/catalog/`). Solo un adaptador en `src/catalog/sources/` puede usar el cliente de una
   base de datos de productos; ESLint lo hace cumplir en `src/catalog/` y `src/services/`.
+  Los ids de producto son globales (`<origen>:<idLocal>` en base64url) y solo se leen con
+  `parseProductId` de `src/catalog/productId.ts`; nunca se parte un id a mano.
 - TypeScript: `src/` y `scripts/` son `.ts` en modo `strict`; los imports llevan extensión
   `.js` (nodenext). Si cambias `src/schema/typeDefs`, corre `npm run codegen` y commitea
   `src/generated/graphql.ts` (el job `typecheck` falla si quedó desactualizado). Los tests
