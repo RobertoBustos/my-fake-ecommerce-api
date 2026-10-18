@@ -5,6 +5,7 @@ import typeDefs from "../src/schema/typeDefs/index.js";
 import resolvers from "../src/schema/resolvers.js";
 import { createLoaders } from "../src/dataloaders/index.js";
 import db from "../src/config/firestore.js";
+import { indexFirestoreProducts, unindexFirestoreProducts } from "./helpers/catalogIndex.js";
 import {
   canonicalProductId,
   getCatalogProduct,
@@ -88,10 +89,12 @@ describe("global product ids through the API (ECOMAPI-73)", () => {
       purchaseLimits: { min: 1, max: 10 },
       stock: 10,
     });
+    await indexFirestoreProducts(localId);
   });
 
   afterAll(async () => {
     await db.collection("products").doc(localId).delete();
+    await unindexFirestoreProducts(localId);
     const items = await db.collection("cartItems").where("cartId", "==", cartId).get();
     await Promise.all(items.docs.map((doc) => doc.ref.delete()));
   });

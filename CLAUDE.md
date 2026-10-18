@@ -79,3 +79,36 @@
   Claude transiciona los issues de Jira directamente por API en los momentos
   equivalentes — esto sí lo hace siempre, sin pedir permiso, porque no es una
   acción sobre el repositorio.
+
+## Jira, releases y Confluence
+Aplican a cualquiera que mueva tareas o haga una release, persona o Claude.
+Transiciones de ECOMAPI: En Curso = 21, En revision = 31, Completado = 41.
+- **Antes de En Curso, asignado y story points.** Una tarea (no épica) no pasa de
+  Por hacer a En Curso sin asignado ni story points (campo "Story point
+  estimate", `customfield_10016`). Escala del proyecto: medios puntos, unos 2 por
+  día de trabajo (Express 5 = 2, migración a TypeScript = 8). Lo mismo al crear
+  una tarea. En oct 2026 había 38 tareas sin asignado y 26 sin puntos.
+- **Completado solo con el merge verificado.** Antes de mover una tarea a
+  Completado, comprobar con `gh pr view <n> --json state,mergedAt` que el PR está
+  `MERGED`, y antes de sacar la siguiente rama, que el commit está en
+  `origin/dev`. ECOMAPI-39 se cerró con su PR todavía abierto.
+- **Épicas.** Una épica pasa a Completado cuando terminan todas sus tareas sin la
+  etiqueta `opcional`; las opcionales abiertas no la detienen. Excepción:
+  ECOMAPI-45 (Hotfixes y mantenimiento) y ECOMAPI-46 (Deuda técnica) son
+  perpetuas y siempre están En Curso, aunque no tengan tareas abiertas; si
+  aparecen en otro estado, se regresan a En Curso.
+- **Versiones de Jira con fecha de inicio.** No se crea ni se libera una versión
+  sin `startDate` (release de sprint: inicio del sprint; hotfix: fecha en que
+  empezó su tarea). Antes de liberar, revisar que ninguna versión la tenga vacía.
+- **Confluence (espacio ARQ) al día.**
+  - Al cerrar cada sprint: revisar todas las páginas contra el tablero y el repo
+    (seguimiento, hallazgos, guías, runbook, arquitectura, README) y corregir lo
+    viejo, escrito para alguien que llega sin contexto: el porqué, no solo el qué.
+  - En cada release: si cambiaron `.github/workflows/`, `dependabot.yml` o la
+    protección de ramas, actualizar "CI: checks de GitHub" (página 26935298).
+  - Cuando una tarea agrega, quita o cambia un script de `scripts/` o un job de
+    `src/jobs/`, actualizar "Scripts y jobs del proyecto" (página 27557891), y
+    revisarla en cada release. Un comando contra producción no puede depender de
+    `env -u FIRESTORE_EMULATOR_HOST` si carga `.env` con `--env-file`: Node vuelve
+    a poner la variable y el comando escribe en el emulador. Se corre el archivo
+    con `npx tsx`, sin `.env`.

@@ -22,12 +22,15 @@ const newSource = (options = {}) => {
 const at = (iso) => new Date(`2026-10-${iso}Z`);
 const entryOf = (source, localId) => getCatalogEntry(toGlobalProductId(source.key, localId));
 
+// The Firestore source's entries stay: the products query of later test
+// files reads them. Only this file's own fixtures are removed.
 afterAll(async () => {
-  for (const key of [...keys, "fs"]) {
+  for (const key of keys) {
     const ids = await listCatalogEntryIds(key);
     await Promise.all(ids.map((id) => db.collection("catalog").doc(id).delete()));
     await db.collection("catalogSync").doc(key).delete();
   }
+  await db.collection("catalogSync").doc("fs").delete();
 });
 
 describe("catalog sync: pull (ECOMAPI-77)", () => {
@@ -164,6 +167,9 @@ describe("catalog sync job over the registry (ECOMAPI-77)", () => {
   });
   afterAll(async () => {
     await Promise.all(productIds.map((id) => db.collection("products").doc(id).delete()));
+    await Promise.all(
+      productIds.map((id) => db.collection("catalog").doc(toGlobalProductId("fs", id)).delete())
+    );
   });
 
   const newProduct = async (stock) => {

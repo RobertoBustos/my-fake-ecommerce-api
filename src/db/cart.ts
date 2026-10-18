@@ -1,5 +1,6 @@
 import type { DocumentSnapshot, Query } from "firebase-admin/firestore";
 import {
+  callSource,
   canonicalProductId,
   DEFAULT_SOURCE_KEY,
   getCatalogSource,
@@ -192,7 +193,9 @@ export const addToCart = async (
   const { sourceKey, localId } = parseProductId(String(product.id));
   const source = getCatalogSource(sourceKey);
   const newItemId = db.collection(COLLECTION).doc().id;
-  const reservation = await source.reserve(localId, input.quantity, `cartItem-${newItemId}-reserve`);
+  const reservation = await callSource(source, () =>
+    source.reserve(localId, input.quantity, `cartItem-${newItemId}-reserve`)
+  );
   try {
     return await writeCartItem(
       { ...input, productId: toGlobalProductId(sourceKey, localId) },

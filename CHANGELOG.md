@@ -53,6 +53,14 @@ follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `products` and `CartItem.product` are served from the catalog index instead of
+  each source: price and stock shown there are as of the last catalog sync (the
+  cart and the payment still use the source's current ones). Products cursors
+  are now based on the global product id, so a cursor from an earlier version
+  is rejected with `BAD_USER_INPUT`; start again from the first page.
+- `addToCart` and `createOrderPayment` answer `CONFLICT` with `retryable: true`
+  when a product's source can't be reached, instead of `INTERNAL_SERVER_ERROR`.
+- `npm run seed` also indexes the seeded products.
 - `Product.id` (and `CartItem.productId`) is now an opaque global id that names
   the product's catalog source. The bare ids from before are still accepted as
   input (`products(id:)`, `addToCart`, `carts(productId:)`) for one release.

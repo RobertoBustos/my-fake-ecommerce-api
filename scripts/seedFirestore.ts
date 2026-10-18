@@ -1,6 +1,8 @@
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
+import { reconcileCatalogSource } from "../src/catalog/catalogSync.js";
+import { firestoreCatalogSource } from "../src/catalog/sources/firestore/adapter.js";
 import db from "../src/config/firestore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,10 +18,13 @@ export const seedProducts = async () => {
     batch.set(db.collection("products").doc(id), { ...data, updatedAt });
   }
   await batch.commit();
+  // The products query reads the catalog index, so the seeded products are
+  // indexed right away instead of waiting for the sync job.
+  await reconcileCatalogSource(firestoreCatalogSource);
   return products.length;
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const count = await seedProducts();
-  console.log(`Seeded ${count} products into Firestore.`);
+  console.log(`Seeded ${count} products into Firestore and the catalog index.`);
 }

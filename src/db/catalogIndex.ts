@@ -1,5 +1,7 @@
-import { FieldPath, type DocumentSnapshot, type WriteBatch } from "firebase-admin/firestore";
+import { FieldPath, type DocumentSnapshot, type Query, type WriteBatch } from "firebase-admin/firestore";
 import db from "../config/firestore.js";
+import type { Connection, Page } from "../types/models.js";
+import { paginateQuery } from "./pagination.js";
 
 // catalog/{globalProductId}: our own copy of every product of every source,
 // so listing and filtering the catalog is one query to Firestore instead of
@@ -80,6 +82,32 @@ export const deleteCatalogEntries = (ids: string[]) =>
 export const getCatalogEntry = async (id: string) => {
   const doc = await db.collection(COLLECTION).doc(id).get();
   return doc.exists ? toEntry(doc) : null;
+};
+
+// One result per id, in the same order, null for an id the index doesn't hold.
+export const getCatalogEntries = async (ids: readonly string[]): Promise<(CatalogEntry | null)[]> => {
+  if (ids.length === 0) return [];
+  const docs = await db.getAll(...ids.map((id) => db.collection(COLLECTION).doc(id)));
+  return docs.map((doc) => (doc.exists ? toEntry(doc) : null));
+};
+
+// The products query: one page of the index, only for the given sources,
+// paged by document id (the global product id) like every other list.
+export const listCatalogEntries = async (
+  { sourceKeys, id, category }: { sourceKeys: string[]; id?: string; category?: string },
+  page: Page = {}
+): Promise<Connection<CatalogEntry>> => {
+  if (sourceKeys.length === 0) {
+    return { edges: [], pageInfo: { hasNextPage: false, endCursor: null } };
+  }
+  let query: Query = db.collection(COLLECTION);
+  query =
+    sourceKeys.length === 1
+      ? query.where("sourceKey", "==", sourceKeys[0])
+      : query.where("sourceKey", "in", sourceKeys);
+  if (id !== undefined) query = query.where(FieldPath.documentId(), "==", id);
+  if (category !== undefined) query = query.where("category", "==", category);
+  return paginateQuery(query, page, toEntry);
 };
 
 // Every id the index holds for a source, read in pages without the fields.

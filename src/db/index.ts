@@ -31,7 +31,6 @@ import {
   searchPayment,
   searchPaymentMethod,
 } from "./payment.js";
-import { getProducts, listProducts } from "./products.js";
 import { TransactionContentionError } from "./transactions.js";
 
 export {
@@ -49,8 +48,6 @@ export {
   listOrders,
   getOrderTotals,
   getOrders,
-  getProducts,
-  listProducts,
   InsufficientStockError,
   isOrderOpen,
   markOrderComplete,
