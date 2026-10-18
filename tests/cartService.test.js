@@ -44,6 +44,20 @@ vi.mock("../src/catalog/index.js", () => ({
   getCatalogProduct: async (id) => (await getProductsMock(id))[0] ?? null,
 }));
 
+// No conversion: every fixture is already in the settlement currency.
+vi.mock("../src/pricing/index.js", () => ({
+  ExchangeRateUnavailableError: class ExchangeRateUnavailableError extends Error {},
+  LEGACY_CURRENCY: "MXN",
+  quotePrice: async ({ unitPrice }) => ({
+    unitPrice,
+    currency: "MXN",
+    originalUnitPrice: null,
+    originalCurrency: null,
+    exchangeRate: null,
+    rateAsOf: null,
+  }),
+}));
+
 vi.mock("../src/schema/validators/index.js", () => ({
   checkAddToCart: checkAddToCartMock,
   checkRemoveFromCart: checkRemoveFromCartMock,
@@ -157,7 +171,8 @@ describe("cartService.addToCart", () => {
     expect(addToCartDbMock).toHaveBeenCalledWith(
       product,
       { productId: product.id, quantity: 2 },
-      "user-1"
+      "user-1",
+      expect.objectContaining({ unitPrice: product.unitPrice, currency: "MXN" })
     );
     expect(result).toEqual({
       code: "200",

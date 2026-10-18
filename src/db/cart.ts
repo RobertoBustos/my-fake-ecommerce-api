@@ -10,6 +10,7 @@ import {
   toGlobalProductId,
 } from "../catalog/index.js";
 import db from "../config/firestore.js";
+import type { PriceQuote } from "../pricing/index.js";
 import type { CartItem, Order, OrderStatus, Page, Product } from "../types/models.js";
 import { isOrderOpen } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
@@ -93,18 +94,25 @@ export interface AddToCartInput {
 }
 
 // The copy of the product an item keeps, so paying for it never depends on
-// the source answering again.
-const productSnapshot = (product: Product, sourceKey: string) => ({
+// the source answering again. The price comes from the quote (already in the
+// settlement currency) when there is one.
+const productSnapshot = (product: Product, sourceKey: string, quote?: PriceQuote) => ({
   sourceKey,
   title: product.title ?? null,
   image: product.image ?? null,
-  currency: product.currency ?? null,
+  unitPrice: quote?.unitPrice ?? product.unitPrice,
+  currency: quote?.currency ?? product.currency ?? null,
+  originalUnitPrice: quote?.originalUnitPrice ?? null,
+  originalCurrency: quote?.originalCurrency ?? null,
+  exchangeRate: quote?.exchangeRate ?? null,
+  rateAsOf: quote?.rateAsOf ?? null,
 });
 
 export const addToCart = async (
   product: Product,
   input: AddToCartInput,
-  userId: string | null = null
+  userId: string | null = null,
+  quote?: PriceQuote
 ): Promise<CartItem> => {
   const cartQuery = db.collection(COLLECTION).where("cartId", "==", input.cartId);
   const isForeign = (docs: DocumentSnapshot[]) =>
@@ -129,9 +137,8 @@ export const addToCart = async (
   );
   try {
     return await writeCartItem(
-      product,
       { ...input, productId: toGlobalProductId(sourceKey, localId) },
-      productSnapshot(product, sourceKey),
+      productSnapshot(product, sourceKey, quote),
       userId,
       cartQuery,
       isForeign
@@ -145,7 +152,6 @@ export const addToCart = async (
 // input.productId is already the global id; items written before global ids
 // hold the bare one, so both forms count as the same product.
 const writeCartItem = (
-  product: Product,
   input: AddToCartInput,
   snapshot: ReturnType<typeof productSnapshot>,
   userId: string | null,
@@ -171,7 +177,7 @@ const writeCartItem = (
       const existingItem = toCartItem(existingDoc);
       const updates = {
         quantity: existingItem.quantity + input.quantity,
-        subtotal: existingItem.subtotal + product.unitPrice * input.quantity,
+        subtotal: existingItem.subtotal + snapshot.unitPrice * input.quantity,
       };
       tx.update(existingDoc.ref, updates);
       return { ...existingItem, ...updates };
@@ -186,8 +192,7 @@ const writeCartItem = (
       userId,
       productId: input.productId,
       quantity: input.quantity,
-      unitPrice: product.unitPrice,
-      subtotal: product.unitPrice * input.quantity,
+      subtotal: snapshot.unitPrice * input.quantity,
       ...snapshot,
     };
     tx.set(docRef, newItem);

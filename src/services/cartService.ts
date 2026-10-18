@@ -16,7 +16,7 @@ import {
 } from "../schema/validators/index.js";
 import type { AddToCart, RemoveFromCart } from "../generated/graphql.js";
 import type { CartItem, MutationAck, MutationResult } from "../types/models.js";
-import { assertValidInput, withContentionRetryHint } from "./errors.js";
+import { assertValidInput, quoteOrConflict, withContentionRetryHint } from "./errors.js";
 
 // Every write takes the authenticated user's uid and only touches what that
 // user owns; anything else answers NOT_FOUND, as if it didn't exist (H2).
@@ -78,9 +78,11 @@ export const addToCart = async (
       });
     }
   }
+  // The item keeps the price in the settlement currency, converted now.
+  const quote = await quoteOrConflict(product);
   let cartItem: CartItem;
   try {
-    cartItem = await withContentionRetryHint(() => addToCartDb(product, input, userId));
+    cartItem = await withContentionRetryHint(() => addToCartDb(product, input, userId, quote));
   } catch (err) {
     if (err instanceof CartNotOwnedError) {
       throw new GraphQLError("Cart not found", {

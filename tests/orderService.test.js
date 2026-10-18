@@ -66,6 +66,20 @@ vi.mock("../src/catalog/index.js", () => ({
   getCatalogProducts: getCatalogProductsMock,
 }));
 
+// No conversion: every fixture is already in the settlement currency.
+vi.mock("../src/pricing/index.js", () => ({
+  ExchangeRateUnavailableError: class ExchangeRateUnavailableError extends Error {},
+  LEGACY_CURRENCY: "MXN",
+  quotePrice: async ({ unitPrice }) => ({
+    unitPrice,
+    currency: "MXN",
+    originalUnitPrice: null,
+    originalCurrency: null,
+    exchangeRate: null,
+    rateAsOf: null,
+  }),
+}));
+
 vi.mock("../src/schema/validators/index.js", () => ({
   checkCancelOrder: checkCancelOrderMock,
   checkCreateOrderPayment: checkCreateOrderPaymentMock,
@@ -293,13 +307,13 @@ describe("orderService.createOrderPayment", () => {
     getOrdersMock.mockResolvedValue([
       { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
     ]);
-    getOrderTotalsMock.mockResolvedValue({ total: 500 });
+    getOrderTotalsMock.mockResolvedValue({ total: 500, currency: "MXN" });
     const payment = { paymentId: "pi_1", clientSecret: "secret_1" };
     createPaymentMock.mockResolvedValue(payment);
 
     const result = await createOrderPayment({ orderId: "order-1" });
 
-    expect(createPaymentMock).toHaveBeenCalledWith("order-1", 500, "cus-1");
+    expect(createPaymentMock).toHaveBeenCalledWith("order-1", 500, "cus-1", "MXN");
     expect(setOrderPaymentMock).toHaveBeenCalledWith("order-1", "pi_1");
     expect(result).toEqual({
       code: "200",
@@ -319,11 +333,22 @@ describe("orderService.createOrderPayment", () => {
       extensions: {
         code: "BAD_USER_INPUT",
         invalidArgument: "orderId",
-        priceChanges: [{ productId: "global-prod-1", previousUnitPrice: 250, unitPrice: 300 }],
+        priceChanges: [
+          {
+            productId: "global-prod-1",
+            previousUnitPrice: 250,
+            previousCurrency: "MXN",
+            unitPrice: 300,
+            currency: "MXN",
+          },
+        ],
       },
     });
     expect(getCatalogProductsMock).toHaveBeenCalledWith(["prod-1"]);
-    expect(repriceOrderItemsMock).toHaveBeenCalledWith("order-1", new Map([["item-1", 300]]));
+    expect(repriceOrderItemsMock).toHaveBeenCalledWith(
+      "order-1",
+      new Map([["item-1", expect.objectContaining({ unitPrice: 300, currency: "MXN" })]])
+    );
     expect(createPaymentMock).not.toHaveBeenCalled();
   });
 
@@ -336,7 +361,10 @@ describe("orderService.createOrderPayment", () => {
     await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
       extensions: { code: "BAD_USER_INPUT", invalidArgument: "orderId" },
     });
-    expect(repriceOrderItemsMock).toHaveBeenCalledWith("order-1", new Map([["item-1", 250]]));
+    expect(repriceOrderItemsMock).toHaveBeenCalledWith(
+      "order-1",
+      new Map([["item-1", expect.objectContaining({ unitPrice: 250 })]])
+    );
     expect(createPaymentMock).not.toHaveBeenCalled();
   });
 
