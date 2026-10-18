@@ -6,6 +6,19 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-18
+
+The catalog is ready for more than one data source, with Firestore still the
+only one: every product read and every stock change goes through a source
+contract, products have global ids, prices are converted to a configurable
+settlement currency (MXN), stock is reserved with an expiry and confirmed or
+released through a queue that survives a source being down, and the catalog is
+listed from an index kept in sync with each source. **Client-visible changes:**
+product ids are global, `Product.source` and `CartItem.currency` are new,
+products cursors from v1.3.0 are rejected, and `createOrderPayment` can answer
+`BAD_USER_INPUT` with `priceChanges`, `unavailableProductIds` or
+`expiredItemIds`, or `CONFLICT` with `retryable` (see below).
+
 ### Added
 
 - A configurable settlement currency (MXN), read from the Firestore document
@@ -45,7 +58,6 @@ follows [Semantic Versioning](https://semver.org/).
   (`tests/contract/catalogSource.contract.ts`), run in CI against the Firestore
   adapter and a source whose reservations the core keeps, and the shared
   category list sources map their categories to (`src/catalog/categories.ts`).
-
 - `Product.source`: display name of the catalog source the product comes from.
 - `scripts/migrateCartItemProductIds.ts` (`npm run migrate:product-ids`, dry run
   unless `--apply`) rewrites the product id of existing cart items to the global
@@ -343,6 +355,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.4.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.1...v1.1.0
