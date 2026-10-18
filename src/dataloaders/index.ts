@@ -1,3 +1,4 @@
+import { createDisplayPriceLoader } from "./displayPriceLoader.js";
 import { createOrderTotalsLoader } from "./orderTotalsLoader.js";
 import { createProductLoader } from "./productLoader.js";
 
@@ -6,4 +7,5 @@ import { createProductLoader } from "./productLoader.js";
 export const createLoaders = () => ({
   products: createProductLoader(),
   orderTotals: createOrderTotalsLoader(),
+  displayPrices: createDisplayPriceLoader(),
 });

@@ -1,12 +1,15 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { randomUUID } from "crypto";
 import db from "../src/config/firestore.js";
+import { toGlobalProductId } from "../src/catalog/index.js";
 import { addToCart, InsufficientStockError } from "../src/db/cart.js";
 import { TransactionContentionError } from "../src/db/transactions.js";
 
 describe("addToCart - stock transaction", () => {
   const productId = `test-stock-${randomUUID()}`;
   const product = { id: productId, unitPrice: 100 };
+  // Items are stored under the product's global id.
+  const storedProductId = toGlobalProductId("fs", productId);
   const STOCK = 10;
   const CONCURRENT_PURCHASES = 20;
 
@@ -14,7 +17,7 @@ describe("addToCart - stock transaction", () => {
     await db.collection("products").doc(productId).delete();
     const cartItems = await db
       .collection("cartItems")
-      .where("productId", "==", productId)
+      .where("productId", "==", storedProductId)
       .get();
     await Promise.all(cartItems.docs.map((doc) => doc.ref.delete()));
   });
@@ -53,7 +56,7 @@ describe("addToCart - stock transaction", () => {
     expect(finalDoc.data().stock).toBe(STOCK - succeeded.length);
     const cartItems = await db
       .collection("cartItems")
-      .where("productId", "==", productId)
+      .where("productId", "==", storedProductId)
       .get();
     expect(cartItems.size).toBe(succeeded.length);
 

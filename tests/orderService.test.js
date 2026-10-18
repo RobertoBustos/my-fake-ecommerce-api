@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { SourceUnavailableError } from "../src/catalog/ports.js";
 
 const {
   cancelOrderDbMock,
@@ -7,6 +8,8 @@ const {
   getCartMock,
   getOrderTotalsMock,
   getOrdersMock,
+  getCatalogProductsMock,
+  repriceOrderItemsMock,
   setOrderPaymentMock,
   updateOrderDbMock,
   checkCancelOrderMock,
@@ -24,6 +27,8 @@ const {
   getCartMock: vi.fn(),
   getOrderTotalsMock: vi.fn(),
   getOrdersMock: vi.fn(),
+  getCatalogProductsMock: vi.fn(),
+  repriceOrderItemsMock: vi.fn(),
   setOrderPaymentMock: vi.fn(),
   updateOrderDbMock: vi.fn(),
   checkCancelOrderMock: vi.fn(),
@@ -52,8 +57,28 @@ vi.mock("../src/db/index.js", () => ({
   OrderAlreadyCompleteError,
   OrderClosedError,
   TransactionContentionError,
+  repriceOrderItems: repriceOrderItemsMock,
   setOrderPayment: setOrderPaymentMock,
   updateOrder: updateOrderDbMock,
+}));
+
+vi.mock("../src/catalog/index.js", () => ({
+  canonicalProductId: (id) => `global-${id}`,
+  getCatalogProducts: getCatalogProductsMock,
+}));
+
+// No conversion: every fixture is already in the settlement currency.
+vi.mock("../src/pricing/index.js", () => ({
+  ExchangeRateUnavailableError: class ExchangeRateUnavailableError extends Error {},
+  LEGACY_CURRENCY: "MXN",
+  quotePrice: async ({ unitPrice }) => ({
+    unitPrice,
+    currency: "MXN",
+    originalUnitPrice: null,
+    originalCurrency: null,
+    exchangeRate: null,
+    rateAsOf: null,
+  }),
 }));
 
 vi.mock("../src/schema/validators/index.js", () => ({
@@ -240,9 +265,14 @@ describe("orderService.cancelOrder", () => {
 });
 
 describe("orderService.createOrderPayment", () => {
+  const item = { id: "item-1", productId: "prod-1", quantity: 2, unitPrice: 250, subtotal: 500 };
+
   beforeEach(() => {
     vi.clearAllMocks();
     checkCreateOrderPaymentMock.mockReturnValue(null);
+    // By default the source still quotes the price the item was added at.
+    getCartMock.mockResolvedValue([item]);
+    getCatalogProductsMock.mockResolvedValue([{ id: "global-prod-1", unitPrice: 250 }]);
   });
 
   it("rejects an invalid input", async () => {
@@ -278,13 +308,13 @@ describe("orderService.createOrderPayment", () => {
     getOrdersMock.mockResolvedValue([
       { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
     ]);
-    getOrderTotalsMock.mockResolvedValue({ total: 500 });
+    getOrderTotalsMock.mockResolvedValue({ total: 500, currency: "MXN" });
     const payment = { paymentId: "pi_1", clientSecret: "secret_1" };
     createPaymentMock.mockResolvedValue(payment);
 
     const result = await createOrderPayment({ orderId: "order-1" });
 
-    expect(createPaymentMock).toHaveBeenCalledWith("order-1", 500, "cus-1");
+    expect(createPaymentMock).toHaveBeenCalledWith("order-1", 500, "cus-1", "MXN");
     expect(setOrderPaymentMock).toHaveBeenCalledWith("order-1", "pi_1");
     expect(result).toEqual({
       code: "200",
@@ -292,6 +322,94 @@ describe("orderService.createOrderPayment", () => {
       message: "Payment created",
       data: payment,
     });
+  });
+
+  it("doesn't charge when a price changed, and moves the items to the new price", async () => {
+    getOrdersMock.mockResolvedValue([
+      { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
+    ]);
+    getCatalogProductsMock.mockResolvedValue([{ id: "global-prod-1", unitPrice: 300 }]);
+
+    await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+        priceChanges: [
+          {
+            productId: "global-prod-1",
+            previousUnitPrice: 250,
+            previousCurrency: "MXN",
+            unitPrice: 300,
+            currency: "MXN",
+          },
+        ],
+      },
+    });
+    expect(getCatalogProductsMock).toHaveBeenCalledWith(["prod-1"]);
+    expect(repriceOrderItemsMock).toHaveBeenCalledWith(
+      "order-1",
+      new Map([["item-1", expect.objectContaining({ unitPrice: 300, currency: "MXN" })]])
+    );
+    expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("reprices an item whose subtotal no longer matches its unit price", async () => {
+    getOrdersMock.mockResolvedValue([
+      { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
+    ]);
+    getCartMock.mockResolvedValue([{ ...item, subtotal: 450 }]);
+
+    await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "orderId" },
+    });
+    expect(repriceOrderItemsMock).toHaveBeenCalledWith(
+      "order-1",
+      new Map([["item-1", expect.objectContaining({ unitPrice: 250 })]])
+    );
+    expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("doesn't charge for a product its source no longer has", async () => {
+    getOrdersMock.mockResolvedValue([
+      { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
+    ]);
+    getCatalogProductsMock.mockResolvedValue([null]);
+
+    await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "orderId",
+        unavailableProductIds: ["global-prod-1"],
+      },
+    });
+    expect(repriceOrderItemsMock).not.toHaveBeenCalled();
+    expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("answers CONFLICT with retryable when a product's source can't be reached", async () => {
+    getOrdersMock.mockResolvedValue([
+      { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
+    ]);
+    getCatalogProductsMock.mockRejectedValue(new SourceUnavailableError("fs"));
+
+    await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
+      extensions: { code: "CONFLICT", retryable: true },
+    });
+    expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses to reprice an order that stopped being payable meanwhile", async () => {
+    getOrdersMock.mockResolvedValue([
+      { id: "order-1", status: "PAYMENT_PENDING", customer: { id: "cus-1" } },
+    ]);
+    getCatalogProductsMock.mockResolvedValue([{ id: "global-prod-1", unitPrice: 300 }]);
+    repriceOrderItemsMock.mockRejectedValue(new OrderClosedError("order-1", "CANCELLED"));
+
+    await expect(createOrderPayment({ orderId: "order-1" })).rejects.toMatchObject({
+      message: "A CANCELLED order can't be paid",
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "orderId" },
+    });
+    expect(createPaymentMock).not.toHaveBeenCalled();
   });
 
   it.each(["INCOMPLETE", "COMPLETE", "CANCELLED"])(

@@ -20,6 +20,7 @@ import {
   isOrderOpen,
   OrderAlreadyCompleteError,
   OrderClosedError,
+  repriceOrderItems,
   setOrderPayment,
   updateOrder,
 } from "./orders.js";
@@ -30,7 +31,6 @@ import {
   searchPayment,
   searchPaymentMethod,
 } from "./payment.js";
-import { getProducts, listProducts } from "./products.js";
 import { TransactionContentionError } from "./transactions.js";
 
 export {
@@ -48,8 +48,6 @@ export {
   listOrders,
   getOrderTotals,
   getOrders,
-  getProducts,
-  listProducts,
   InsufficientStockError,
   isOrderOpen,
   markOrderComplete,
@@ -57,6 +55,7 @@ export {
   OrderClosedError,
   OrderItemLockedError,
   removeFromCart,
+  repriceOrderItems,
   searchPayment,
   searchPaymentMethod,
   setOrderPayment,

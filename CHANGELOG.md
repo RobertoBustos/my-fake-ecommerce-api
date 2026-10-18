@@ -4,6 +4,103 @@ All notable changes to this project are documented here. The format is based
 on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [1.4.0] - 2026-10-18
+
+The catalog is ready for more than one data source, with Firestore still the
+only one: every product read and every stock change goes through a source
+contract, products have global ids, prices are converted to a configurable
+settlement currency (MXN), stock is reserved with an expiry and confirmed or
+released through a queue that survives a source being down, and the catalog is
+listed from an index kept in sync with each source. **Client-visible changes:**
+product ids are global, `Product.source` and `CartItem.currency` are new,
+products cursors from v1.3.0 are rejected, and `createOrderPayment` can answer
+`BAD_USER_INPUT` with `priceChanges`, `unavailableProductIds` or
+`expiredItemIds`, or `CONFLICT` with `retryable` (see below).
+
+### Added
+
+- A configurable settlement currency (MXN), read from the Firestore document
+  `settings/pricing` and applied without a deploy. Products priced in another
+  currency are shown, added to the cart and charged converted with a daily
+  exchange rate (`exchangeRates`); the cart item keeps the original price and
+  currency, the rate and its date.
+- `CartItem.currency`.
+- Stock reservations: each `addToCart` reserves its units in the product's
+  source (`reservations` collection for Firestore) with an idempotency key and an
+  expiry (`RESERVATION_TTL_MINUTES_<SOURCE>`, 60 minutes by default);
+  `removeFromCart` and `cancelOrder` release them, once however often they are
+  retried. Sources that can't reserve get their reservations kept in Firestore
+  and checked against the source when confirmed.
+- A daily exchange rates job (`src/jobs/refreshExchangeRates.ts`, `npm run
+  rates:refresh`) with Banxico's FIX rate as its first provider.
+- An inventory queue (`inventoryTasks`): the webhook, `removeFromCart` and
+  `cancelOrder` record the confirm or release of each reservation in the same
+  write that changes the order or the item, so a source that is down doesn't
+  lose the sale or the stock. The inventory job (`src/jobs/processInventory.ts`,
+  `npm run inventory:process`) retries them with backoff up to
+  `INVENTORY_TASK_MAX_ATTEMPTS` times and logs the ones that still fail
+  (`Sold units not confirmed in their source`, `Reserved stock not released`);
+  `npm run inventory:retry -- <taskId>` retries one by hand.
+- The inventory job also releases reservations that expired in abandoned carts,
+  except for orders being paid (`PAYMENT_PENDING`) or paid.
+- Composite indexes for the job's queries in `firestore.indexes.json`.
+- A catalog index (`catalog` collection) and its sync job
+  (`src/jobs/syncCatalog.ts`, `npm run catalog:sync`): an incremental pull of
+  each switched-on source from its last mark, resumable halfway, and a full
+  reconciliation every `CATALOG_RECONCILE_HOURS` that removes what a source no
+  longer has. Sources can push their changes through the optional
+  `subscribeChanges` hook (not used by any source yet).
+- `updatedAt` on Firestore products, set by the seed and by every stock change,
+  so the Firestore source lists only what changed since a date.
+- A contract test suite every catalog source adapter must pass
+  (`tests/contract/catalogSource.contract.ts`), run in CI against the Firestore
+  adapter and a source whose reservations the core keeps, and the shared
+  category list sources map their categories to (`src/catalog/categories.ts`).
+- `Product.source`: display name of the catalog source the product comes from.
+- `scripts/migrateCartItemProductIds.ts` (`npm run migrate:product-ids`, dry run
+  unless `--apply`) rewrites the product id of existing cart items to the global
+  id and fills in their copy of the product.
+
+### Changed
+
+- `products` and `CartItem.product` are served from the catalog index instead of
+  each source: price and stock shown there are as of the last catalog sync (the
+  cart and the payment still use the source's current ones). Products cursors
+  are now based on the global product id, so a cursor from an earlier version
+  is rejected with `BAD_USER_INPUT`; start again from the first page.
+- `addToCart` and `createOrderPayment` answer `CONFLICT` with `retryable: true`
+  when a product's source can't be reached, instead of `INTERNAL_SERVER_ERROR`.
+- `npm run seed` also indexes the seeded products.
+- `Product.id` (and `CartItem.productId`) is now an opaque global id that names
+  the product's catalog source. The bare ids from before are still accepted as
+  input (`products(id:)`, `addToCart`, `carts(productId:)`) for one release.
+- Cart items keep a copy of the product (title, image, currency and source)
+  next to the price, so an order no longer depends on the source after the
+  product is added.
+- `createOrderPayment` checks every item against the price its source quotes
+  now. If a price changed, nothing is charged: the items move to the new price
+  and the call answers `BAD_USER_INPUT` with `priceChanges` (`productId`,
+  `previousUnitPrice`, `unitPrice`); calling it again charges the new total. A
+  product the source no longer has answers `BAD_USER_INPUT` with
+  `unavailableProductIds`.
+- `createOrderPayment` refuses an order with an expired stock reservation
+  (`BAD_USER_INPUT` with `expiredItemIds`); removing those items and adding them
+  again reserves their units anew.
+- A paid order's reservations are confirmed in their sources, so they can no
+  longer be released.
+- `createOrderPayment` also converts again with today's rate and settlement
+  currency; `priceChanges` now carries `previousCurrency` and `currency`. The
+  PaymentIntent is created in the settlement currency. A product without a usable
+  exchange rate can't be added to a cart or paid for (`CONFLICT`, `retryable`).
+
+### Removed
+
+- `npm run cleanup:cart-items` (`scripts/cleanupOrphanCartItems.ts`): the
+  inventory job's sweep releases abandoned reservations instead. Its last
+  production run, after v1.3.0, found nothing to release.
+
 ## [1.3.0] - 2026-10-17
 
 The technical debt that was accepted for v1.2.0: lists are paginated inside
@@ -258,6 +355,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.4.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.0.1...v1.1.0

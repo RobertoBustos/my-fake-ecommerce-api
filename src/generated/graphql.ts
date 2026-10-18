@@ -69,12 +69,16 @@ export type Card = {
 export type CartItem = {
   __typename?: 'CartItem';
   cartId: Scalars['String']['output'];
+  /** ISO 4217 code of unitPrice and subtotal: the settlement currency. */
+  currency: Scalars['String']['output'];
   id: Scalars['ID']['output'];
   orderId?: Maybe<Scalars['String']['output']>;
   product: Product;
+  /** Global id of the product (Product.id). */
   productId: Scalars['String']['output'];
   quantity: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];
+  /** Cents of currency, copied when the item was added (or repriced by createOrderPayment). */
   unitPrice: Scalars['Int']['output'];
 };
 
@@ -251,13 +255,18 @@ export type PaymentMethod = {
 export type Product = {
   __typename?: 'Product';
   category: Scalars['String']['output'];
+  /** ISO 4217 code of unitPrice: the settlement currency, or the source's own currency while no exchange rate is available. */
   currency: Scalars['String']['output'];
   description: Scalars['String']['output'];
+  /** Opaque global id. Bare ids from before global ids existed are still accepted as input for one release. */
   id: Scalars['ID']['output'];
   image: Scalars['String']['output'];
   purchaseLimits: PurchaseLimit;
+  /** Display name of the catalog source the product comes from. */
+  source?: Maybe<Scalars['String']['output']>;
   stock: Scalars['Int']['output'];
   title: Scalars['String']['output'];
+  /** Cents of currency. */
   unitPrice: Scalars['Int']['output'];
 };
 
@@ -579,6 +588,7 @@ export type CardResolvers<ContextType = Context, ParentType extends ResolversPar
 
 export type CartItemResolvers<ContextType = Context, ParentType extends ResolversParentTypes['CartItem'] = ResolversParentTypes['CartItem']> = {
   cartId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  currency?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   orderId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   product?: Resolver<ResolversTypes['Product'], ParentType, ContextType>;
@@ -699,6 +709,7 @@ export type ProductResolvers<ContextType = Context, ParentType extends Resolvers
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   image?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   purchaseLimits?: Resolver<ResolversTypes['PurchaseLimit'], ParentType, ContextType>;
+  source?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   stock?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   unitPrice?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;

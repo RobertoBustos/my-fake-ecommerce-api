@@ -7,6 +7,8 @@ import type Stripe from "stripe";
 export type OrderStatus = "INCOMPLETE" | "PAYMENT_PENDING" | "COMPLETE" | "CANCELLED";
 
 export interface Product {
+  // Global id (catalog/productId.ts) when it comes from the catalog; the
+  // Firestore document id inside db/products.ts.
   id: string;
   title: string;
   description: string;
@@ -17,6 +19,17 @@ export interface Product {
   // Centavos (10995 = 109.95 MXN).
   unitPrice: number;
   purchaseLimits: { min: number; max: number };
+  // Display name of the product's source; set by the catalog.
+  source?: string | null;
+}
+
+// A reservation of the item's units in its source. An item holds one per
+// addToCart that added units to it; items added before reservations
+// existed hold none and give their units back directly.
+export interface CartItemReservation {
+  reservationId: string;
+  quantity: number;
+  expiresAt: Date | null;
 }
 
 export interface CartItem {
@@ -26,10 +39,31 @@ export interface CartItem {
   orderId: string | null;
   // null for items created before v1.2.0 (ownership checks).
   userId: string | null;
+  // Global product id; items written before global ids keep the bare
+  // Firestore id until the migration script rewrites them.
   productId: string;
   quantity: number;
+  // Copy of the product taken when it was added: the order, its totals, the
+  // PaymentIntent and the webhook read only this copy, never the source.
+  // unitPrice, subtotal and currency are in the settlement currency
+  // (settings/pricing). When the source quoted another currency, the
+  // original price and currency, the rate and its date sit next to them;
+  // they are null when no conversion was needed. All of these are missing on
+  // items written before the copy existed, which were in MXN.
   unitPrice: number;
   subtotal: number;
+  sourceKey?: string;
+  title?: string | null;
+  image?: string | null;
+  currency?: string | null;
+  originalUnitPrice?: number | null;
+  originalCurrency?: string | null;
+  exchangeRate?: number | null;
+  rateAsOf?: string | null;
+  reservations?: CartItemReservation[];
+  // The reservationId of each reservation, so a query (array-contains) can
+  // find the item that holds one.
+  reservationIds?: string[];
 }
 
 // updateOrder stores the whole Stripe customer returned by Stripe.

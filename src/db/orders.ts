@@ -1,4 +1,5 @@
 import { FieldPath, type DocumentSnapshot, type Query } from "firebase-admin/firestore";
+import type { PriceQuote } from "../pricing/index.js";
 import type {
   Address,
   CartItem,
@@ -10,19 +11,20 @@ import type {
 import db from "../config/firestore.js";
 import { runTransaction } from "./transactions.js";
 import { computeOrderTotals } from "../utils/orderTotals.js";
-import { getCart } from "./cart.js";
+import { confirmTasks, getCart, releaseTasks } from "./cart.js";
 import { isOrderOpen, OPEN_STATUSES } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
 import { cancelPayment, getCustomer, searchPayment, type CustomerDetails } from "./payment.js";
 import { logger } from "../utils/logger.js";
+import { runInventoryTasks } from "../catalog/inventoryQueue.js";
+import { queueInventoryTasks } from "./inventoryTasks.js";
 
 export { isOrderOpen };
 
 const COLLECTION = "orders";
-// Must match the collections in db/cart.ts and db/products.ts: cancelling
-// reads the order's cart items and products inside one transaction.
+// Must match COLLECTION in db/cart.ts: cancelling reads the order's cart
+// items inside its transaction.
 const CART_COLLECTION = "cartItems";
-const PRODUCTS_COLLECTION = "products";
 const toOrder = (doc: DocumentSnapshot): Order => ({ id: doc.id, ...doc.data() }) as Order;
 
 export class OrderClosedError extends Error {
@@ -200,10 +202,10 @@ export const updateOrder = async (
 // the order would hand back stock that was paid for.
 const CHARGED_PAYMENT_STATUSES = new Set(["processing", "succeeded"]);
 
-// Cancelling puts the order's units back in stock, in the same transaction
-// as the status change so it happens exactly once: a second cancel finds the
-// order already CANCELLED and changes nothing. A COMPLETE order was paid, so
-// its stock is sold and it can't be cancelled here.
+// Cancelling queues the release of the order's units in the same
+// transaction as the status change, so it happens exactly once: a second
+// cancel finds the order already CANCELLED and changes nothing. A COMPLETE order was paid, so its
+// stock is sold and it can't be cancelled here.
 export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
   const docRef = db.collection(COLLECTION).doc(input.id);
 
@@ -216,7 +218,10 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
     }
   }
 
-  type Outcome = { found: false } | { found: true; order: Order; changed: boolean };
+  type Outcome =
+    | { found: false }
+    | { found: true; order: Order; changed: false }
+    | { found: true; order: Order; changed: true; taskIds: string[] };
   const outcome = await runTransaction(async (tx): Promise<Outcome> => {
     const doc = await tx.get(docRef);
     if (!doc.exists) {
@@ -233,30 +238,21 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
     const itemsSnapshot = await tx.get(
       db.collection(CART_COLLECTION).where("orderId", "==", order.id)
     );
-    const quantities = new Map<string, number>();
-    for (const itemDoc of itemsSnapshot.docs) {
-      const { productId, quantity } = itemDoc.data() as CartItem;
-      const key = String(productId);
-      quantities.set(key, (quantities.get(key) ?? 0) + quantity);
-    }
-    const productRefs = [...quantities.keys()].map((id) =>
-      db.collection(PRODUCTS_COLLECTION).doc(id)
+    const items = itemsSnapshot.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }) as CartItem);
+    const taskIds = await queueInventoryTasks(
+      tx,
+      items.flatMap((item) => releaseTasks(item, "cancelOrder", order.id))
     );
-    const productDocs = await Promise.all(productRefs.map((ref) => tx.get(ref)));
-
-    // Every read above happens before any write, as Firestore requires.
     tx.update(docRef, { status: "CANCELLED" });
-    productDocs.forEach((productDoc, i) => {
-      if (!productDoc.exists) return;
-      tx.update(productRefs[i], {
-        stock: productDoc.get("stock") + (quantities.get(productRefs[i].id) ?? 0),
-      });
-    });
-    return { found: true, order, changed: true };
+    return { found: true, order, changed: true, taskIds };
   });
 
   if (!outcome.found) {
     return false;
+  }
+  // Run right away; what the source refuses now stays queued for the job.
+  if (outcome.changed) {
+    await runInventoryTasks(outcome.taskIds);
   }
   // Stripe isn't part of the Firestore transaction, so it goes after commit.
   // The order is already cancelled; if Stripe fails here, a later payment on
@@ -271,6 +267,30 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
     });
   }
   return true;
+};
+
+// The price each item of an order is paid at, by cart item id.
+export type ItemPrices = Map<string, PriceQuote>;
+
+// Moves an order's items to the prices their sources quote now, so the next
+// createOrderPayment charges them. Inside a transaction with the order, so
+// an order that stopped being payable in the meantime isn't touched.
+export const repriceOrderItems = async (orderId: string, prices: ItemPrices): Promise<void> => {
+  const docRef = db.collection(COLLECTION).doc(orderId);
+  await runTransaction(async (tx) => {
+    const doc = await tx.get(docRef);
+    const order = doc.exists ? toOrder(doc) : null;
+    if (!order || order.status !== "PAYMENT_PENDING") {
+      throw new OrderClosedError(orderId, order?.status ?? "CANCELLED");
+    }
+    const items = await tx.get(db.collection(CART_COLLECTION).where("orderId", "==", orderId));
+    for (const itemDoc of items.docs) {
+      const quote = prices.get(itemDoc.id);
+      if (quote === undefined) continue;
+      const { quantity } = itemDoc.data() as CartItem;
+      tx.update(itemDoc.ref, { ...quote, subtotal: quote.unitPrice * quantity });
+    }
+  });
 };
 
 export const setOrderPayment = async (orderId: string, paymentId: string): Promise<boolean> => {
@@ -290,37 +310,53 @@ export const deleteOrder = async (id: string): Promise<void> => {
 // Called only by the Stripe webhook. The order is completed only if the
 // event is for the order's own PaymentIntent and the amount Stripe charged
 // is the order's current total; items added after the PaymentIntent was
-// created would otherwise ship unpaid. Returns { completed, reason }.
+// created would otherwise ship unpaid. Completing it queues the confirm of
+// every reservation in the same transaction; they run after the commit and,
+// if a source is down, from the inventory job. Returns { completed, reason }.
 export const markOrderComplete = async (
   id: string,
   { paymentIntentId, amountReceived }: { paymentIntentId?: string; amountReceived?: number } = {}
 ): Promise<{ completed: boolean; reason?: string }> => {
   const docRef = db.collection(COLLECTION).doc(id);
-  return runTransaction(async (tx) => {
-    const doc = await tx.get(docRef);
-    if (!doc.exists) {
-      return { completed: false, reason: "order not found" };
-    }
-    const order = toOrder(doc);
-    if (order.status === "COMPLETE") {
-      return { completed: true, reason: "already complete" };
-    }
-    const items = await tx.get(db.collection(CART_COLLECTION).where("orderId", "==", id));
-    const { total } = computeOrderTotals(items.docs.map((itemDoc) => itemDoc.data() as CartItem));
+  const result = await runTransaction(
+    async (tx): Promise<{ completed: boolean; reason?: string; taskIds?: string[] }> => {
+      const doc = await tx.get(docRef);
+      if (!doc.exists) {
+        return { completed: false, reason: "order not found" };
+      }
+      const order = toOrder(doc);
+      if (order.status === "COMPLETE") {
+        return { completed: true, reason: "already complete" };
+      }
+      const items = await tx.get(db.collection(CART_COLLECTION).where("orderId", "==", id));
+      const cartItems = items.docs.map(
+        (itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }) as CartItem
+      );
+      const { total } = computeOrderTotals(cartItems);
 
-    if (order.status !== "PAYMENT_PENDING") {
-      return { completed: false, reason: `order is ${order.status}` };
+      if (order.status !== "PAYMENT_PENDING") {
+        return { completed: false, reason: `order is ${order.status}` };
+      }
+      if (order.paymentId !== paymentIntentId) {
+        return { completed: false, reason: "payment intent doesn't belong to the order" };
+      }
+      if (amountReceived !== total) {
+        return {
+          completed: false,
+          reason: `amount received (${amountReceived}) doesn't match the order total (${total})`,
+        };
+      }
+      const taskIds = await queueInventoryTasks(
+        tx,
+        cartItems.flatMap((item) => confirmTasks(item, id))
+      );
+      tx.update(docRef, { status: "COMPLETE" });
+      return { completed: true, taskIds };
     }
-    if (order.paymentId !== paymentIntentId) {
-      return { completed: false, reason: "payment intent doesn't belong to the order" };
-    }
-    if (amountReceived !== total) {
-      return {
-        completed: false,
-        reason: `amount received (${amountReceived}) doesn't match the order total (${total})`,
-      };
-    }
-    tx.update(docRef, { status: "COMPLETE" });
-    return { completed: true };
-  });
+  );
+  // A confirm that fails never undoes the order: the money was charged.
+  if (result.taskIds) {
+    await runInventoryTasks(result.taskIds);
+  }
+  return { completed: result.completed, ...(result.reason ? { reason: result.reason } : {}) };
 };

@@ -3,15 +3,27 @@ import type {
   CartItemResolvers,
   OrderResolvers,
   PaymentResolvers,
+  ProductResolvers,
 } from "../../generated/graphql.js";
-import type { Product } from "../../types/models.js";
+import { LEGACY_CURRENCY } from "../../pricing/index.js";
+import type { Product as ProductModel } from "../../types/models.js";
 
 // Field resolvers are reads too, so like queries.ts they may call db/.
+// A product is shown at its price in the settlement currency; unitPrice and
+// currency come from the same per-request quote, so they always match.
+export const Product: ProductResolvers = {
+  unitPrice: async (parent, _args, context) =>
+    (await context.loaders.displayPrices.load(parent)).unitPrice,
+  currency: async (parent, _args, context) =>
+    (await context.loaders.displayPrices.load(parent)).currency,
+};
+
 export const CartItem: CartItemResolvers = {
+  currency: (parent) => parent.currency ?? LEGACY_CURRENCY,
   // The loader answers null for a deleted product; product is non-null in
   // the schema, so GraphQL reports that as a field error, as it always has.
   product: async (parent, _args, context) =>
-    (await context.loaders.products.load(parent.productId)) as Product,
+    (await context.loaders.products.load(parent.productId)) as ProductModel,
 };
 
 export const Order: OrderResolvers = {

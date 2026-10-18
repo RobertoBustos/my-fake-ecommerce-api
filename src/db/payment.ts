@@ -53,10 +53,12 @@ export interface PaymentCreated {
   ephimeralKey: string;
 }
 
+// amount is in cents of currency, the order's settlement currency.
 export const createPayment = async (
   orderId: string,
   amount: number,
-  customerId: string
+  customerId: string,
+  currency = "MXN"
 ): Promise<PaymentCreated> => {
   const response = await searchPayment("order", orderId);
   let paymentIntent: Stripe.PaymentIntent;
@@ -66,7 +68,7 @@ export const createPayment = async (
     // new one.
     paymentIntent = await stripeClient.paymentIntents.create(
       {
-        currency: "MXN",
+        currency,
         customer: customerId,
         amount: amount,
         payment_method_types: ["card"],
@@ -77,9 +79,11 @@ export const createPayment = async (
       { idempotencyKey: `order-${orderId}-payment-intent` }
     );
   } else {
-    if (response.amount !== amount) {
+    // Stripe reports the currency in lower case.
+    if (response.amount !== amount || response.currency !== currency.toLowerCase()) {
       paymentIntent = await stripeClient.paymentIntents.update(response.id, {
         amount: amount,
+        currency,
       });
     } else {
       paymentIntent = response;

@@ -4,10 +4,14 @@ const cartTypes = /* GraphQL */ `#graphql
     id: ID!
     orderId: String
     cartId: String!
+    "Global id of the product (Product.id)."
     productId: String!
     quantity: Int!
+    "Cents of currency, copied when the item was added (or repriced by createOrderPayment)."
     unitPrice: Int!
     subtotal: Int!
+    "ISO 4217 code of unitPrice and subtotal: the settlement currency."
+    currency: String!
     product: Product!
   }
 
