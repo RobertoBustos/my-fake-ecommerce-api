@@ -85,8 +85,8 @@ Aplican a cualquiera que mueva tareas o haga una release, persona o Claude.
 Transiciones de ECOMAPI: En Curso = 21, En revision = 31, Completado = 41.
 - **Antes de En Curso, asignado y story points.** Una tarea (no épica) no pasa de
   Por hacer a En Curso sin asignado ni story points (campo "Story point
-  estimate", `customfield_10016`). Escala del proyecto: medios puntos, unos 2 por
-  día de trabajo (Express 5 = 2, migración a TypeScript = 8). Lo mismo al crear
+  estimate", `customfield_10016`). Escala del proyecto: 1 punto = 1 hora de trabajo,
+  con medios puntos (Express 5 = 2, migración a TypeScript = 8). Lo mismo al crear
   una tarea. En oct 2026 había 38 tareas sin asignado y 26 sin puntos.
 - **Completado solo con el merge verificado.** Antes de mover una tarea a
   Completado, comprobar con `gh pr view <n> --json state,mergedAt` que el PR está
