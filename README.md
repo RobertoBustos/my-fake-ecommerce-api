@@ -131,6 +131,18 @@ Each run buys one unit of the e2e product for real (Stripe test mode, card
 `COMPLETE` order can't be cancelled, so the product's stock goes down by one per
 run; the catalog test fails once it drops below 10, as a reminder to top it up.
 
+To run it from GitHub Actions instead (after a deploy, or after changing a
+secret), start the **E2E** workflow by hand from `main` or `dev`:
+
+```bash
+gh workflow run e2e.yml --ref main
+gh run watch "$(gh run list --workflow e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+```
+
+It reads the `E2E_*` repository variables and secrets, shares its concurrency
+group with deploy and rollback, and its job summary lists how many tests passed
+and the `X-Request-Id` of every request a failed test sent.
+
 ## Catalog source contract
 
 Every catalog source adapter must pass the same contract suite before it is
