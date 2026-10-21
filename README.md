@@ -126,6 +126,11 @@ its values anywhere: it holds the test users' passwords and the Stripe key, whic
 must be a `sk_test_` key (the suite refuses any other). When a test fails, it
 prints the `X-Request-Id` of each request it sent, to find them in Cloud Logging.
 
+Each run buys one unit of the e2e product for real (Stripe test mode, card
+`pm_card_visa`) and waits for the Stripe webhook to complete the order. A
+`COMPLETE` order can't be cancelled, so the product's stock goes down by one per
+run; the catalog test fails once it drops below 10, as a reminder to top it up.
+
 ## Catalog source contract
 
 Every catalog source adapter must pass the same contract suite before it is
