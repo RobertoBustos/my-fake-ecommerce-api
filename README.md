@@ -109,6 +109,40 @@ Docker build that checks `/healthcheck` (`docker-build`) and, on pull requests
 into `main`, `branch-guard`, which only accepts `release/*` and `hotfix/*`
 branches.
 
+## End-to-end tests
+
+`e2e/` checks the **deployed** API with nothing simulated: Firebase Auth issues
+the token, Cloud Run answers and Firestore holds the data. It has its own Vitest
+config, so it isn't part of `npm test` or the PR checks.
+
+```bash
+cp .env.e2e.example .env.e2e   # fill it in; git ignores .env.e2e
+npm run test:e2e
+```
+
+The test users, the dedicated e2e product and the GitHub secrets are set up
+once by hand (see the e2e guide in Confluence). Never commit `.env.e2e` or paste
+its values anywhere: it holds the test users' passwords and the Stripe key, which
+must be a `sk_test_` key (the suite refuses any other). When a test fails, it
+prints the `X-Request-Id` of each request it sent, to find them in Cloud Logging.
+
+Each run buys one unit of the e2e product for real (Stripe test mode, card
+`pm_card_visa`) and waits for the Stripe webhook to complete the order. A
+`COMPLETE` order can't be cancelled, so the product's stock goes down by one per
+run; the catalog test fails once it drops below 10, as a reminder to top it up.
+
+To run it from GitHub Actions instead (after a deploy, or after changing a
+secret), start the **E2E** workflow by hand from `main` or `dev`:
+
+```bash
+gh workflow run e2e.yml --ref main
+gh run watch "$(gh run list --workflow e2e.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+```
+
+It reads the `E2E_*` repository variables and secrets, shares its concurrency
+group with deploy and rollback, and its job summary lists how many tests passed
+and the `X-Request-Id` of every request a failed test sent.
+
 ## Catalog source contract
 
 Every catalog source adapter must pass the same contract suite before it is

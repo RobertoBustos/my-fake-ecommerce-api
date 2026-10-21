@@ -6,6 +6,34 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-21
+
+An end-to-end suite that checks the deployed API the way the app uses it, with
+nothing simulated and no frontend: Firebase Auth sign-in over HTTP, GraphQL
+with `fetch`, a payment confirmed server side in Stripe test mode and the real
+webhook completing the order. **No API changes:** the schema, the responses
+and the deployed service behave as in v1.4.0.
+
+### Added
+
+- `e2e/` suite (`npm run test:e2e`) against `E2E_BASE_URL`, with its own Vitest
+  config and settings read from `.env.e2e` (template in `.env.e2e.example`); it
+  isn't part of `npm test` or the PR checks.
+  - Health and authentication: `/healthcheck` through Hosting and on Cloud Run,
+    401 without a token or with a forged one.
+  - Catalog: every page of `products` without repeats, the dedicated e2e
+    product with its global id and source, `NOT_FOUND` for an unknown source.
+  - A full purchase to `COMPLETE` through the Stripe webhook, checking the
+    PaymentIntent charges the order's total, and that a paid order can't be
+    updated or cancelled.
+  - What has to fail cleanly: a declined card, cancelling an unpaid order (and
+    again), input validation, and one user's order hidden from another.
+- `E2E` GitHub Actions workflow (`.github/workflows/e2e.yml`), run by hand from
+  `main` or `dev`; it shares the deploy concurrency group and its job summary
+  lists the `X-Request-Id` of every request a failed test sent.
+- Safeguards: the suite refuses any Stripe key other than `sk_test_`, and every
+  failed test prints the `X-Request-Id` of its requests.
+
 ## [1.4.0] - 2026-10-18
 
 The catalog is ready for more than one data source, with Firestore still the
@@ -355,6 +383,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.5.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.1.0...v1.2.0
