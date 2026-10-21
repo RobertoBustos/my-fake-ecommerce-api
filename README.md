@@ -109,6 +109,23 @@ Docker build that checks `/healthcheck` (`docker-build`) and, on pull requests
 into `main`, `branch-guard`, which only accepts `release/*` and `hotfix/*`
 branches.
 
+## End-to-end tests
+
+`e2e/` checks the **deployed** API with nothing simulated: Firebase Auth issues
+the token, Cloud Run answers and Firestore holds the data. It has its own Vitest
+config, so it isn't part of `npm test` or the PR checks.
+
+```bash
+cp .env.e2e.example .env.e2e   # fill it in; git ignores .env.e2e
+npm run test:e2e
+```
+
+The test users, the dedicated e2e product and the GitHub secrets are set up
+once by hand (see the e2e guide in Confluence). Never commit `.env.e2e` or paste
+its values anywhere: it holds the test users' passwords and the Stripe key, which
+must be a `sk_test_` key (the suite refuses any other). When a test fails, it
+prints the `X-Request-Id` of each request it sent, to find them in Cloud Logging.
+
 ## Catalog source contract
 
 Every catalog source adapter must pass the same contract suite before it is

@@ -1,7 +1,7 @@
 {
-  // Type-checks everything (src, scripts, the codegen config and the
-  // catalog source contract suite) without emitting; `npm run build` uses
-  // tsconfig.build.json to compile src only.
+  // Type-checks everything (src, scripts, the codegen config, the
+  // catalog source contract suite and the e2e suite) without emitting;
+  // `npm run build` uses tsconfig.build.json to compile src only.
   "compilerOptions": {
     "target": "es2023",
     "lib": ["es2023"],
@@ -16,5 +16,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["src", "scripts", "codegen.ts", "tests/contract/**/*.ts"]
+  "include": ["src", "scripts", "codegen.ts", "tests/contract/**/*.ts", "e2e"]
 }

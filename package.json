@@ -18,6 +18,7 @@
     "codegen": "graphql-codegen --config codegen.ts",
     "lint": "eslint .",
     "test": "vitest run --coverage",
+    "test:e2e": "vitest run --config e2e/vitest.config.ts",
     "test:emulator": "firebase emulators:exec --only firestore,auth --project demo-ecommerce-api \"npm run test\"",
     "seed": "tsx scripts/seedFirestore.ts",
     "token:local": "tsx scripts/localToken.ts",

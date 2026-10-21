@@ -1,7 +1,9 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // e2e/ runs against the deployed API with its own config (npm run test:e2e).
+    exclude: [...configDefaults.exclude, "e2e/**"],
     setupFiles: ["./tests/setup.js"],
     globalSetup: ["./tests/globalSetup.js"],
     // Every file hits the same Firestore emulator instance; running them in
