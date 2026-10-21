@@ -63,4 +63,8 @@ export const dataOf = <T>(result: GraphQLResult<T>): T => {
   return result.data;
 };
 
+// Vitest hides console output of passing tests; a run's record (ids of what
+// it bought) goes straight to stdout.
+export const report = (line: string) => process.stdout.write(`${line}\n`);
+
 export const errorCodeOf = (result: GraphQLResult<unknown>) => result.errors?.[0]?.extensions?.code;
