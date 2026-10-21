@@ -1,0 +1,54 @@
+name: E2E
+
+# The end-to-end suite (e2e/) against the deployed API, run by hand: after a
+# deploy, after changing a secret or whenever production looks wrong. It
+# buys one unit of the e2e product in Stripe test mode. Not a PR check.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "API to test. Leave empty for the E2E_BASE_URL variable (production)."
+        required: false
+        default: ""
+
+# Same group as deploy.yml and rollback.yml, so the suite never runs halfway
+# through a deploy and a deploy waits for the suite.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: e2e
+    # The suite runs with production credentials, so only from the two
+    # protected branches.
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      E2E_BASE_URL: ${{ inputs.base_url || vars.E2E_BASE_URL }}
+      E2E_RUN_URL: ${{ vars.E2E_RUN_URL }}
+      E2E_PRODUCT_ID: ${{ vars.E2E_PRODUCT_ID }}
+      E2E_EMAIL: ${{ vars.E2E_EMAIL }}
+      E2E_OTHER_EMAIL: ${{ vars.E2E_OTHER_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      E2E_OTHER_PASSWORD: ${{ secrets.E2E_OTHER_PASSWORD }}
+      E2E_FIREBASE_WEB_API_KEY: ${{ secrets.E2E_FIREBASE_WEB_API_KEY }}
+      E2E_STRIPE_SECRET_KEY: ${{ secrets.E2E_STRIPE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run the e2e suite
+        env:
+          E2E_FAILURES_FILE: ${{ runner.temp }}/e2e-failures.jsonl
+        run: npm run test:e2e -- --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/e2e-report.json"
+      - name: Job summary
+        if: always()
+        run: npx tsx e2e/summary.ts "$RUNNER_TEMP/e2e-report.json" "$RUNNER_TEMP/e2e-failures.jsonl"
