@@ -26,12 +26,15 @@
     "rates:refresh": "tsx --env-file=.env src/jobs/refreshExchangeRates.ts",
     "inventory:process": "tsx src/jobs/processInventory.ts",
     "inventory:retry": "tsx scripts/retryInventoryTask.ts",
-    "catalog:sync": "tsx src/jobs/syncCatalog.ts"
+    "catalog:sync": "tsx src/jobs/syncCatalog.ts",
+    "search:configure": "tsx scripts/configureSearchIndex.ts",
+    "test:search:algolia": "vitest run --config tests/contract/vitest.hosted.config.ts"
   },
   "dependencies": {
     "@apollo/server": "^5.5.1",
     "@as-integrations/express5": "^1.1.2",
     "@google-cloud/firestore": "^9.3.1",
+    "algoliasearch": "^5.60.0",
     "cors": "^2.8.6",
     "dataloader": "^2.2.3",
     "express": "^5.3.0",
