@@ -255,6 +255,55 @@ products. Their price and stock are as of the last sync; `addToCart` and
 `retryable` while it can't be reached. Products of sources outside
 `CATALOG_SOURCES` aren't listed. `npm run seed` indexes what it writes.
 
+## Search index
+
+Product search goes through one port, `SearchIndex` (`src/search/ports.ts`),
+the way the catalog goes through `CatalogSource`: the rest of the API never
+knows which engine answers. Its documents carry the global product id,
+`sourceKey`, title, description, category, the price in the settlement
+currency (`settlementPrice`, cents) and `inStock`; a search returns ids in
+order, the total and facets as names and counts. No engine concept (record
+ids, replicas, highlighting, typo settings) leaves an adapter, and ESLint only
+lets `src/search/adapters/` import an engine's SDK.
+
+`SEARCH_ENGINE` picks the adapter (`src/search/registry.ts`), and the server
+won't start with a value the code doesn't know. Today the only one is
+`memory`, an in-memory index for tests and local runs that follows the same
+rules a hosted engine applies by default: every word must match, 1 typo from 4
+letters and 2 from 8, the last word as a prefix and `"quoted phrases"` exact.
+Unset, nothing can search yet.
+
+### Search index contract
+
+`tests/contract/searchIndex.contract.ts` is the suite every engine passes
+before `SEARCH_ENGINE` can name it, in two levels:
+
+- **Exact rules:** idempotent `upsert`, `delete`, `replaceAll` without an empty
+  window, filters (category, price range, stock, source), an empty query,
+  price order, stable paging, exact facet counts, phrases and every word
+  matching.
+- **Relevance:** typos ("jaket" finds jackets), prefixes ("jac") and the 20
+  queries of the engine spike, run on its catalog of 1,020 products
+  (`tests/contract/searchFixtures.ts`), which judges relevance on structured
+  ground truth that is never indexed. An engine must get at least 90% of the
+  expected relevant products into the top 3, over all queries and over the
+  typo and prefix ones.
+
+`tests/contract/searchIndexSuite.test.js` runs it against the in-memory index
+and proves that an index breaking any one rule fails its check. The checks
+start with `replaceAll`, so run a hosted engine's suite against a test index
+of its own:
+
+```js
+// tests/contract/myEngineIndex.contract.test.js
+import { describeSearchIndexContract } from "./searchIndex.contract.js";
+
+describeSearchIndexContract("my engine", async () => {
+  const index = createMyEngineIndex({ indexName: `contract-${Date.now()}` });
+  return { index, cleanup: () => deleteTestIndex(index) };
+});
+```
+
 ## Prices and currency
 
 Everything is shown and charged in one settlement currency, MXN today. It lives
