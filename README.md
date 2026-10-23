@@ -267,11 +267,38 @@ ids, replicas, highlighting, typo settings) leaves an adapter, and ESLint only
 lets `src/search/adapters/` import an engine's SDK.
 
 `SEARCH_ENGINE` picks the adapter (`src/search/registry.ts`), and the server
-won't start with a value the code doesn't know. Today the only one is
-`memory`, an in-memory index for tests and local runs that follows the same
-rules a hosted engine applies by default: every word must match, 1 typo from 4
-letters and 2 from 8, the last word as a prefix and `"quoted phrases"` exact.
-Unset, nothing can search yet.
+won't start with a value the code doesn't know or an engine missing its
+settings. Unset, nothing can search yet. There are two:
+
+- `memory`, an in-memory index for tests and local runs that follows the same
+  rules a hosted engine applies by default: every word must match, 1 typo from
+  4 letters and 2 from 8, the last word as a prefix and `"quoted phrases"`
+  exact.
+- `algolia` (`src/search/adapters/algolia/`), the production engine chosen by
+  the engine spike. It reads `ALGOLIA_APP_ID`, `ALGOLIA_INDEX` (one per
+  environment, e.g. `ecomapi_prod_catalog`) and two keys from Secret Manager,
+  both restricted to the `ecomapi_*` indices: `algolia-search-key` (ACL
+  `search`, all the API needs) and `algolia-indexer-key` (writes, settings
+  and the contract suite). With only the search key a process can search but
+  not write.
+
+### Index settings
+
+An engine's index settings are code in its adapter (for Algolia,
+`src/search/adapters/algolia/settings.ts`: searchable attributes, facets,
+in-stock-first ranking and one standard replica per price order), never
+edited in the engine's dashboard. `npm run search:configure` applies the
+settings of the engine `SEARCH_ENGINE` names and creates the index if it
+doesn't exist; it is idempotent. Run it before the first sync of a new index
+and after changing the settings:
+
+```bash
+SEARCH_ENGINE=algolia ALGOLIA_APP_ID=<app id> ALGOLIA_INDEX=ecomapi_dev_catalog \
+  ALGOLIA_INDEXER_KEY="$(gcloud secrets versions access latest --secret=algolia-indexer-key)" \
+  npm run search:configure
+```
+
+The key goes through `$(...)`, so it never reaches the shell history.
 
 ### Search index contract
 
@@ -291,17 +318,39 @@ before `SEARCH_ENGINE` can name it, in two levels:
 
 `tests/contract/searchIndexSuite.test.js` runs it against the in-memory index
 and proves that an index breaking any one rule fails its check. The checks
-start with `replaceAll`, so run a hosted engine's suite against a test index
-of its own:
+start with `replaceAll`, so a hosted engine's suite runs against a test index
+of its own, in a `*.hosted.test.js` file that `npm test` and CI skip:
 
 ```js
-// tests/contract/myEngineIndex.contract.test.js
+// tests/contract/myEngineIndex.hosted.test.js
 import { describeSearchIndexContract } from "./searchIndex.contract.js";
 
-describeSearchIndexContract("my engine", async () => {
-  const index = createMyEngineIndex({ indexName: `contract-${Date.now()}` });
-  return { index, cleanup: () => deleteTestIndex(index) };
-});
+describeSearchIndexContract(
+  "my engine",
+  async () => {
+    const index = createMyEngineIndex({ indexName: `ecomapi_contract_${Date.now()}` });
+    return { index, cleanup: () => deleteTestIndex(index) };
+  },
+  { timeout: 300_000 },
+);
+```
+
+Algolia answers a query identical to a recent one from its own cache for
+about a minute, even after a write it reports as published (measured: a new
+query sees the write right away). Search results can lag the catalog by that
+much, so whatever turns ids into products drops the ones that no longer
+exist, and each contract check tags its products with a word of its own so
+it never repeats a query another check made before a write.
+
+Algolia's runs by hand with the indexer key. It creates an
+`ecomapi_contract_<id>` index with its replicas and deletes them at the end.
+It takes several minutes, because every Algolia write waits until it is
+searchable and each task takes seconds to publish on the free plan:
+
+```bash
+ALGOLIA_APP_ID=<app id> \
+  ALGOLIA_INDEXER_KEY="$(gcloud secrets versions access latest --secret=algolia-indexer-key)" \
+  npm run test:search:algolia
 ```
 
 ## Prices and currency

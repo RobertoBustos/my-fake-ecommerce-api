@@ -47,73 +47,84 @@ const search = (harness: SearchContractHarness, query: Partial<SearchQuery> & { 
 const idsOf = async (harness: SearchContractHarness, query: Partial<SearchQuery> & { text: string }) =>
   (await search(harness, query)).ids;
 
+// A word of its own for each check's titles and queries, so no check repeats
+// a query another one made before a write. A hosted engine may answer a query
+// it has just answered from a cache for a while after a write (Algolia does,
+// for about a minute), which is fine for shoppers but would make a check see
+// the previous check's products.
+let tags = 0;
+const newTag = () => `zephyr${String.fromCharCode(97 + (tags % 26))}${String.fromCharCode(97 + Math.floor(tags++ / 26))}`;
+
 // Products every exact rule runs against. The titles share no word with the
 // spike catalog, so a stray document can't satisfy a check by accident.
 const exactFixtures = () => {
-  const laptop = doc({ title: "Zephyr laptop sleeve", category: "electronics", settlementPrice: 4500 });
-  const phone = doc({ title: "Zephyr phone stand", category: "electronics", settlementPrice: 1200, inStock: false });
-  const ring = doc({ title: "Zephyr silver ring", category: "jewelery", settlementPrice: 9900 });
+  const tag = newTag();
+  const laptop = doc({ title: `${tag} laptop sleeve`, category: "electronics", settlementPrice: 4500 });
+  const phone = doc({ title: `${tag} phone stand`, category: "electronics", settlementPrice: 1200, inStock: false });
+  const ring = doc({ title: `${tag} silver ring`, category: "jewelery", settlementPrice: 9900 });
   const scarf = doc({
-    title: "Zephyr wool scarf",
+    title: `${tag} wool scarf`,
     description: "Hand knitted in warm wool",
     category: "women's clothing",
     settlementPrice: 2500,
     sourceKey: "other",
   });
-  return { laptop, phone, ring, scarf, all: [laptop, phone, ring, scarf] };
+  return { tag, laptop, phone, ring, scarf, all: [laptop, phone, ring, scarf] };
 };
 
 export const exactChecks: SearchContractCheck[] = [
   {
     name: "upsert makes documents searchable and repeating it changes nothing",
     async run(harness) {
-      const { all, laptop } = exactFixtures();
+      const { tag, all, laptop } = exactFixtures();
       await harness.index.replaceAll([]);
       await harness.index.upsert(all);
       await harness.index.upsert(all);
-      const result = await search(harness, { text: "zephyr" });
+      const result = await search(harness, { text: tag });
       expect(result.total).toBe(4);
       expect(new Set(result.ids)).toEqual(new Set(all.map((d) => d.id)));
-      expect(await idsOf(harness, { text: "laptop" })).toEqual([laptop.id]);
+      expect(await idsOf(harness, { text: `${tag} laptop` })).toEqual([laptop.id]);
     },
   },
   {
     name: "upsert of an existing id replaces the document",
     async run(harness) {
-      const { all, laptop } = exactFixtures();
+      const { tag, all, laptop } = exactFixtures();
       await harness.index.replaceAll(all);
-      await harness.index.upsert([{ ...laptop, title: "Zephyr tablet sleeve", settlementPrice: 99_000 }]);
-      expect(await idsOf(harness, { text: "laptop" })).toEqual([]);
-      expect(await idsOf(harness, { text: "tablet" })).toEqual([laptop.id]);
-      expect(await idsOf(harness, { text: "zephyr", filters: { minPrice: 50_000 } })).toEqual([laptop.id]);
-      expect((await search(harness, { text: "zephyr" })).total).toBe(4);
+      await harness.index.upsert([{ ...laptop, title: `${tag} tablet sleeve`, settlementPrice: 99_000 }]);
+      expect(await idsOf(harness, { text: `${tag} laptop` })).toEqual([]);
+      expect(await idsOf(harness, { text: `${tag} tablet` })).toEqual([laptop.id]);
+      expect(await idsOf(harness, { text: tag, filters: { minPrice: 50_000 } })).toEqual([laptop.id]);
+      expect((await search(harness, { text: tag })).total).toBe(4);
     },
   },
   {
     name: "delete removes documents from results and ignores unknown ids",
     async run(harness) {
-      const { all, ring } = exactFixtures();
+      const { tag, all, ring } = exactFixtures();
       await harness.index.replaceAll(all);
       await harness.index.delete([ring.id, `contract-${randomUUID()}`]);
-      const result = await search(harness, { text: "zephyr" });
+      const result = await search(harness, { text: tag });
       expect(result.ids).not.toContain(ring.id);
       expect(result.total).toBe(3);
-      expect(await idsOf(harness, { text: "ring" })).toEqual([]);
+      expect(await idsOf(harness, { text: `${tag} ring` })).toEqual([]);
     },
   },
   {
     name: "replaceAll leaves exactly the new documents, with no empty window while it runs",
     async run(harness) {
-      const { all } = exactFixtures();
+      const { tag, all } = exactFixtures();
       await harness.index.replaceAll(all);
-      const next = [doc({ title: "Zephyr desk lamp" }), doc({ title: "Zephyr desk fan" })];
+      const next = [doc({ title: `${tag} desk lamp` }), doc({ title: `${tag} desk fan` })];
       const replacing = harness.index.replaceAll(next);
-      const during = await search(harness, { text: "zephyr" });
+      const during = await search(harness, { text: tag });
       await replacing;
       // Mid-swap a search answers from the old or the new contents, never
       // from neither.
       expect(during.total).toBeGreaterThan(0);
-      const after = await search(harness, { text: "zephyr" });
+      // Not the query made during the swap: the old contents may still answer
+      // that one from a cache.
+      const after = await search(harness, { text: `${tag} desk` });
       expect(new Set(after.ids)).toEqual(new Set(next.map((d) => d.id)));
       expect(after.total).toBe(2);
     },
@@ -121,9 +132,9 @@ export const exactChecks: SearchContractCheck[] = [
   {
     name: "filters by category, price range, stock and source",
     async run(harness) {
-      const { all, laptop, phone, ring, scarf } = exactFixtures();
+      const { tag, all, laptop, phone, ring, scarf } = exactFixtures();
       await harness.index.replaceAll(all);
-      const ids = (filters: SearchQuery["filters"]) => idsOf(harness, { text: "zephyr", filters });
+      const ids = (filters: SearchQuery["filters"]) => idsOf(harness, { text: tag, filters });
       expect(new Set(await ids({ category: "electronics" }))).toEqual(new Set([laptop.id, phone.id]));
       // Both ends of the price range are inclusive.
       expect(new Set(await ids({ minPrice: 2500, maxPrice: 9900 }))).toEqual(new Set([laptop.id, ring.id, scarf.id]));
@@ -148,15 +159,15 @@ export const exactChecks: SearchContractCheck[] = [
   {
     name: "sorts by price in both directions",
     async run(harness) {
-      const { all, laptop, phone, ring, scarf } = exactFixtures();
+      const { tag, all, laptop, phone, ring, scarf } = exactFixtures();
       await harness.index.replaceAll(all);
-      expect(await idsOf(harness, { text: "zephyr", sort: "PRICE_ASC" })).toEqual([
+      expect(await idsOf(harness, { text: tag, sort: "PRICE_ASC" })).toEqual([
         phone.id,
         scarf.id,
         laptop.id,
         ring.id,
       ]);
-      expect(await idsOf(harness, { text: "zephyr", sort: "PRICE_DESC" })).toEqual([
+      expect(await idsOf(harness, { text: tag, sort: "PRICE_DESC" })).toEqual([
         ring.id,
         laptop.id,
         scarf.id,
@@ -167,13 +178,14 @@ export const exactChecks: SearchContractCheck[] = [
   {
     name: "pages through results in a stable order, each id once",
     async run(harness) {
-      const docs = Array.from({ length: 7 }, (_, i) => doc({ title: `Zephyr widget ${i}`, settlementPrice: 1000 + i }));
+      const tag = newTag();
+      const docs = Array.from({ length: 7 }, (_, i) => doc({ title: `${tag} widget ${i}`, settlementPrice: 1000 + i }));
       await harness.index.replaceAll(docs);
       for (const sort of ["RELEVANCE", "PRICE_ASC"] as const) {
-        const whole = await idsOf(harness, { text: "zephyr widget", sort });
+        const whole = await idsOf(harness, { text: `${tag} widget`, sort });
         const pages: string[] = [];
         for (let offset = 0; offset < 9; offset += 3) {
-          const page = await search(harness, { text: "zephyr widget", sort, page: { offset, limit: 3 } });
+          const page = await search(harness, { text: `${tag} widget`, sort, page: { offset, limit: 3 } });
           expect(page.total).toBe(7);
           pages.push(...page.ids);
         }
@@ -185,10 +197,10 @@ export const exactChecks: SearchContractCheck[] = [
   {
     name: "facet counts are exact over every match of the query and its filters",
     async run(harness) {
-      const { all } = exactFixtures();
+      const { tag, all } = exactFixtures();
       await harness.index.replaceAll(all);
       const result = await harness.index.search({
-        text: "zephyr",
+        text: tag,
         page: { offset: 0, limit: 1 },
         facets: ["category"],
       });
@@ -205,10 +217,10 @@ export const exactChecks: SearchContractCheck[] = [
       ]);
       expect(result.facets[0].values).toHaveLength(3);
       expect(result.facets[0].values[0]).toEqual({ value: "electronics", count: 2 });
-      const filtered = await harness.index.search({ text: "zephyr", filters: { inStock: true }, facets: ["category"] });
+      const filtered = await harness.index.search({ text: tag, filters: { inStock: true }, facets: ["category"] });
       const electronics = filtered.facets[0].values.find((v) => v.value === "electronics");
       expect(electronics?.count).toBe(1);
-      expect((await harness.index.search({ text: "zephyr" })).facets).toEqual([]);
+      expect((await harness.index.search({ text: tag })).facets).toEqual([]);
     },
   },
   {
@@ -225,10 +237,10 @@ export const exactChecks: SearchContractCheck[] = [
   {
     name: "every word of the query must match",
     async run(harness) {
-      const { all, ring } = exactFixtures();
+      const { tag, all, ring } = exactFixtures();
       await harness.index.replaceAll(all);
-      expect(await idsOf(harness, { text: "zephyr silver ring" })).toEqual([ring.id]);
-      expect(await idsOf(harness, { text: "zephyr golden ring" })).toEqual([]);
+      expect(await idsOf(harness, { text: `${tag} silver ring` })).toEqual([ring.id]);
+      expect(await idsOf(harness, { text: `${tag} golden ring` })).toEqual([]);
     },
   },
 ];
@@ -306,8 +318,18 @@ export const relevanceChecks: SearchContractCheck[] = [
 
 export const searchContractChecks = [...exactChecks, ...relevanceChecks];
 
+export interface SearchContractOptions {
+  // Per check, in ms. A hosted engine needs more: every write waits until it
+  // is searchable, which on Algolia's free plan takes seconds per task.
+  timeout?: number;
+}
+
 // Registers every check as a test against the index the factory builds.
-export const describeSearchIndexContract = (name: string, createHarness: () => Promise<SearchContractHarness>) => {
+export const describeSearchIndexContract = (
+  name: string,
+  createHarness: () => Promise<SearchContractHarness>,
+  { timeout }: SearchContractOptions = {},
+) => {
   describe(`SearchIndex contract: ${name}`, () => {
     let harness: SearchContractHarness;
     beforeAll(async () => {
@@ -317,10 +339,10 @@ export const describeSearchIndexContract = (name: string, createHarness: () => P
       await harness?.cleanup();
     });
     describe("exact rules", () => {
-      for (const check of exactChecks) it(check.name, () => check.run(harness));
+      for (const check of exactChecks) it(check.name, () => check.run(harness), timeout);
     });
     describe("relevance", () => {
-      for (const check of relevanceChecks) it(check.name, () => check.run(harness), 30_000);
+      for (const check of relevanceChecks) it(check.name, () => check.run(harness), timeout ?? 30_000);
     });
   });
 };

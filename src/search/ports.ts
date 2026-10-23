@@ -66,8 +66,11 @@ export interface SearchResult {
 export interface SearchIndex {
   // Short, stable name, the value of SEARCH_ENGINE: "memory", "algolia"...
   readonly key: string;
-  // Every write resolves once the change is searchable, so a search right
-  // after it sees it, even on engines that index asynchronously.
+  // Every write resolves once the change is indexed, even on engines that
+  // index asynchronously: a new query sees it. A query identical to one made
+  // before the write may still get the old answer for a short while, from
+  // the engine's own query cache (Algolia keeps one for about a minute), so
+  // callers treat results as a little behind the catalog.
   // Adds or replaces documents by id; repeating a call changes nothing.
   upsert(docs: readonly SearchDoc[]): Promise<void>;
   // Ids the index doesn't have are ignored.

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   assertSearchEngineConfig,
+  configureSearchEngine,
   getSearchIndex,
   SearchEngineNotConfiguredError,
   UnknownSearchEngineError,
@@ -32,6 +33,22 @@ describe("search engine selection (SEARCH_ENGINE)", () => {
     delete process.env.SEARCH_ENGINE;
     expect(() => assertSearchEngineConfig()).not.toThrow();
     expect(() => getSearchIndex()).toThrow(SearchEngineNotConfiguredError);
+  });
+
+  it("stops the server from starting when an engine misses its settings", () => {
+    process.env.SEARCH_ENGINE = "algolia";
+    const appId = process.env.ALGOLIA_APP_ID;
+    delete process.env.ALGOLIA_APP_ID;
+    try {
+      expect(() => assertSearchEngineConfig()).toThrow(/SEARCH_ENGINE=algolia needs ALGOLIA_APP_ID/);
+    } finally {
+      if (appId !== undefined) process.env.ALGOLIA_APP_ID = appId;
+    }
+  });
+
+  it("has nothing to configure for the in-memory index", async () => {
+    process.env.SEARCH_ENGINE = "memory";
+    await expect(configureSearchEngine()).resolves.toEqual([]);
   });
 
   it("stops the app from starting with an unknown engine", async () => {
