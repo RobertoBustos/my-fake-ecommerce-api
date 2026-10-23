@@ -2,20 +2,23 @@ import env from "../config/env.js";
 import {
   deleteCatalogEntries,
   getCatalogSyncState,
+  getSearchPriceState,
   listAllCatalogEntries,
+  listCatalogEntriesByCurrency,
   listCatalogEntryIds,
   saveCatalogSyncState,
+  saveSearchPriceState,
   upsertCatalogEntries,
   type CatalogEntry,
 } from "../db/catalogIndex.js";
-import { getPricingSettings } from "../pricing/settings.js";
+import { getPricingSettings, type PricingSettings } from "../pricing/settings.js";
 import { getConfiguredSearchIndex } from "../search/registry.js";
 import type { SearchIndex } from "../search/ports.js";
 import { logger } from "../utils/logger.js";
 import type { CatalogSource, ChangedProducts, SourceProduct } from "./ports.js";
 import { toGlobalProductId } from "./productId.js";
 import { listEnabledSources } from "./registry.js";
-import { createSearchFeed, type SearchFeed } from "./searchFeed.js";
+import { createSearchFeed, createSearchPricer, detectPriceChanges, type SearchFeed } from "./searchFeed.js";
 
 // Keeps the catalog index (db/catalogIndex.ts) in step with every switched-on
 // source:
@@ -29,7 +32,10 @@ import { createSearchFeed, type SearchFeed } from "./searchFeed.js";
 //
 // The search index (catalog/searchFeed.ts) is fed in the same pass, after
 // the catalog index: every pulled page, and after a reconciliation the whole
-// catalog index at once.
+// catalog index at once. Each run also reprices it when the settlement
+// currency or an exchange rate changed since it was last priced
+// (searchIndex/prices): everything for a new settlement currency, only the
+// products of that currency for a rate.
 
 const PAGE_SIZE = 100;
 const DEFAULT_RECONCILE_HOURS = 24;
@@ -158,6 +164,26 @@ export const reconcileCatalogSource = async (
 // searching, like when reading the catalog index.
 export const reconcileSearchIndex = async (search: SearchFeed) => search.replaceAll(await listAllCatalogEntries());
 
+// After the sources: the whole search index again after a reconciliation or
+// a new settlement currency, otherwise only the products of currencies whose
+// rate changed. The prices are recorded only when every search write of the
+// run succeeded, so a failure is detected and retried by the next run.
+const finishSearchIndex = async (search: SearchFeed, reconciled: boolean) => {
+  const state = await getSearchPriceState();
+  const changes = await detectPriceChanges(search.pricer, state);
+  if (reconciled || changes === "all") {
+    await reconcileSearchIndex(search);
+  } else {
+    for (const currency of changes) await search.reprice(currency, await listCatalogEntriesByCurrency(currency));
+  }
+  if (search.failed.length > 0) return;
+  const kept = changes === "all" ? {} : (state?.rates ?? {});
+  await saveSearchPriceState({
+    settlementCurrency: search.pricer.settlementCurrency,
+    rates: { ...kept, ...Object.fromEntries(search.pricer.used) },
+  });
+};
+
 export interface CatalogSyncOptions {
   now?: Date;
   // Reconcile every source in this run, whenever it was last reconciled.
@@ -167,6 +193,8 @@ export interface CatalogSyncOptions {
   // The search index to feed: the one SEARCH_ENGINE names by default, none
   // while it is unset.
   searchIndex?: SearchIndex | null;
+  // settings/pricing by default.
+  pricing?: PricingSettings;
 }
 
 // One run of the catalog sync job. A source that fails is logged and the
@@ -178,6 +206,7 @@ export const syncCatalog = async ({
   reconcile = false,
   sourceKeys,
   searchIndex = getConfiguredSearchIndex(),
+  pricing,
 }: CatalogSyncOptions = {}) => {
   const sources = listEnabledSources();
   const unknown = (sourceKeys ?? []).filter((key) => !sources.some((source) => source.key === key));
@@ -186,7 +215,7 @@ export const syncCatalog = async ({
   }
   const selected = sourceKeys ? sources.filter((source) => sourceKeys.includes(source.key)) : sources;
   const search = searchIndex
-    ? createSearchFeed(searchIndex, (await getPricingSettings()).settlementCurrency)
+    ? createSearchFeed(searchIndex, createSearchPricer(pricing ?? (await getPricingSettings())))
     : null;
 
   const synced: SourceSyncResult[] = [];
@@ -207,6 +236,6 @@ export const syncCatalog = async ({
       failed.push({ sourceKey: source.key, error });
     }
   }
-  if (search && synced.some((result) => result.mode === "reconcile")) await reconcileSearchIndex(search);
+  if (search) await finishSearchIndex(search, synced.some((result) => result.mode === "reconcile"));
   return { synced, failed, searchFailed: search?.failed ?? [] };
 };

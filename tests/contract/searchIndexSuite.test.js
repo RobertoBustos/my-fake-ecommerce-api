@@ -80,6 +80,15 @@ const brokenIndexes = [
     }),
   },
   {
+    rule: "a document without a settlement price",
+    // Treats a missing price as 0: it passes price filters and sorts first.
+    breakIt: (index) => ({
+      ...index,
+      upsert: (docs) => index.upsert(docs.map((doc) => ({ ...doc, settlementPrice: doc.settlementPrice ?? 0 }))),
+      replaceAll: (docs) => index.replaceAll(docs.map((doc) => ({ ...doc, settlementPrice: doc.settlementPrice ?? 0 }))),
+    }),
+  },
+  {
     rule: "an empty text matches",
     breakIt: (index) => ({
       ...index,

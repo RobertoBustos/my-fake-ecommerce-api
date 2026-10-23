@@ -11,8 +11,11 @@ export interface SearchDoc {
   title: string;
   description: string;
   category: string;
-  // Cents in the settlement currency of the day it was indexed.
-  settlementPrice: number;
+  // Cents in the settlement currency of the day it was indexed; null when
+  // there was no usable exchange rate for the product's currency. Without a
+  // price it is still found by text, but never by a price filter, and it
+  // comes last when sorting by price.
+  settlementPrice: number | null;
   inStock: boolean;
 }
 
@@ -22,7 +25,8 @@ export type SearchFacetName = "category";
 
 export interface SearchFilters {
   category?: string;
-  // Cents in the settlement currency, both inclusive.
+  // Cents in the settlement currency, both inclusive. Documents without a
+  // settlement price never match.
   minPrice?: number;
   maxPrice?: number;
   inStock?: boolean;
