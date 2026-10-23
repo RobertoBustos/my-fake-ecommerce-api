@@ -9,7 +9,16 @@ import {
 } from "../src/catalog/catalogSync.js";
 import { toGlobalProductId } from "../src/catalog/productId.js";
 import { firestoreCatalogSource } from "../src/catalog/sources/firestore/adapter.js";
-import { getCatalogEntry, getCatalogSyncState, listCatalogEntryIds } from "../src/db/catalogIndex.js";
+import { createSearchFeed } from "../src/catalog/searchFeed.js";
+import {
+  getCatalogEntry,
+  getCatalogSyncState,
+  listAllCatalogEntries,
+  listCatalogEntryIds,
+} from "../src/db/catalogIndex.js";
+import { createMemorySearchIndex } from "../src/search/adapters/memory.js";
+import { SearchUnavailableError } from "../src/search/ports.js";
+import { getConfiguredSearchIndex } from "../src/search/registry.js";
 import { logger } from "../src/utils/logger.js";
 import { createMemorySource, seedMemorySource } from "./contract/memorySource.js";
 
@@ -246,5 +255,128 @@ describe("catalog sync job over the registry (ECOMAPI-77)", () => {
     expect(synced).toEqual([]);
     expect(failed).toEqual([{ sourceKey: "fs", error: "source is down" }]);
     expect(error).toHaveBeenCalledWith("Catalog sync failed", { sourceKey: "fs", error: "source is down" });
+  });
+});
+
+describe("catalog sync: search index (ECOMAPI-93)", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const everything = (index, sourceKeys) =>
+    index.search({ text: "", filters: sourceKeys ? { sourceKeys } : {}, page: { offset: 0, limit: 1000 } });
+
+  it("writes each pulled page to the search index after the catalog index", async () => {
+    const source = newSource();
+    seedMemorySource(source, [
+      { localId: "a", category: "jewelery", available: 4 },
+      { localId: "b", category: "electronics", available: 0 },
+    ]);
+    const index = createMemorySearchIndex();
+    await pullCatalogSource(source, { search: createSearchFeed(index, "MXN") });
+
+    const id = toGlobalProductId(source.key, "a");
+    expect(new Set((await everything(index, [source.key])).ids)).toEqual(
+      new Set([id, toGlobalProductId(source.key, "b")])
+    );
+    const result = await index.search({ text: "product a", filters: { sourceKeys: [source.key] } });
+    expect(result.ids).toEqual([id]);
+    expect((await index.search({ text: "", filters: { sourceKeys: [source.key], inStock: false } })).ids).toEqual([
+      toGlobalProductId(source.key, "b"),
+    ]);
+    expect((await index.search({ text: "", filters: { sourceKeys: [source.key], minPrice: 1500, maxPrice: 1500 } })).total).toBe(2);
+  });
+
+  it("removes deleted products from the search index", async () => {
+    const source = newSource();
+    seedMemorySource(source, [{ localId: "a", category: "electronics", available: 1 }]);
+    const index = createMemorySearchIndex();
+    const search = createSearchFeed(index, "MXN");
+    await pullCatalogSource(source, { search });
+    await applyCatalogChanges(source.key, { items: [], deletedIds: ["a"] }, new Date(), search);
+    expect((await everything(index, [source.key])).ids).toEqual([]);
+  });
+
+  it("leaves out a product whose price isn't in the settlement currency, and drops it when its currency changes", async () => {
+    const source = newSource();
+    seedMemorySource(source, [{ localId: "a", category: "electronics", available: 1 }]);
+    const index = createMemorySearchIndex();
+    await pullCatalogSource(source, { search: createSearchFeed(index, "MXN") });
+    expect((await everything(index, [source.key])).total).toBe(1);
+
+    const [item] = (await source.listChanged(null, { limit: 10 })).items;
+    await applyCatalogChanges(source.key, { items: [item], deletedIds: [] }, new Date(), createSearchFeed(index, "USD"));
+    expect((await everything(index, [source.key])).total).toBe(0);
+    expect(await entryOf(source, "a")).not.toBeNull();
+  });
+
+  it("makes the search index a copy of the whole catalog index after a reconciliation", async () => {
+    delete process.env.CATALOG_SOURCES;
+    const index = createMemorySearchIndex();
+    // A document the catalog index doesn't have, as left by a failed delete.
+    await index.upsert([
+      { id: "stale", sourceKey: "fs", title: "Stale", description: "", category: "electronics", settlementPrice: 1, inStock: true },
+    ]);
+    const { synced, searchFailed } = await syncCatalog({ reconcile: true, searchIndex: index });
+    expect(synced[0]).toMatchObject({ sourceKey: "fs", mode: "reconcile" });
+    expect(searchFailed).toEqual([]);
+
+    const catalog = (await listAllCatalogEntries()).filter((entry) => entry.currency === "MXN");
+    const searched = await everything(index);
+    expect(searched.total).toBe(catalog.length);
+    expect(new Set(searched.ids)).toEqual(new Set(catalog.map((entry) => entry.id)));
+  });
+
+  it("only pulls into the search index when no source is due for reconciliation", async () => {
+    delete process.env.CATALOG_SOURCES;
+    await syncCatalog({ reconcile: true, searchIndex: null });
+    const index = createMemorySearchIndex();
+    const replaceAll = vi.spyOn(index, "replaceAll");
+    const { synced } = await syncCatalog({ searchIndex: index });
+    expect(synced[0]).toMatchObject({ mode: "pull" });
+    expect(replaceAll).not.toHaveBeenCalled();
+  });
+
+  it("keeps syncing the catalog when the search engine is down, and logs a warning", async () => {
+    const source = newSource();
+    seedMemorySource(source, [{ localId: "a", category: "electronics", available: 1, updatedAt: at("01T10:00:00") }]);
+    const down = new SearchUnavailableError("memory", new Error("engine is down"));
+    const index = { ...createMemorySearchIndex(), upsert: async () => Promise.reject(down) };
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    const search = createSearchFeed(index, "MXN");
+
+    const result = await pullCatalogSource(source, { search });
+    expect(result.upserted).toBe(1);
+    expect(await entryOf(source, "a")).not.toBeNull();
+    expect((await getCatalogSyncState(source.key)).since).toEqual(at("01T10:00:00"));
+    expect(search.failed).toEqual([source.key]);
+    expect(warn).toHaveBeenCalledWith("Search index sync failed", {
+      sourceKey: source.key,
+      engine: "memory",
+      error: "Search engine memory is unavailable",
+      cause: "engine is down",
+    });
+  });
+
+  it("reports a failed reconciliation of the search index without failing the run", async () => {
+    delete process.env.CATALOG_SOURCES;
+    const index = { ...createMemorySearchIndex(), replaceAll: async () => Promise.reject(new Error("engine is down")) };
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    const { failed, searchFailed } = await syncCatalog({ reconcile: true, searchIndex: index });
+    expect(failed).toEqual([]);
+    expect(searchFailed).toEqual(["reconcile"]);
+    expect(warn).toHaveBeenCalledWith("Search index sync failed", expect.objectContaining({ mode: "reconcile" }));
+  });
+
+  it("doesn't touch a search index while SEARCH_ENGINE is unset", async () => {
+    const original = process.env.SEARCH_ENGINE;
+    delete process.env.SEARCH_ENGINE;
+    try {
+      expect(getConfiguredSearchIndex()).toBeNull();
+      delete process.env.CATALOG_SOURCES;
+      const { failed, searchFailed } = await syncCatalog({ reconcile: true });
+      expect(failed).toEqual([]);
+      expect(searchFailed).toEqual([]);
+    } finally {
+      if (original !== undefined) process.env.SEARCH_ENGINE = original;
+    }
   });
 });

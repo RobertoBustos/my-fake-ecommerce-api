@@ -129,6 +129,21 @@ export const listCatalogEntryIds = async (sourceKey: string): Promise<string[]> 
   }
 };
 
+// Every entry of the index, of every source (switched off or not), read in
+// pages: what a reconciliation copies into the search index.
+export const listAllCatalogEntries = async (): Promise<CatalogEntry[]> => {
+  const entries: CatalogEntry[] = [];
+  let after: string | undefined;
+  for (;;) {
+    let query = db.collection(COLLECTION).orderBy(FieldPath.documentId()).limit(ID_PAGE_SIZE);
+    if (after) query = query.startAfter(after);
+    const snapshot = await query.get();
+    entries.push(...snapshot.docs.map(toEntry));
+    if (snapshot.size < ID_PAGE_SIZE) return entries;
+    after = snapshot.docs[snapshot.size - 1].id;
+  }
+};
+
 export const getCatalogSyncState = async (sourceKey: string): Promise<CatalogSyncState | null> => {
   const doc = await db.collection(SYNC_COLLECTION).doc(sourceKey).get();
   if (!doc.exists) return null;

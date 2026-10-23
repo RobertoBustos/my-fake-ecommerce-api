@@ -255,6 +255,25 @@ products. Their price and stock are as of the last sync; `addToCart` and
 `retryable` while it can't be reached. Products of sources outside
 `CATALOG_SOURCES` aren't listed. `npm run seed` indexes what it writes.
 
+### Feeding the search index
+
+The same job feeds the search index when `SEARCH_ENGINE` names one
+(`src/catalog/searchFeed.ts`). Unset, it skips it.
+
+- **Pull:** each page goes to the catalog index first, then to the search
+  index as one `upsert` and one `delete`.
+- **Reconciliation:** after a run that reconciled any source, the search index
+  is replaced whole with every entry of the catalog index, so it ends as an
+  exact copy. A single source can't replace it, because that would drop the
+  other sources' products. `--reconcile` reindexes the search index too.
+- **Failures:** a search write that fails is logged as a WARNING
+  (`Search index sync failed`, with the `sourceKey`, or `mode: "reconcile"`) and
+  never stops the catalog sync. The next reconciliation repairs it, and the run
+  lists it in `searchFailed`.
+- **What isn't indexed:** a product whose price isn't in the settlement currency
+  yet, because the search index filters and sorts by that one price. Every
+  product is in MXN today.
+
 ## Search index
 
 Product search goes through one port, `SearchIndex` (`src/search/ports.ts`),

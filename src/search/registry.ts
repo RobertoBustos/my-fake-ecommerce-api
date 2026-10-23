@@ -63,6 +63,11 @@ export const getSearchIndex = (): SearchIndex => {
   return index;
 };
 
+// The search index when SEARCH_ENGINE names one, null while it is unset: for
+// code that feeds the index and simply skips it until there is one.
+export const getConfiguredSearchIndex = (): SearchIndex | null =>
+  configuredKey() === undefined ? null : getSearchIndex();
+
 // Applies the index settings of the engine SEARCH_ENGINE names. Returns what
 // it configured, empty for an engine with nothing to set up.
 export const configureSearchEngine = async (): Promise<string[]> => {
