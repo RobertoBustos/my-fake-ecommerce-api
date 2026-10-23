@@ -146,6 +146,22 @@ export const exactChecks: SearchContractCheck[] = [
     },
   },
   {
+    name: "a document without a settlement price is found by text, never by a price filter, and sorts last",
+    async run(harness) {
+      const { tag, all, phone, ring } = exactFixtures();
+      const unpriced = doc({ title: `${tag} brass globe`, settlementPrice: null });
+      await harness.index.replaceAll([...all, unpriced]);
+      expect(await idsOf(harness, { text: `${tag} globe` })).toEqual([unpriced.id]);
+      expect(await idsOf(harness, { text: tag, filters: { minPrice: 0 } })).not.toContain(unpriced.id);
+      expect(await idsOf(harness, { text: tag, filters: { maxPrice: 1_000_000 } })).not.toContain(unpriced.id);
+      const ascending = await idsOf(harness, { text: tag, sort: "PRICE_ASC" });
+      expect(ascending).toHaveLength(5);
+      expect([ascending[0], ascending[4]]).toEqual([phone.id, unpriced.id]);
+      const descending = await idsOf(harness, { text: tag, sort: "PRICE_DESC" });
+      expect([descending[0], descending[4]]).toEqual([ring.id, unpriced.id]);
+    },
+  },
+  {
     name: "an empty text matches every document that passes the filters",
     async run(harness) {
       const { all, laptop, phone } = exactFixtures();

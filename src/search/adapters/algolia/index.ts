@@ -73,7 +73,13 @@ export const toAlgoliaFilters = (filters: SearchFilters = {}): string | null => 
   return parts.join(" AND ");
 };
 
-const toRecord = ({ id, ...fields }: SearchDoc) => ({ objectID: id, ...fields });
+// A document without a settlement price has no settlementPrice attribute,
+// so numeric filters leave it out and the price replicas rank it last.
+const toRecord = ({ id, settlementPrice, ...fields }: SearchDoc) => ({
+  objectID: id,
+  ...fields,
+  ...(settlementPrice === null ? {} : { settlementPrice }),
+});
 
 const BATCH_SIZE = 1000;
 

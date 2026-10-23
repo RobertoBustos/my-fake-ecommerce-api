@@ -152,8 +152,8 @@ const byRelevance = (a: Ranked, b: Ranked) =>
 
 const passesFilters = ({ doc }: IndexedDoc, filters: SearchQuery["filters"] = {}) =>
   (filters.category === undefined || doc.category === filters.category) &&
-  (filters.minPrice === undefined || doc.settlementPrice >= filters.minPrice) &&
-  (filters.maxPrice === undefined || doc.settlementPrice <= filters.maxPrice) &&
+  (filters.minPrice === undefined || (doc.settlementPrice !== null && doc.settlementPrice >= filters.minPrice)) &&
+  (filters.maxPrice === undefined || (doc.settlementPrice !== null && doc.settlementPrice <= filters.maxPrice)) &&
   (filters.inStock === undefined || doc.inStock === filters.inStock) &&
   (filters.sourceKeys === undefined || filters.sourceKeys.includes(doc.sourceKey));
 
@@ -198,7 +198,12 @@ export const createMemorySearchIndex = (): SearchIndex => {
       if (sort !== "RELEVANCE") {
         const direction = sort === "PRICE_ASC" ? 1 : -1;
         // Array.prototype.sort is stable: equal prices keep relevance order.
-        hits.sort((a, b) => direction * (a.entry.doc.settlementPrice - b.entry.doc.settlementPrice));
+        // Documents without a price go last in both directions.
+        hits.sort((a, b) => {
+          const [pa, pb] = [a.entry.doc.settlementPrice, b.entry.doc.settlementPrice];
+          if (pa === null || pb === null) return (pa === null ? 1 : 0) - (pb === null ? 1 : 0);
+          return direction * (pa - pb);
+        });
       }
 
       const facets: Facet[] = (query.facets ?? []).map((name) => {

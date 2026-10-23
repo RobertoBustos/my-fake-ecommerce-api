@@ -270,9 +270,22 @@ The same job feeds the search index when `SEARCH_ENGINE` names one
   (`Search index sync failed`, with the `sourceKey`, or `mode: "reconcile"`) and
   never stops the catalog sync. The next reconciliation repairs it, and the run
   lists it in `searchFailed`.
-- **What isn't indexed:** a product whose price isn't in the settlement currency
-  yet, because the search index filters and sorts by that one price. Every
-  product is in MXN today.
+- **Prices:** the search index filters and sorts by one price, `settlementPrice`,
+  in the settlement currency of `settings/pricing`.
+  - A product in another currency is converted with `convertPrice`, at the rate a
+    sale would use (missing, or older than `maxRateAgeHours`, means none).
+  - A product without a usable rate is still indexed, without a price: text
+    finds it, price filters never match it, and it sorts last.
+  - What is shown and charged still comes from the catalog index and the source.
+- **Repricing:** `searchIndex/prices` records the settlement currency and rates
+  the search index was priced with. Every run compares them with the current ones.
+  - A new settlement currency reprices everything (`replaceAll`).
+  - A rate that moved, or stopped or started being usable, reprices only the
+    products in that currency (`upsert`).
+  - The record is saved only when every search write of the run succeeded, so a
+    failed reprice is tried again by the next run.
+  - A rate refreshed by `rates:refresh` reaches the search index with the next
+    sync, within 15 minutes.
 
 ## Search index
 

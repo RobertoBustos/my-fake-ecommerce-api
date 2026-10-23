@@ -10,9 +10,13 @@ import { paginateQuery } from "./pagination.js";
 // payment still ask the product's source.
 //
 // catalogSync/{sourceKey}: where the sync of each source left off.
+//
+// searchIndex/prices: the settlement currency and exchange rates the search
+// index's prices were computed with, so the sync can tell when to reprice.
 
 const COLLECTION = "catalog";
 const SYNC_COLLECTION = "catalogSync";
+const SEARCH_STATE_DOC = { collection: "searchIndex", id: "prices" };
 // Firestore allows 500 writes per batch.
 const BATCH_SIZE = 500;
 const ID_PAGE_SIZE = 500;
@@ -143,6 +147,39 @@ export const listAllCatalogEntries = async (): Promise<CatalogEntry[]> => {
     after = snapshot.docs[snapshot.size - 1].id;
   }
 };
+
+// Every entry of the index priced in a currency, read in pages.
+export const listCatalogEntriesByCurrency = async (currency: string): Promise<CatalogEntry[]> => {
+  const entries: CatalogEntry[] = [];
+  let after: string | undefined;
+  for (;;) {
+    let query = db
+      .collection(COLLECTION)
+      .where("currency", "==", currency)
+      .orderBy(FieldPath.documentId())
+      .limit(ID_PAGE_SIZE);
+    if (after) query = query.startAfter(after);
+    const snapshot = await query.get();
+    entries.push(...snapshot.docs.map(toEntry));
+    if (snapshot.size < ID_PAGE_SIZE) return entries;
+    after = snapshot.docs[snapshot.size - 1].id;
+  }
+};
+
+export interface SearchPriceState {
+  settlementCurrency: string;
+  // Rate to the settlement currency of each other currency the search index
+  // has prices in; null when there was no usable rate.
+  rates: Record<string, number | null>;
+}
+
+export const getSearchPriceState = async (): Promise<SearchPriceState | null> => {
+  const doc = await db.collection(SEARCH_STATE_DOC.collection).doc(SEARCH_STATE_DOC.id).get();
+  return doc.exists ? (doc.data() as SearchPriceState) : null;
+};
+
+export const saveSearchPriceState = (state: SearchPriceState) =>
+  db.collection(SEARCH_STATE_DOC.collection).doc(SEARCH_STATE_DOC.id).set(state);
 
 export const getCatalogSyncState = async (sourceKey: string): Promise<CatalogSyncState | null> => {
   const doc = await db.collection(SYNC_COLLECTION).doc(sourceKey).get();
