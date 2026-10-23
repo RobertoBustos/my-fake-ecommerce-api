@@ -10,6 +10,7 @@ import { validationRules } from "./schema/depthLimit.js";
 import { errorLoggingPlugin } from "./schema/errorLogging.js";
 import { formatError } from "./schema/formatError.js";
 import resolvers from "./schema/resolvers.js";
+import { assertSearchEngineConfig } from "./search/registry.js";
 import typeDefs from "./schema/typeDefs/index.js";
 import { logger } from "./utils/logger.js";
 import { SHUTDOWN_GRACE_PERIOD_MS } from "./shutdown.js";
@@ -18,6 +19,8 @@ import { handleStripeWebhook } from "./webhooks/stripeWebhook.js";
 // Separated from index.ts so tests can build the app without binding a real
 // port (supertest hits the `app` object directly).
 export const createApp = async () => {
+  assertSearchEngineConfig();
+
   const app = express();
   const httpServer = http.createServer(app);
 
