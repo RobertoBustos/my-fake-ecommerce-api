@@ -218,11 +218,11 @@ describe("searchProducts query (ECOMAPI-95)", () => {
     }
   });
 
-  it("answers CONFLICT with retryable while the search engine is down", async () => {
+  it("answers SERVICE_UNAVAILABLE with retryable while the search engine is down", async () => {
     vi.spyOn(logger, "warn").mockImplementation(() => {});
     vi.spyOn(getSearchIndex(), "search").mockRejectedValue(new SearchUnavailableError("memory", new Error("timeout")));
     const result = await run(SEARCH, { query: "quokka" });
-    expect(errorOf(result)).toEqual({ code: "CONFLICT", retryable: true });
+    expect(errorOf(result)).toEqual({ code: "SERVICE_UNAVAILABLE", retryable: true });
     expect(logger.warn).toHaveBeenCalledWith(
       "Search engine call failed",
       expect.objectContaining({ engine: "memory", cause: "timeout" })

@@ -14,9 +14,11 @@ export const Query: QueryResolvers = {
   products: (_, { id, category, first, after }) =>
     listCatalogProducts({ id, category }, { first, after }),
   // The search index finds the products, the catalog index shows them.
-  searchProducts: (_, args) => {
+  searchProducts: (_, args, context) => {
     assertValidInput(checkSearchProducts, args);
-    return searchCatalogProducts({ ...args, first: args.first ?? SEARCH_DEFAULT_PAGE_SIZE });
+    return searchCatalogProducts({ ...args, first: args.first ?? SEARCH_DEFAULT_PAGE_SIZE }, (query) =>
+      context.loaders.searches.load(query)
+    );
   },
   carts: (_, { cartId, productId, first, after }, context) =>
     listCartItemsWithoutOrder({ cartId, productId, userId: context.user.uid }, { first, after }),
