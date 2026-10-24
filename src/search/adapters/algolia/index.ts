@@ -1,6 +1,7 @@
 import { algoliasearch, type Algoliasearch } from "algoliasearch";
 import env from "../../../config/env.js";
 import { SearchUnavailableError, type Facet, type SearchDoc, type SearchFilters, type SearchIndex } from "../../ports.js";
+import { searchTimeoutMs } from "../../timeout.js";
 import { indexSettings, replicaNames } from "./settings.js";
 
 // The SearchIndex port on Algolia (SEARCH_ENGINE=algolia). Records are the
@@ -84,7 +85,12 @@ const toRecord = ({ id, settlementPrice, ...fields }: SearchDoc) => ({
 const BATCH_SIZE = 1000;
 
 export const createAlgoliaSearchIndex = (config: AlgoliaConfig = algoliaConfigFromEnv()): SearchIndex => {
-  const searcher: Algoliasearch = algoliasearch(config.appId, (config.searchKey ?? config.indexerKey)!);
+  // Each host gets at most the search deadline (timeout.ts, which bounds
+  // the whole search), so a slow host isn't waited on long in the background.
+  const deadline = searchTimeoutMs();
+  const searcher: Algoliasearch = algoliasearch(config.appId, (config.searchKey ?? config.indexerKey)!, {
+    timeouts: { connect: Math.min(1000, deadline), read: deadline, write: 30_000 },
+  });
   let writer: Algoliasearch | undefined;
   const write = () => (writer ??= indexerClient(config));
   const replicas = replicaNames(config.indexName);

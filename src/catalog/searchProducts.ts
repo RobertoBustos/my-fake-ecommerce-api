@@ -1,6 +1,12 @@
 import { GraphQLError } from "graphql";
 import { getSearchIndex } from "../search/registry.js";
-import { SearchUnavailableError, type Facet, type SearchSort } from "../search/ports.js";
+import {
+  SearchUnavailableError,
+  type Facet,
+  type SearchQuery,
+  type SearchResult,
+  type SearchSort,
+} from "../search/ports.js";
 import type { Product } from "../types/models.js";
 import { logger } from "../utils/logger.js";
 import { cursorNotInList, decodeCursor, encodeCursor } from "../utils/pagination.js";
@@ -48,9 +54,11 @@ const fromCursor = (after: string) => {
   return Number(match[1]);
 };
 
+// The engine is down, failed or took longer than SEARCH_TIMEOUT_MS
+// (search/timeout.ts): the client can retry, and nothing else is affected.
 const unavailable = () =>
-  new GraphQLError("Search can't be reached right now, please try again", {
-    extensions: { code: "CONFLICT", retryable: true },
+  new GraphQLError("Search is unavailable right now, please try again", {
+    extensions: { code: "SERVICE_UNAVAILABLE", retryable: true },
   });
 
 const empty: ProductSearchConnection = {
@@ -60,16 +68,20 @@ const empty: ProductSearchConnection = {
   facets: [{ name: "category", values: [] }],
 };
 
-export const searchCatalogProducts = async (search: ProductSearch): Promise<ProductSearchConnection> => {
+// run is how a query reaches the engine: the request's search loader, so
+// identical searches of one request are made once.
+export const searchCatalogProducts = async (
+  search: ProductSearch,
+  run: (query: SearchQuery) => Promise<SearchResult> = (query) => getSearchIndex().search(query)
+): Promise<ProductSearchConnection> => {
   const offset = search.after == null ? 0 : fromCursor(search.after);
   const sourceKeys = listEnabledSources().map((source) => source.key);
   if (sourceKeys.length === 0) return empty;
 
-  const index = getSearchIndex();
   const limit = Math.max(0, Math.min(search.first, MAX_SEARCH_POSITION - offset));
   let result;
   try {
-    result = await index.search({
+    result = await run({
       text: search.query.trim(),
       filters: {
         sourceKeys,
@@ -86,6 +98,8 @@ export const searchCatalogProducts = async (search: ProductSearch): Promise<Prod
     });
   } catch (err) {
     if (!(err instanceof SearchUnavailableError)) throw err;
+    // Never the query itself: what people search for stays out of the logs.
+    // The logger adds the request id.
     const cause = err.cause instanceof Error ? err.cause.message : undefined;
     logger.warn("Search engine call failed", { engine: err.engineKey, error: err.message, cause });
     throw unavailable();

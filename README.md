@@ -348,8 +348,15 @@ query {
 - Only products of switched-on sources are found. The search index can be a
   few minutes behind the catalog: a product the catalog index no longer has
   is left out of its page, and `totalCount` may still count it.
-- Out-of-range arguments answer `BAD_USER_INPUT` with `invalidArgument`. While
-  the engine can't be reached, the query answers `CONFLICT` with `retryable`.
+- Out-of-range arguments answer `BAD_USER_INPUT` with `invalidArgument`.
+- **Engine failures:** every search has a deadline of `SEARCH_TIMEOUT_MS` (2000
+  by default, `src/search/timeout.ts`), whatever the engine. An engine that is
+  down, fails or is slower than that answers `SERVICE_UNAVAILABLE` with
+  `retryable`. It is logged as a WARNING (`Search engine call failed`, with the
+  request id, the engine and the cause, never the query text). The rest of the
+  API keeps working.
+- Identical searches made in one request (two aliases of the same
+  `searchProducts`) reach the engine once, through a per-request DataLoader.
 
 ### Index settings
 
