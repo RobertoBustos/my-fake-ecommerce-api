@@ -6,6 +6,59 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-24
+
+Product search: a `searchProducts` query with typo tolerance, prefix matching,
+filters, price sorting and facets, answered by a search engine (Algolia) fed
+from the catalog index by the catalog sync job. **Client-visible changes:**
+only additions. `products` and every other query and mutation behave as in
+v1.5.0.
+
+### Added
+
+- `searchProducts(query, category, minPrice, maxPrice, inStock, sort, first,
+  after)`, returning a `ProductSearchConnection` with `edges`, `pageInfo`,
+  `totalCount` and `facets` (category values with their counts over every
+  match).
+  - Words match with typo tolerance (1 typo from 4 letters, 2 from 8), the last
+    word as a prefix, and a `"quoted phrase"` exactly.
+  - `ProductSort`: `RELEVANCE` (default), `PRICE_ASC` and `PRICE_DESC`, by the
+    price in the settlement currency; products without one come last.
+  - Price filters are cents of the settlement currency, inclusive.
+  - Only products of enabled sources are found, and nodes are the same
+    `Product` that `products` returns.
+  - `BAD_USER_INPUT` with `invalidArgument` for a query outside 2 to 100
+    characters, `first` outside 1 to 50, `minPrice` above `maxPrice` or a
+    cursor that isn't from a search.
+  - `SERVICE_UNAVAILABLE` with `retryable: true` when the engine fails or takes
+    longer than `SEARCH_TIMEOUT_MS` (2000 ms by default). The rest of the API
+    keeps working, and the log (`Search engine call failed`) never holds the
+    search text.
+- `SearchIndex` port (`src/search/`) with an in-memory adapter for tests and
+  an Algolia adapter, picked with `SEARCH_ENGINE`. The index settings live in
+  the adapter, and `npm run search:configure` applies them.
+- The catalog sync job feeds the search index: each pull page goes to the
+  catalog index first and then to the engine, and a reconciliation replaces
+  the search index with the whole catalog index. A failed search write never
+  stops the catalog sync (`Search index sync failed`).
+- Prices in the search index are converted to the settlement currency, and the
+  sync job reprices them when a rate or the settlement currency changes.
+- A contract suite every search adapter has to pass, with exact rules and
+  relevance thresholds; `npm run test:search:algolia` runs it against a real
+  Algolia index.
+- `e2e/search.e2e.test.ts`: typos, prefix, facets, price sorting, paging and
+  validation against the deployed API.
+
+### Security
+
+- `body-parser` 2.4.0 for GHSA-27r3-jxmh-p828.
+
+### Fixed
+
+- The reservation tests that race two transactions no longer time out now and
+  then under the full emulator suite (the emulator resolves a lock conflict
+  with a ~2 s lock timeout).
+
 ## [1.5.0] - 2026-10-21
 
 An end-to-end suite that checks the deployed API the way the app uses it, with
@@ -383,6 +436,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.6.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.2.0...v1.3.0

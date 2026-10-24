@@ -30,6 +30,18 @@ const databaseClientImports = {
   ],
 };
 
+// Search engines: only an adapter under src/search/adapters/ may use an
+// engine's SDK. The rest of the API searches through the SearchIndex port, so
+// changing engines is writing another adapter.
+const searchEngineImports = {
+  patterns: [
+    {
+      regex: "^(algoliasearch|@algolia/|typesense|meilisearch|@elastic/|@opensearch-project/)",
+      message: "Only a search adapter in src/search/adapters/ may use a search engine SDK; go through SearchIndex.",
+    },
+  ],
+};
+
 export default tseslint.config(
   { ignores: ["dist/", "coverage/", "src/generated/"] },
   js.configs.recommended,
@@ -55,18 +67,34 @@ export default tseslint.config(
       },
     },
   },
+  // A file matched by several of these blocks gets only the last block's
+  // no-restricted-imports, so the later blocks repeat the search engine
+  // patterns instead of losing them.
+  {
+    files: ["src/**/*.ts", "scripts/**/*.ts"],
+    ignores: ["src/search/adapters/**"],
+    rules: {
+      "no-restricted-imports": ["error", searchEngineImports],
+    },
+  },
   {
     files: ["src/schema/**/*.ts"],
     ignores: ["src/schema/resolvers/queries.ts", "src/schema/resolvers/fields.ts"],
     rules: {
-      "no-restricted-imports": ["error", dataLayerImports],
+      "no-restricted-imports": [
+        "error",
+        { patterns: [...dataLayerImports.patterns, ...searchEngineImports.patterns] },
+      ],
     },
   },
   {
     files: ["src/catalog/**/*.ts", "src/services/**/*.ts"],
     ignores: ["src/catalog/sources/**"],
     rules: {
-      "no-restricted-imports": ["error", databaseClientImports],
+      "no-restricted-imports": [
+        "error",
+        { patterns: [...databaseClientImports.patterns, ...searchEngineImports.patterns] },
+      ],
     },
   }
 );

@@ -128,8 +128,12 @@ const enabledDisplayNames = () =>
 // The product loader (CartItem.product): from the index, so showing a cart
 // doesn't call every source. A product of a switched-off source is null, as
 // before; one the index doesn't hold yet (added to its source since the
-// last sync) is asked to its source.
-export const getIndexedCatalogProducts = async (ids: readonly string[]): Promise<(Product | null)[]> => {
+// last sync) is asked to its source, unless askSources is false (search
+// results, which leave it out instead of depending on the source).
+export const getIndexedCatalogProducts = async (
+  ids: readonly string[],
+  { askSources = true }: { askSources?: boolean } = {}
+): Promise<(Product | null)[]> => {
   const names = enabledDisplayNames();
   const globalIds = ids.map((id) => canonicalProductId(id));
   const entries = await getCatalogEntries([...new Set(globalIds)]);
@@ -142,11 +146,11 @@ export const getIndexedCatalogProducts = async (ids: readonly string[]): Promise
     return name === undefined ? null : fromEntry(entry, name);
   });
   const missing = globalIds.filter((_, i) => results[i] === undefined);
-  if (missing.length > 0) {
+  if (askSources && missing.length > 0) {
     const live = new Map((await getCatalogProducts(missing)).flatMap((p) => (p ? [[p.id, p] as const] : [])));
     return results.map((result, i) => (result === undefined ? (live.get(globalIds[i]) ?? null) : result));
   }
-  return results as (Product | null)[];
+  return results.map((result) => result ?? null);
 };
 
 // The products query, served from the catalog index: one Firestore query

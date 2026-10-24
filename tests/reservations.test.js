@@ -49,6 +49,18 @@ const stockOf = async (id) => (await db.collection("products").doc(id).get()).ge
 const reservationDoc = async (id) => (await db.collection("reservations").doc(id).get()).data();
 const key = () => `test-key-${randomUUID()}`;
 
+// Tests that race two transactions on the same docs on purpose. The emulator
+// doesn't resolve that lock conflict right away like Firestore does: both
+// transactions wait for its ~2 s lock timeout, are aborted, and the SDK
+// retries after a 0.5-1.5 s backoff. One collision costs ~3.5 s and a second
+// one (they can collide again on the retry) goes past vitest's 5 s, so these
+// tests get room for three.
+const RACE_TIMEOUT_MS = 15_000;
+// More reserves than units, few enough to keep the emulator's lock timeouts
+// short; stockTransaction.test.js covers 20 simultaneous purchases.
+const CONCURRENT_RESERVES = 8;
+const RACED_STOCK = 5;
+
 afterAll(async () => {
   await Promise.all(productIds.map((id) => db.collection("products").doc(id).delete()));
 });
@@ -69,7 +81,7 @@ describe("Firestore reservations (ECOMAPI-74)", () => {
     expect(third).toEqual(first);
     expect(await stockOf(id)).toBe(7);
     expect(await reservationDoc(k)).toMatchObject({ status: "HELD", quantity: 3, localId: id, sourceKey: "fs" });
-  });
+  }, RACE_TIMEOUT_MS);
 
   it("expires after the source's configured minutes", async () => {
     process.env.RESERVATION_TTL_MINUTES_FS = "5";
@@ -91,7 +103,7 @@ describe("Firestore reservations (ECOMAPI-74)", () => {
 
     expect(await stockOf(id)).toBe(5);
     expect((await reservationDoc(reservation.reservationId)).status).toBe("RELEASED");
-  });
+  }, RACE_TIMEOUT_MS);
 
   it("a confirmed reservation is sold: a release doesn't put it back", async () => {
     const id = await newProduct(5);
@@ -123,16 +135,16 @@ describe("Firestore reservations (ECOMAPI-74)", () => {
     expect(await stockOf(id)).toBe(6);
   });
 
-  it("20 concurrent reserves of one product never oversell", async () => {
-    const id = await newProduct(10);
+  it("concurrent reserves of one product never oversell", async () => {
+    const id = await newProduct(RACED_STOCK);
     const results = await Promise.allSettled(
-      Array.from({ length: 20 }, () => fs.reserve(id, 1, key()))
+      Array.from({ length: CONCURRENT_RESERVES }, () => fs.reserve(id, 1, key()))
     );
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
 
     expect(succeeded).toBeGreaterThan(0);
-    expect(succeeded).toBeLessThanOrEqual(10);
-    expect(await stockOf(id)).toBe(10 - succeeded);
+    expect(succeeded).toBeLessThanOrEqual(RACED_STOCK);
+    expect(await stockOf(id)).toBe(RACED_STOCK - succeeded);
     for (const r of results.filter((r) => r.status === "rejected")) {
       expect([OutOfStockError, TransactionContentionError]).toContain(r.reason.constructor);
     }

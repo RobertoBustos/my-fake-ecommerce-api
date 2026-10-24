@@ -17,6 +17,22 @@ const rootTypes = /* GraphQL */ `#graphql
       "endCursor of the previous page. An unknown cursor is rejected with BAD_USER_INPUT."
       after: String
     ): ProductConnection!
+    "Full-text search of the catalog: words match with typo tolerance and the last one as a prefix; a phrase in double quotes matches exactly."
+    searchProducts(
+      "From 2 to 100 characters."
+      query: String!
+      category: String
+      "Cents of the settlement currency, inclusive. Products without a price in it never match a price filter."
+      minPrice: Int
+      "Cents of the settlement currency, inclusive. Not below minPrice."
+      maxPrice: Int
+      inStock: Boolean
+      sort: ProductSort = RELEVANCE
+      "Page size, from 1 to 50. Defaults to 20."
+      first: Int
+      "endCursor of the previous page of the same search. An unknown cursor is rejected with BAD_USER_INPUT."
+      after: String
+    ): ProductSearchConnection!
     carts(cartId: String, productId: String,
       "Page size, from 1 to 100. Defaults to 20."
       first: Int

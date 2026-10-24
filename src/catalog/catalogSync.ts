@@ -2,15 +2,23 @@ import env from "../config/env.js";
 import {
   deleteCatalogEntries,
   getCatalogSyncState,
+  getSearchPriceState,
+  listAllCatalogEntries,
+  listCatalogEntriesByCurrency,
   listCatalogEntryIds,
   saveCatalogSyncState,
+  saveSearchPriceState,
   upsertCatalogEntries,
   type CatalogEntry,
 } from "../db/catalogIndex.js";
+import { getPricingSettings, type PricingSettings } from "../pricing/settings.js";
+import { getConfiguredSearchIndex } from "../search/registry.js";
+import type { SearchIndex } from "../search/ports.js";
 import { logger } from "../utils/logger.js";
 import type { CatalogSource, ChangedProducts, SourceProduct } from "./ports.js";
 import { toGlobalProductId } from "./productId.js";
 import { listEnabledSources } from "./registry.js";
+import { createSearchFeed, createSearchPricer, detectPriceChanges, type SearchFeed } from "./searchFeed.js";
 
 // Keeps the catalog index (db/catalogIndex.ts) in step with every switched-on
 // source:
@@ -21,6 +29,13 @@ import { listEnabledSources } from "./registry.js";
 //     every CATALOG_RECONCILE_HOURS (24 by default), or when asked for.
 // A switched-off source is neither pulled nor reconciled; its entries stay
 // in the index, and reading the index skips sources that are off.
+//
+// The search index (catalog/searchFeed.ts) is fed in the same pass, after
+// the catalog index: every pulled page, and after a reconciliation the whole
+// catalog index at once. Each run also reprices it when the settlement
+// currency or an exchange rate changed since it was last priced
+// (searchIndex/prices): everything for a new settlement currency, only the
+// products of that currency for a rate.
 
 const PAGE_SIZE = 100;
 const DEFAULT_RECONCILE_HOURS = 24;
@@ -51,16 +66,21 @@ export const toCatalogEntry = (sourceKey: string, product: SourceProduct, synced
   syncedAt,
 });
 
-// Writes one batch of changes of a source to the index. The pull calls it
-// for every page, and a source that pushes its changes (subscribeChanges)
-// would call it for every event.
+// Writes one batch of changes of a source to the index, and then to the
+// search index when there is a feed. The pull calls it for every page, and a
+// source that pushes its changes (subscribeChanges) would call it for every
+// event.
 export const applyCatalogChanges = async (
   sourceKey: string,
   { items, deletedIds }: Pick<ChangedProducts, "items" | "deletedIds">,
-  now = new Date()
+  now = new Date(),
+  search: SearchFeed | null = null
 ) => {
-  await upsertCatalogEntries(items.map((item) => toCatalogEntry(sourceKey, item, now)));
-  await deleteCatalogEntries(deletedIds.map((localId) => toGlobalProductId(sourceKey, localId)));
+  const entries = items.map((item) => toCatalogEntry(sourceKey, item, now));
+  const deleted = deletedIds.map((localId) => toGlobalProductId(sourceKey, localId));
+  await upsertCatalogEntries(entries);
+  await deleteCatalogEntries(deleted);
+  await search?.apply(sourceKey, entries, deleted);
   return { upserted: items.length, deleted: deletedIds.length };
 };
 
@@ -72,7 +92,10 @@ export interface SourceSyncResult {
   resumed: boolean;
 }
 
-export const pullCatalogSource = async (source: CatalogSource, { now = new Date() } = {}): Promise<SourceSyncResult> => {
+export const pullCatalogSource = async (
+  source: CatalogSource,
+  { now = new Date(), search = null }: { now?: Date; search?: SearchFeed | null } = {}
+): Promise<SourceSyncResult> => {
   const state = await getCatalogSyncState(source.key);
   const resumed = Boolean(state?.cursor);
   const runSince = resumed ? (state?.runSince ?? null) : (state?.since ?? null);
@@ -81,7 +104,7 @@ export const pullCatalogSource = async (source: CatalogSource, { now = new Date(
   const result: SourceSyncResult = { sourceKey: source.key, mode: "pull", upserted: 0, deleted: 0, resumed };
   do {
     const page = await source.listChanged(runSince, { cursor, limit: PAGE_SIZE });
-    const applied = await applyCatalogChanges(source.key, page, now);
+    const applied = await applyCatalogChanges(source.key, page, now, search);
     result.upserted += applied.upserted;
     result.deleted += applied.deleted;
     pendingSince = latestUpdate(page.items, pendingSince);
@@ -99,7 +122,9 @@ export const pullCatalogSource = async (source: CatalogSource, { now = new Date(
 };
 
 // Every product of the source, written again, and every entry of the index
-// the source no longer lists, deleted.
+// the source no longer lists, deleted. It doesn't write the search index:
+// syncCatalog replaces it whole afterwards (reconcileSearchIndex), which a
+// single source can't do without dropping the others' products.
 export const reconcileCatalogSource = async (
   source: CatalogSource,
   { now = new Date() } = {}
@@ -134,23 +159,64 @@ export const reconcileCatalogSource = async (
   return result;
 };
 
+// The search index becomes a copy of the whole catalog index, every source
+// included: a switched-off source's products are filtered out when
+// searching, like when reading the catalog index.
+export const reconcileSearchIndex = async (search: SearchFeed) => search.replaceAll(await listAllCatalogEntries());
+
+// After the sources: the whole search index again after a reconciliation or
+// a new settlement currency, otherwise only the products of currencies whose
+// rate changed. The prices are recorded only when every search write of the
+// run succeeded, so a failure is detected and retried by the next run.
+const finishSearchIndex = async (search: SearchFeed, reconciled: boolean) => {
+  const state = await getSearchPriceState();
+  const changes = await detectPriceChanges(search.pricer, state);
+  if (reconciled || changes === "all") {
+    await reconcileSearchIndex(search);
+  } else {
+    for (const currency of changes) await search.reprice(currency, await listCatalogEntriesByCurrency(currency));
+  }
+  if (search.failed.length > 0) return;
+  const kept = changes === "all" ? {} : (state?.rates ?? {});
+  await saveSearchPriceState({
+    settlementCurrency: search.pricer.settlementCurrency,
+    rates: { ...kept, ...Object.fromEntries(search.pricer.used) },
+  });
+};
+
 export interface CatalogSyncOptions {
   now?: Date;
   // Reconcile every source in this run, whenever it was last reconciled.
   reconcile?: boolean;
   // Only these sources (all switched-on ones by default).
   sourceKeys?: string[];
+  // The search index to feed: the one SEARCH_ENGINE names by default, none
+  // while it is unset.
+  searchIndex?: SearchIndex | null;
+  // settings/pricing by default.
+  pricing?: PricingSettings;
 }
 
 // One run of the catalog sync job. A source that fails is logged and the
-// rest still sync; the caller sees it in `failed`.
-export const syncCatalog = async ({ now = new Date(), reconcile = false, sourceKeys }: CatalogSyncOptions = {}) => {
+// rest still sync; the caller sees it in `failed`. A search index write that
+// fails is logged as a WARNING and listed in `searchFailed`, and never fails
+// the run: the next reconciliation repairs it.
+export const syncCatalog = async ({
+  now = new Date(),
+  reconcile = false,
+  sourceKeys,
+  searchIndex = getConfiguredSearchIndex(),
+  pricing,
+}: CatalogSyncOptions = {}) => {
   const sources = listEnabledSources();
   const unknown = (sourceKeys ?? []).filter((key) => !sources.some((source) => source.key === key));
   if (unknown.length > 0) {
     throw new Error(`Catalog sources not switched on: ${unknown.join(", ")}`);
   }
   const selected = sourceKeys ? sources.filter((source) => sourceKeys.includes(source.key)) : sources;
+  const search = searchIndex
+    ? createSearchFeed(searchIndex, createSearchPricer(pricing ?? (await getPricingSettings())))
+    : null;
 
   const synced: SourceSyncResult[] = [];
   const failed: { sourceKey: string; error: string }[] = [];
@@ -161,12 +227,15 @@ export const syncCatalog = async ({ now = new Date(), reconcile = false, sourceK
         reconcile ||
         !state?.lastReconciledAt ||
         now.getTime() - state.lastReconciledAt.getTime() >= reconcileEveryMs();
-      synced.push(due ? await reconcileCatalogSource(source, { now }) : await pullCatalogSource(source, { now }));
+      synced.push(
+        due ? await reconcileCatalogSource(source, { now }) : await pullCatalogSource(source, { now, search })
+      );
     } catch (err) {
       const error = (err as Error).message;
       logger.error("Catalog sync failed", { sourceKey: source.key, error });
       failed.push({ sourceKey: source.key, error });
     }
   }
-  return { synced, failed };
+  if (search) await finishSearchIndex(search, synced.some((result) => result.mode === "reconcile"));
+  return { synced, failed, searchFailed: search?.failed ?? [] };
 };
