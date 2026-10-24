@@ -282,6 +282,39 @@ export type ProductEdge = {
   node: Product;
 };
 
+export type ProductFacet = {
+  __typename?: 'ProductFacet';
+  /** The product field it counts: category. */
+  name: Scalars['String']['output'];
+  /** Most common first. */
+  values: Array<ProductFacetValue>;
+};
+
+export type ProductFacetValue = {
+  __typename?: 'ProductFacetValue';
+  /** Products of the search with this value, across all pages. */
+  count: Scalars['Int']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type ProductSearchConnection = {
+  __typename?: 'ProductSearchConnection';
+  edges: Array<ProductEdge>;
+  /** Counts of each value over every match, to narrow the search down. */
+  facets: Array<ProductFacet>;
+  pageInfo: PageInfo;
+  /** Matches across all pages. The search index can be a few minutes behind the catalog, so a page may hold fewer products than this suggests. */
+  totalCount: Scalars['Int']['output'];
+};
+
+export type ProductSort =
+  /** Cheapest first, by the price in the settlement currency; products without a price come last. */
+  | 'PRICE_ASC'
+  /** Most expensive first; products without a price come last. */
+  | 'PRICE_DESC'
+  /** Best match first. */
+  | 'RELEVANCE';
+
 export type PurchaseLimit = {
   __typename?: 'PurchaseLimit';
   max: Scalars['Int']['output'];
@@ -294,6 +327,8 @@ export type Query = {
   incompleteOrders: OrderConnection;
   orders: OrderConnection;
   products: ProductConnection;
+  /** Full-text search of the catalog: words match with typo tolerance and the last one as a prefix; a phrase in double quotes matches exactly. */
+  searchProducts: ProductSearchConnection;
 };
 
 
@@ -326,6 +361,18 @@ export type QueryProductsArgs = {
   category?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   id?: InputMaybe<Scalars['ID']['input']>;
+};
+
+
+export type QuerySearchProductsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  category?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  inStock?: InputMaybe<Scalars['Boolean']['input']>;
+  maxPrice?: InputMaybe<Scalars['Int']['input']>;
+  minPrice?: InputMaybe<Scalars['Int']['input']>;
+  query: Scalars['String']['input'];
+  sort?: InputMaybe<ProductSort>;
 };
 
 export type Rating = {
@@ -495,6 +542,10 @@ export type ResolversTypes = {
   Product: ResolverTypeWrapper<ProductModel>;
   ProductConnection: ResolverTypeWrapper<Omit<ProductConnection, 'edges'> & { edges: Array<ResolversTypes['ProductEdge']> }>;
   ProductEdge: ResolverTypeWrapper<Omit<ProductEdge, 'node'> & { node: ResolversTypes['Product'] }>;
+  ProductFacet: ResolverTypeWrapper<ProductFacet>;
+  ProductFacetValue: ResolverTypeWrapper<ProductFacetValue>;
+  ProductSearchConnection: ResolverTypeWrapper<Omit<ProductSearchConnection, 'edges'> & { edges: Array<ResolversTypes['ProductEdge']> }>;
+  ProductSort: ProductSort;
   PurchaseLimit: ResolverTypeWrapper<PurchaseLimit>;
   Query: ResolverTypeWrapper<Record<PropertyKey, never>>;
   Rating: ResolverTypeWrapper<Rating>;
@@ -544,6 +595,9 @@ export type ResolversParentTypes = {
   Product: ProductModel;
   ProductConnection: Omit<ProductConnection, 'edges'> & { edges: Array<ResolversParentTypes['ProductEdge']> };
   ProductEdge: Omit<ProductEdge, 'node'> & { node: ResolversParentTypes['Product'] };
+  ProductFacet: ProductFacet;
+  ProductFacetValue: ProductFacetValue;
+  ProductSearchConnection: Omit<ProductSearchConnection, 'edges'> & { edges: Array<ResolversParentTypes['ProductEdge']> };
   PurchaseLimit: PurchaseLimit;
   Query: Record<PropertyKey, never>;
   Rating: Rating;
@@ -725,6 +779,23 @@ export type ProductEdgeResolvers<ContextType = Context, ParentType extends Resol
   node?: Resolver<ResolversTypes['Product'], ParentType, ContextType>;
 };
 
+export type ProductFacetResolvers<ContextType = Context, ParentType extends ResolversParentTypes['ProductFacet'] = ResolversParentTypes['ProductFacet']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  values?: Resolver<Array<ResolversTypes['ProductFacetValue']>, ParentType, ContextType>;
+};
+
+export type ProductFacetValueResolvers<ContextType = Context, ParentType extends ResolversParentTypes['ProductFacetValue'] = ResolversParentTypes['ProductFacetValue']> = {
+  count?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  value?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type ProductSearchConnectionResolvers<ContextType = Context, ParentType extends ResolversParentTypes['ProductSearchConnection'] = ResolversParentTypes['ProductSearchConnection']> = {
+  edges?: Resolver<Array<ResolversTypes['ProductEdge']>, ParentType, ContextType>;
+  facets?: Resolver<Array<ResolversTypes['ProductFacet']>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
 export type PurchaseLimitResolvers<ContextType = Context, ParentType extends ResolversParentTypes['PurchaseLimit'] = ResolversParentTypes['PurchaseLimit']> = {
   max?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   min?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
@@ -735,6 +806,7 @@ export type QueryResolvers<ContextType = Context, ParentType extends ResolversPa
   incompleteOrders?: Resolver<ResolversTypes['OrderConnection'], ParentType, ContextType, Partial<QueryIncompleteOrdersArgs>>;
   orders?: Resolver<ResolversTypes['OrderConnection'], ParentType, ContextType, Partial<QueryOrdersArgs>>;
   products?: Resolver<ResolversTypes['ProductConnection'], ParentType, ContextType, Partial<QueryProductsArgs>>;
+  searchProducts?: Resolver<ResolversTypes['ProductSearchConnection'], ParentType, ContextType, RequireFields<QuerySearchProductsArgs, 'query' | 'sort'>>;
 };
 
 export type RatingResolvers<ContextType = Context, ParentType extends ResolversParentTypes['Rating'] = ResolversParentTypes['Rating']> = {
@@ -792,6 +864,9 @@ export type Resolvers<ContextType = Context> = {
   Product?: ProductResolvers<ContextType>;
   ProductConnection?: ProductConnectionResolvers<ContextType>;
   ProductEdge?: ProductEdgeResolvers<ContextType>;
+  ProductFacet?: ProductFacetResolvers<ContextType>;
+  ProductFacetValue?: ProductFacetValueResolvers<ContextType>;
+  ProductSearchConnection?: ProductSearchConnectionResolvers<ContextType>;
   PurchaseLimit?: PurchaseLimitResolvers<ContextType>;
   Query?: QueryResolvers<ContextType>;
   Rating?: RatingResolvers<ContextType>;

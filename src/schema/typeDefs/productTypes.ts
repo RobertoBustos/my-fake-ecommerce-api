@@ -36,6 +36,37 @@ const productTypes = /* GraphQL */ `#graphql
     edges: [ProductEdge!]!
     pageInfo: PageInfo!
   }
+
+  enum ProductSort {
+    "Best match first."
+    RELEVANCE
+    "Cheapest first, by the price in the settlement currency; products without a price come last."
+    PRICE_ASC
+    "Most expensive first; products without a price come last."
+    PRICE_DESC
+  }
+
+  type ProductFacetValue {
+    value: String!
+    "Products of the search with this value, across all pages."
+    count: Int!
+  }
+
+  type ProductFacet {
+    "The product field it counts: category."
+    name: String!
+    "Most common first."
+    values: [ProductFacetValue!]!
+  }
+
+  type ProductSearchConnection {
+    edges: [ProductEdge!]!
+    pageInfo: PageInfo!
+    "Matches across all pages. The search index can be a few minutes behind the catalog, so a page may hold fewer products than this suggests."
+    totalCount: Int!
+    "Counts of each value over every match, to narrow the search down."
+    facets: [ProductFacet!]!
+  }
 `;
 
 export default productTypes;
