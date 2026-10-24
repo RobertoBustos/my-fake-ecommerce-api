@@ -5,6 +5,7 @@ import {
   checkCreateOrderPayment,
   checkUpdateOrder,
 } from "./orderValidators.js";
+import { checkSearchProducts, SEARCH_DEFAULT_PAGE_SIZE, SEARCH_MAX_PAGE_SIZE } from "./searchValidators.js";
 
 export type { AddToCartInput, RemoveFromCartInput } from "./cartValidations.js";
 export type {
@@ -20,6 +21,9 @@ export {
   checkCreateOrder,
   checkCreateOrderPayment,
   checkRemoveFromCart,
+  checkSearchProducts,
   checkUpdateOrder,
+  SEARCH_DEFAULT_PAGE_SIZE,
+  SEARCH_MAX_PAGE_SIZE,
   validateCartQuantity,
 };
