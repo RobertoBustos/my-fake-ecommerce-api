@@ -23,7 +23,9 @@ const { createApp } = await import("../src/app.js");
 
 const PRODUCTS = "products(first: 1) { edges { node { id } } }";
 
-// Every JSON line the logger writes, from both streams, raw and parsed.
+// Every line written to both streams, raw, and the logger's JSON lines
+// parsed. Other lines are skipped: the first Firestore call can print a Node
+// warning (MetadataLookupWarning on CI, where there is no metadata server).
 const captureLogs = () => {
   const lines = [];
   for (const stream of ["stdout", "stderr"]) {
@@ -34,7 +36,11 @@ const captureLogs = () => {
   }
   return {
     raw: () => lines.join("\n"),
-    summaries: () => lines.map((line) => JSON.parse(line)).filter((log) => log.message === "GraphQL operation"),
+    summaries: () =>
+      lines
+        .filter((line) => line.startsWith("{"))
+        .map((line) => JSON.parse(line))
+        .filter((log) => log.message === "GraphQL operation"),
   };
 };
 
