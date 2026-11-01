@@ -16,13 +16,15 @@ vi.mock("../src/db/catalogIndex.js", async (importOriginal) => {
 const { createApp } = await import("../src/app.js");
 
 // Captures what the logger writes to stderr, parsed back from JSON lines.
+// Other lines are skipped: the first Firestore call can print a Node warning
+// (MetadataLookupWarning on CI, where there is no metadata server).
 const captureErrorLogs = () => {
   const lines = [];
   vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
     lines.push(...String(chunk).split("\n").filter(Boolean));
     return true;
   });
-  return () => lines.map((line) => JSON.parse(line));
+  return () => lines.filter((line) => line.startsWith("{")).map((line) => JSON.parse(line));
 };
 
 describe("JSON logs with a request ID (ECOMAPI-40)", () => {

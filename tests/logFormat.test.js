@@ -15,6 +15,7 @@ const record = (overrides = {}) => ({
   requestId: "req-1",
   fields: {},
   service: { name: "my-fake-ecommerce-api", version: "1.6.0" },
+  report: true,
   ...overrides,
 });
 
@@ -54,6 +55,13 @@ describe("Google Cloud log format", () => {
       "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent"
     );
     expect(entry.serviceContext.service).toBe("my-fake-ecommerce-api");
+  });
+
+  it("keeps an error that isn't reported out of Error Reporting", () => {
+    const entry = formatEntry(record({ severity: "ERROR", report: false }));
+    expect(entry.severity).toBe("ERROR");
+    expect(entry).not.toHaveProperty("serviceContext");
+    expect(entry).not.toHaveProperty("@type");
   });
 
   it("leaves Error Reporting fields out of INFO and WARNING lines", () => {
