@@ -1,6 +1,12 @@
 import { parseArgs } from "node:util";
 import { GoogleAuth } from "google-auth-library";
-import { applyMonitoring, buildTestEntries, writeTestLogs, type MonitoringApi } from "./monitoring/apply.js";
+import {
+  applyMonitoring,
+  buildTestEntries,
+  MonitoringApplyError,
+  writeTestLogs,
+  type MonitoringApi,
+} from "./monitoring/apply.js";
 import { loadMonitoringConfig } from "./monitoring/config.js";
 
 // Applies ops/monitoring/ (notification channel, log-based metrics and alert
@@ -12,6 +18,8 @@ import { loadMonitoringConfig } from "./monitoring/config.js";
 //   npx tsx scripts/applyMonitoring.ts --project <id> --test <policy-id>
 //
 // --test writes that policy's test log, so it fires and its email arrives.
+// A policy on a log-based metric created in the same run is retried for up to
+// 10 minutes, the time Google takes to make a new metric usable.
 const { values } = parseArgs({
   options: {
     project: { type: "string" },
@@ -38,11 +46,18 @@ if (values.test) {
   await writeTestLogs(api, body);
   console.log(`Wrote ${body.entries.length} test log(s) for ${values.test}; the alert email should arrive in a few minutes`);
 } else {
-  await applyMonitoring({
-    config,
-    api,
-    project: values.project,
-    email: values.email ?? process.env.ALERT_EMAIL ?? "",
-    dryRun: values["dry-run"],
-  });
+  try {
+    await applyMonitoring({
+      config,
+      api,
+      project: values.project,
+      email: values.email ?? process.env.ALERT_EMAIL ?? "",
+      dryRun: values["dry-run"],
+    });
+  } catch (err) {
+    // Every policy that could be applied was; list the rest and fail.
+    if (!(err instanceof MonitoringApplyError)) throw err;
+    console.error(err.message);
+    process.exit(1);
+  }
 }
