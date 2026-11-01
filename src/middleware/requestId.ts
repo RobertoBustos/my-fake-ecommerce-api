@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { RequestHandler } from "express";
+import { parseTraceContext } from "../observability/traceContext.js";
 import { requestContext } from "../utils/logger.js";
 
 // An incoming X-Request-Id is reused only if it's safe to write to the logs;
@@ -11,5 +12,8 @@ export const requestId: RequestHandler = (req, res, next) => {
   const id = incoming && SAFE_ID.test(incoming) ? incoming : randomUUID();
   // Echoed back so a client can quote it when reporting a problem.
   res.set("X-Request-Id", id);
-  requestContext.run({ requestId: id }, next);
+  // Cloud Run's front end sends the trace headers, so every log line of the
+  // request opens from its trace.
+  const trace = parseTraceContext(req.get("traceparent"), req.get("x-cloud-trace-context"));
+  requestContext.run({ requestId: id, trace }, next);
 };
