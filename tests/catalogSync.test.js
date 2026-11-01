@@ -254,10 +254,19 @@ describe("catalog sync job over the registry (ECOMAPI-77)", () => {
     delete process.env.CATALOG_SOURCES;
     vi.spyOn(firestoreCatalogSource, "listChanged").mockRejectedValue(new Error("source is down"));
     const error = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const info = vi.spyOn(logger, "info").mockImplementation(() => {});
     const { synced, failed } = await syncCatalog();
     expect(synced).toEqual([]);
     expect(failed).toEqual([{ sourceKey: "fs", error: "source is down" }]);
     expect(error).toHaveBeenCalledWith("Catalog sync failed", { sourceKey: "fs", error: "source is down" });
+    expect(info).not.toHaveBeenCalledWith("Catalog source synced", expect.anything());
+  });
+
+  it("logs each source that syncs, for the catalog staleness alert", async () => {
+    delete process.env.CATALOG_SOURCES;
+    const info = vi.spyOn(logger, "info").mockImplementation(() => {});
+    const { synced } = await syncCatalog();
+    expect(info).toHaveBeenCalledWith("Catalog source synced", { sourceKey: "fs", mode: synced[0].mode });
   });
 });
 

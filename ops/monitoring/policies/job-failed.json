@@ -1,0 +1,41 @@
+{
+  "policy": {
+    "displayName": "Scheduled job run failed",
+    "severity": "ERROR",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "A sync-catalog or process-inventory execution failed after its retries (the job name is in the incident). sync-catalog exits with 1 when a source fails; process-inventory when the queue can't be processed.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#El-job-programado)."
+    },
+    "conditions": [
+      {
+        "displayName": "A job execution failed",
+        "conditionThreshold": {
+          "filter": "resource.type=\"cloud_run_job\" AND metric.type=\"run.googleapis.com/job/completed_execution_count\" AND metric.label.result=\"failed\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "300s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM",
+              "groupByFields": [
+                "resource.label.job_name"
+              ]
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 0,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "3600s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}

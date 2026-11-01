@@ -1,0 +1,20 @@
+{
+  "name": "catalog_source_syncs",
+  "description": "Catalog sources that synced in a sync-catalog run, by sourceKey. A source that stops appearing has stopped syncing.",
+  "filter": "resource.type=\"cloud_run_job\" AND jsonPayload.message=\"Catalog source synced\"",
+  "labelExtractors": {
+    "source_key": "EXTRACT(jsonPayload.sourceKey)"
+  },
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "labels": [
+      {
+        "key": "source_key",
+        "valueType": "STRING",
+        "description": "The catalog source (sourceKey)."
+      }
+    ]
+  }
+}

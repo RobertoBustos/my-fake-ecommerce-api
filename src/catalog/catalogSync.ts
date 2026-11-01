@@ -227,9 +227,14 @@ export const syncCatalog = async ({
         reconcile ||
         !state?.lastReconciledAt ||
         now.getTime() - state.lastReconciledAt.getTime() >= reconcileEveryMs();
-      synced.push(
-        due ? await reconcileCatalogSource(source, { now }) : await pullCatalogSource(source, { now, search })
-      );
+      const result = due
+        ? await reconcileCatalogSource(source, { now })
+        : await pullCatalogSource(source, { now, search });
+      synced.push(result);
+      // One line per source that synced: the catalog-staleness alert counts
+      // them by sourceKey, so a source that stops syncing shows up even when
+      // the others still do.
+      logger.info("Catalog source synced", { sourceKey: source.key, mode: result.mode });
     } catch (err) {
       const error = (err as Error).message;
       logger.error("Catalog sync failed", { sourceKey: source.key, error });

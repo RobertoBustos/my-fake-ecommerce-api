@@ -35,7 +35,7 @@ const errorsOf = (dir) => {
 
 // An in-memory stand-in for the Monitoring and Logging APIs.
 const fakeApi = () => {
-  const state = { channels: [], policies: [], metrics: {}, writes: [] };
+  const state = { channels: [], policies: [], uptimeChecks: [], metrics: {}, writes: [] };
   let next = 1;
   return {
     state,
@@ -43,6 +43,12 @@ const fakeApi = () => {
       if (method !== "GET") state.writes.push({ method, url });
       if (method === "GET" && url.includes("/notificationChannels")) return { notificationChannels: state.channels };
       if (method === "GET" && url.includes("/alertPolicies")) return { alertPolicies: state.policies };
+      if (method === "GET" && url.includes("/uptimeCheckConfigs")) return { uptimeCheckConfigs: state.uptimeChecks };
+      if (method === "POST" && url.endsWith("/uptimeCheckConfigs")) {
+        const check = { ...body, name: `projects/p/uptimeCheckConfigs/api-healthcheck-${next++}` };
+        state.uptimeChecks.push(check);
+        return check;
+      }
       if (method === "PUT" && url.includes("/metrics/")) {
         state.metrics[body.name] = body;
         return body;
@@ -58,8 +64,13 @@ const fakeApi = () => {
         return policy;
       }
       if (method === "PATCH") {
-        const list = url.includes("/notificationChannels/") ? state.channels : state.policies;
-        const index = list.findIndex((item) => url.endsWith(item.name));
+        const path = url.split("?")[0];
+        const list = path.includes("/notificationChannels/")
+          ? state.channels
+          : path.includes("/uptimeCheckConfigs/")
+            ? state.uptimeChecks
+            : state.policies;
+        const index = list.findIndex((item) => path.endsWith(item.name));
         list[index] = { ...body, name: list[index].name };
         return list[index];
       }
@@ -77,13 +88,18 @@ describe("ops/monitoring/ config", () => {
     const config = loadMonitoringConfig(ROOT);
     expect(Object.keys(config.policies).sort()).toEqual([
       "algolia-usage",
+      "api-down",
+      "catalog-stale",
       "exchange-rate-unavailable",
       "http-5xx",
       "inventory-task-failed",
+      "job-failed",
+      "job-missing",
       "payment-not-applied",
       "search-engine-down",
       "search-index-unsynced",
     ]);
+    expect(Object.keys(config.uptimeChecks)).toEqual(["healthcheck"]);
     for (const { policy } of Object.values(config.policies)) {
       expect(policy.documentation.content).toContain(RUNBOOK_URL);
       expect(policy.notificationChannels).toEqual(["email"]);
@@ -97,8 +113,9 @@ describe("ops/monitoring/ config", () => {
   it("has a test log for every policy that a log can fire", () => {
     const { policies } = loadMonitoringConfig(ROOT);
     const withoutTest = Object.keys(policies).filter((id) => !policies[id].test);
-    // 5xx responses come from Cloud Run's own metric, not from a log.
-    expect(withoutTest).toEqual(["http-5xx"]);
+    // These watch Google's own metrics (5xx responses, uptime, job runs) or
+    // the absence of a log, which no test log can produce.
+    expect(withoutTest.sort()).toEqual(["api-down", "catalog-stale", "http-5xx", "job-failed", "job-missing"]);
   });
 
   it("fires the threshold policies with their test logs", () => {
@@ -145,6 +162,21 @@ describe("ops/monitoring/ config", () => {
     expect(errorsOf(dir)).toEqual([expect.stringContaining("never a real address")]);
   });
 
+  it("rejects a policy that watches an unknown uptime check", () => {
+    const dir = copyConfig();
+    edit(dir, "policies/api-down.json", (file) => {
+      file.policy.conditions[0].conditionThreshold.filter = 'metric.label.check_id="${uptime:nope}"';
+      return file;
+    });
+    expect(errorsOf(dir)).toEqual([expect.stringContaining('unknown uptime check "nope"')]);
+  });
+
+  it("rejects an uptime check with fewer than three regions", () => {
+    const dir = copyConfig();
+    edit(dir, "uptime-checks/healthcheck.json", (file) => ({ ...file, selectedRegions: ["USA"] }));
+    expect(errorsOf(dir)[0]).toContain("uptime-checks/healthcheck.json: selectedRegions");
+  });
+
   it("rejects a condition with two kinds of query", () => {
     const dir = copyConfig();
     edit(dir, "policies/payment-not-applied.json", (file) => {
@@ -166,15 +198,42 @@ describe("applying the monitoring config", () => {
     expect(api.state.channels).toHaveLength(1);
     expect(api.state.channels[0].labels.email_address).toBe("alerts@example.com");
     expect(Object.keys(api.state.metrics).sort()).toEqual([
+      "catalog_source_syncs",
       "search_engine_failures",
       "search_index_sync_failures",
       "search_requests",
     ]);
-    expect(api.state.policies).toHaveLength(7);
+    expect(api.state.policies).toHaveLength(11);
     for (const policy of api.state.policies) {
       expect(policy.notificationChannels).toEqual([api.state.channels[0].name]);
       expect(policy.userLabels.managed_by).toBe("ops-monitoring");
     }
+  });
+
+  it("creates the uptime check for the project and points its policy at the id Google gives it", async () => {
+    const api = fakeApi();
+    await applyMonitoring({ config, api, project: "my-project", email: "alerts@example.com", log: quiet });
+
+    const [check] = api.state.uptimeChecks;
+    expect(check.monitoredResource.labels).toEqual({ project_id: "my-project", host: "my-project.web.app" });
+    const checkId = check.name.split("/").pop();
+    const apiDown = api.state.policies.find((policy) => policy.userLabels.policy_id === "api-down");
+    expect(apiDown.conditions[0].conditionThreshold.filter).toContain(`metric.label.check_id="${checkId}"`);
+    expect(JSON.stringify(api.state.policies)).not.toContain("${");
+  });
+
+  it("updates an existing uptime check only in the fields Google allows", async () => {
+    const api = fakeApi();
+    await applyMonitoring({ config, api, project: "p", email: "alerts@example.com", log: quiet });
+    api.state.writes.length = 0;
+
+    await applyMonitoring({ config, api, project: "p", email: "alerts@example.com", log: quiet });
+
+    expect(api.state.uptimeChecks).toHaveLength(1);
+    const update = api.state.writes.find((write) => write.url.includes("/uptimeCheckConfigs/"));
+    expect(update.method).toBe("PATCH");
+    expect(update.url).toContain("updateMask=");
+    expect(update.url).not.toContain("monitoredResource");
   });
 
   it("updates instead of duplicating on a second run", async () => {
@@ -247,7 +306,7 @@ describe("applying the monitoring config", () => {
     });
 
     expect(waits).toEqual([60_000, 60_000]);
-    expect(api.state.policies).toHaveLength(7);
+    expect(api.state.policies).toHaveLength(11);
   });
 
   it("applies the other policies when one fails, then lists the failure", async () => {
@@ -257,7 +316,7 @@ describe("applying the monitoring config", () => {
 
     await expect(result).rejects.toThrow(MonitoringApplyError);
     await expect(result).rejects.toThrow(/algolia-usage: Field alertPolicy.conditions\[0\] is invalid/);
-    expect(api.state.policies).toHaveLength(6);
+    expect(api.state.policies).toHaveLength(10);
   });
 
   it("gives up after the last retry", async () => {
@@ -274,7 +333,7 @@ describe("applying the monitoring config", () => {
     });
 
     await expect(result).rejects.toThrow(/algolia-usage: Cannot find metric/);
-    expect(api.state.policies).toHaveLength(6);
+    expect(api.state.policies).toHaveLength(10);
   });
 
   it("builds the test logs where the real ones would land, marked as tests", () => {
