@@ -1,0 +1,38 @@
+{
+  "policy": {
+    "displayName": "Exchange rate unavailable",
+    "severity": "ERROR",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "A rate from a product's currency to the settlement currency is missing or older than maxRateAgeHours. Those products answer CONFLICT when added to a cart or paid.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Tipos-de-cambio)."
+    },
+    "conditions": [
+      {
+        "displayName": "Exchange rate unavailable",
+        "conditionMatchedLog": {
+          "filter": "jsonPayload.message=\"Exchange rate unavailable; products in this currency can't be sold\""
+        }
+      }
+    ],
+    "alertStrategy": {
+      "notificationRateLimit": {
+        "period": "3600s"
+      },
+      "autoClose": "1800s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  },
+  "test": {
+    "resource": "api",
+    "severity": "ERROR",
+    "payload": {
+      "message": "Exchange rate unavailable; products in this currency can't be sold",
+      "from": "TEST",
+      "to": "MXN"
+    },
+    "count": 1
+  }
+}

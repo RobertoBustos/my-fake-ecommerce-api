@@ -1,0 +1,37 @@
+{
+  "policy": {
+    "displayName": "Payment not applied to its order",
+    "severity": "CRITICAL",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "Stripe charged a customer, but the webhook could not complete the order: the order wasn't PAYMENT_PENDING, the PaymentIntent wasn't its own, or the amount didn't match (see `reason`). Refund or fix the order by hand.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Investigar-un-error)."
+    },
+    "conditions": [
+      {
+        "displayName": "Payment not applied to its order",
+        "conditionMatchedLog": {
+          "filter": "jsonPayload.message=\"Payment not applied to its order\""
+        }
+      }
+    ],
+    "alertStrategy": {
+      "notificationRateLimit": {
+        "period": "300s"
+      },
+      "autoClose": "1800s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  },
+  "test": {
+    "resource": "api",
+    "severity": "ERROR",
+    "payload": {
+      "message": "Payment not applied to its order",
+      "reason": "test"
+    },
+    "count": 1
+  }
+}

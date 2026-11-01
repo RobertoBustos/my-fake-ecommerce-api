@@ -1,0 +1,10 @@
+{
+  "name": "search_requests",
+  "description": "GraphQL requests that asked for searchProducts, from the per-operation summary. Approximates Algolia search usage (e2e searches count too, as they do in Algolia).",
+  "filter": "resource.type=\"cloud_run_revision\" AND jsonPayload.message=\"GraphQL operation\" AND jsonPayload.rootFields=\"searchProducts\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1"
+  }
+}

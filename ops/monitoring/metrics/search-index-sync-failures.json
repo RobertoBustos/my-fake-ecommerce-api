@@ -1,0 +1,10 @@
+{
+  "name": "search_index_sync_failures",
+  "description": "Search index writes that failed during a sync-catalog run.",
+  "filter": "resource.type=\"cloud_run_job\" AND jsonPayload.message=\"Search index sync failed\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1"
+  }
+}

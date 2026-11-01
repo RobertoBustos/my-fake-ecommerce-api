@@ -1,0 +1,48 @@
+{
+  "policy": {
+    "displayName": "Search engine down",
+    "severity": "ERROR",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "More than 5 searchProducts calls failed or timed out in 10 minutes. Clients get SERVICE_UNAVAILABLE and retry; the rest of the API works. Single failures don't alert.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Buscador-%28Algolia%29)."
+    },
+    "conditions": [
+      {
+        "displayName": "Search engine down",
+        "conditionThreshold": {
+          "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/search_engine_failures\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "600s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 5,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "1800s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  },
+  "test": {
+    "resource": "api",
+    "severity": "WARNING",
+    "payload": {
+      "message": "Search engine call failed",
+      "engine": "test",
+      "error": "test"
+    },
+    "count": 6
+  }
+}
