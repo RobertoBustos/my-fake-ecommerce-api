@@ -1,10 +1,14 @@
 import { refreshExchangeRates } from "../pricing/refreshRates.js";
-import { logger } from "../utils/logger.js";
+import { logger, setLogService } from "../utils/logger.js";
 
 // The daily exchange rates job. It ships in the same image as the API, so a
 // Cloud Run job can run it with `node dist/jobs/refreshExchangeRates.js`
 // (Cloud Scheduler starts that job once a day); locally,
 // `npm run rates:refresh`. A failure exits with 1 so the job run shows as failed.
+
+// Named like its Cloud Run job, so Error Reporting groups its errors apart.
+setLogService("refresh-exchange-rates");
+
 try {
   const written = await refreshExchangeRates();
   logger.info("Exchange rates refreshed", {

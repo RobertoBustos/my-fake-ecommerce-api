@@ -1,5 +1,5 @@
 import { syncCatalog } from "../catalog/catalogSync.js";
-import { logger } from "../utils/logger.js";
+import { logger, setLogService } from "../utils/logger.js";
 
 // The catalog sync job: pulls what changed in every switched-on source into
 // the catalog index, and reconciles each source when it is due. It feeds the
@@ -11,6 +11,10 @@ import { logger } from "../utils/logger.js";
 //   --reconcile        reconcile every selected source now
 //   --source <key>     only that source (repeatable)
 // A failure exits with 1 so the run shows as failed.
+
+// Named like its Cloud Run job, so Error Reporting groups its errors apart.
+setLogService("sync-catalog");
+
 const args = process.argv.slice(2);
 const sourceKeys = args.flatMap((arg, i) => (arg === "--source" && args[i + 1] ? [args[i + 1]] : []));
 
