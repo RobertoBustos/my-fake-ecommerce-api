@@ -1,0 +1,27 @@
+{
+  "policy": {
+    "displayName": "API 5xx responses above 2%",
+    "severity": "ERROR",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "More than 2% of the API's responses in 10 minutes were 5xx, with at least 20 requests in that window. Usually a bad deploy (roll back) or a dependency down (Firestore, Stripe).\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Revertir-%28rollback%29)."
+    },
+    "conditions": [
+      {
+        "displayName": "5xx ratio above 2% over 10 min (20+ requests)",
+        "conditionPrometheusQueryLanguage": {
+          "query": "(sum(increase(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"my-fake-ecommerce-api\",response_code_class=\"5xx\"}[10m])) / sum(increase(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"my-fake-ecommerce-api\"}[10m]))) > 0.02 and sum(increase(run_googleapis_com:request_count{monitored_resource=\"cloud_run_revision\",service_name=\"my-fake-ecommerce-api\"}[10m])) >= 20",
+          "duration": "0s",
+          "evaluationInterval": "60s"
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "1800s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}

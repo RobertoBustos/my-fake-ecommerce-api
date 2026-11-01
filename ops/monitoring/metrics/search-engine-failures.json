@@ -1,0 +1,10 @@
+{
+  "name": "search_engine_failures",
+  "description": "searchProducts calls to the search engine that failed or timed out (the client got SERVICE_UNAVAILABLE).",
+  "filter": "resource.type=\"cloud_run_revision\" AND jsonPayload.message=\"Search engine call failed\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1"
+  }
+}
