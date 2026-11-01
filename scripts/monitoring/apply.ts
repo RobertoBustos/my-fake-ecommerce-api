@@ -24,7 +24,33 @@ export interface ApplyOptions {
   email: string;
   dryRun?: boolean;
   log?: (line: string) => void;
+  // How long to wait before retrying a policy whose new log-based metric
+  // isn't usable yet, and how many times.
+  retryDelayMs?: number;
+  maxRetries?: number;
+  sleep?: (ms: number) => Promise<void>;
 }
+
+export class MonitoringApplyError extends Error {
+  constructor(readonly failures: { id: string; error: string }[]) {
+    super(
+      `Could not apply ${failures.length} alert polic${failures.length === 1 ? "y" : "ies"}:\n` +
+        failures.map(({ id, error }) => `  - ${id}: ${error}`).join("\n")
+    );
+  }
+}
+
+// The API's own message when there is one (the client's error message is
+// generic), so a failure says what Google rejected.
+const errorMessage = (err: unknown) => {
+  const apiMessage = (err as { response?: { data?: { error?: { message?: unknown } } } }).response?.data?.error
+    ?.message;
+  return typeof apiMessage === "string" ? apiMessage : (err as Error).message;
+};
+
+// A log-based metric takes up to 10 minutes to be usable in an alert policy
+// after it's created; until then creating the policy fails with this.
+const isMetricNotReady = (message: string) => /cannot find metric/i.test(message);
 
 const listAll = async <T>(api: MonitoringApi, url: string, key: string) => {
   const items: T[] = [];
@@ -43,7 +69,17 @@ const listAll = async <T>(api: MonitoringApi, url: string, key: string) => {
 const findManaged = <T extends Labeled>(items: T[], label: string, id: string) =>
   items.find((item) => item.userLabels?.managed_by === MANAGED_BY && item.userLabels?.[label] === id);
 
-export const applyMonitoring = async ({ config, api, project, email, dryRun = false, log = console.log }: ApplyOptions) => {
+export const applyMonitoring = async ({
+  config,
+  api,
+  project,
+  email,
+  dryRun = false,
+  log = console.log,
+  retryDelayMs = 60_000,
+  maxRetries = 10,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+}: ApplyOptions) => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Pass the email that receives the alerts");
   const projectPath = `projects/${project}`;
   const act = async (description: string, write: () => Promise<unknown>) => {
@@ -86,6 +122,23 @@ export const applyMonitoring = async ({ config, api, project, email, dryRun = fa
     );
   }
 
+  // Retries while a metric is still too new to use, then gives up on that
+  // policy only: the rest are still applied, and the failures are listed at
+  // the end.
+  const writeWithRetry = async (id: string, write: () => Promise<unknown>) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await write();
+      } catch (err) {
+        const message = errorMessage(err);
+        if (!isMetricNotReady(message) || attempt >= maxRetries) throw new Error(message, { cause: err });
+        log(`  ${id}: a metric isn't usable yet; retrying in ${Math.round(retryDelayMs / 1000)} s (${attempt + 1}/${maxRetries})`);
+        await sleep(retryDelayMs);
+      }
+    }
+  };
+
+  const failures: { id: string; error: string }[] = [];
   const existingPolicies = await listAll<Labeled>(api, `${MONITORING}/${projectPath}/alertPolicies`, "alertPolicies");
   for (const [id, { policy }] of Object.entries(config.policies)) {
     const body = {
@@ -94,13 +147,20 @@ export const applyMonitoring = async ({ config, api, project, email, dryRun = fa
       userLabels: { managed_by: MANAGED_BY, policy_id: id },
     };
     const existing = findManaged(existingPolicies, "policy_id", id);
-    if (existing) {
-      // Without an update mask the stored policy is replaced by this one.
-      await act(`Update alert policy ${id}`, () => api.request("PATCH", `${MONITORING}/${existing.name}`, body));
-    } else {
-      await act(`Create alert policy ${id}`, () =>
-        api.request("POST", `${MONITORING}/${projectPath}/alertPolicies`, body)
-      );
+    try {
+      if (existing) {
+        // Without an update mask the stored policy is replaced by this one.
+        await act(`Update alert policy ${id}`, () =>
+          writeWithRetry(id, () => api.request("PATCH", `${MONITORING}/${existing.name}`, body))
+        );
+      } else {
+        await act(`Create alert policy ${id}`, () =>
+          writeWithRetry(id, () => api.request("POST", `${MONITORING}/${projectPath}/alertPolicies`, body))
+        );
+      }
+    } catch (err) {
+      failures.push({ id, error: (err as Error).message });
+      log(`  ${id} failed: ${(err as Error).message}`);
     }
   }
 
@@ -113,6 +173,8 @@ export const applyMonitoring = async ({ config, api, project, email, dryRun = fa
       log(`Alert policy ${id} (${policy.name}) is no longer in ops/monitoring/: delete it by hand if that's intended`);
     }
   }
+
+  if (failures.length > 0) throw new MonitoringApplyError(failures);
 };
 
 // The monitored resource a test log is written for, so it lands where the

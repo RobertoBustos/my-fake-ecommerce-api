@@ -7,7 +7,7 @@ import {
   MonitoringConfigError,
   RUNBOOK_URL,
 } from "../scripts/monitoring/config.js";
-import { applyMonitoring, buildTestEntries } from "../scripts/monitoring/apply.js";
+import { applyMonitoring, buildTestEntries, MonitoringApplyError } from "../scripts/monitoring/apply.js";
 
 const ROOT = new URL("../ops/monitoring/", import.meta.url).pathname;
 
@@ -211,6 +211,70 @@ describe("applying the monitoring config", () => {
     await expect(applyMonitoring({ config, api: fakeApi(), project: "p", email: "", log: quiet })).rejects.toThrow(
       /email/
     );
+  });
+
+  // Fails the first `times` policy creations the way Google does for a
+  // log-based metric created a moment ago, or with another error.
+  const failingCreates = (api, times, message) => {
+    const request = api.request;
+    let left = times;
+    api.request = async (method, url, body) => {
+      if (method === "POST" && url.endsWith("/alertPolicies") && left > 0) {
+        left -= 1;
+        const err = new Error("Request failed with status code 404");
+        err.response = { data: { error: { message } } };
+        throw err;
+      }
+      return request(method, url, body);
+    };
+    return api;
+  };
+  const NOT_READY =
+    'Cannot find metric(s) that match type = "logging.googleapis.com/user/search_requests". If a metric was created recently, it could take up to 10 minutes to become available.';
+
+  it("retries a policy whose new log-based metric isn't usable yet", async () => {
+    const api = failingCreates(fakeApi(), 2, NOT_READY);
+    const waits = [];
+
+    await applyMonitoring({
+      config,
+      api,
+      project: "p",
+      email: "alerts@example.com",
+      log: quiet,
+      retryDelayMs: 60_000,
+      sleep: async (ms) => waits.push(ms),
+    });
+
+    expect(waits).toEqual([60_000, 60_000]);
+    expect(api.state.policies).toHaveLength(7);
+  });
+
+  it("applies the other policies when one fails, then lists the failure", async () => {
+    const api = failingCreates(fakeApi(), 1, "Field alertPolicy.conditions[0] is invalid");
+
+    const result = applyMonitoring({ config, api, project: "p", email: "alerts@example.com", log: quiet, sleep: async () => {} });
+
+    await expect(result).rejects.toThrow(MonitoringApplyError);
+    await expect(result).rejects.toThrow(/algolia-usage: Field alertPolicy.conditions\[0\] is invalid/);
+    expect(api.state.policies).toHaveLength(6);
+  });
+
+  it("gives up after the last retry", async () => {
+    const api = failingCreates(fakeApi(), 3, NOT_READY);
+
+    const result = applyMonitoring({
+      config,
+      api,
+      project: "p",
+      email: "alerts@example.com",
+      log: quiet,
+      maxRetries: 2,
+      sleep: async () => {},
+    });
+
+    await expect(result).rejects.toThrow(/algolia-usage: Cannot find metric/);
+    expect(api.state.policies).toHaveLength(6);
   });
 
   it("builds the test logs where the real ones would land, marked as tests", () => {
