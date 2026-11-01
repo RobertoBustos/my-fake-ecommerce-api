@@ -1,0 +1,42 @@
+{
+  "policy": {
+    "displayName": "API down (healthcheck failing)",
+    "severity": "CRITICAL",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "The public healthcheck (/healthcheck on web.app) is failing from 2 or more checker regions for 5 minutes. Clients can't reach the API. If it started with a deploy, roll back.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Revertir-%28rollback%29)."
+    },
+    "conditions": [
+      {
+        "displayName": "Healthcheck failing from 2+ regions for 5 min",
+        "conditionThreshold": {
+          "filter": "resource.type=\"uptime_url\" AND metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.label.check_id=\"${uptime:healthcheck}\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "1200s",
+              "perSeriesAligner": "ALIGN_NEXT_OLDER",
+              "crossSeriesReducer": "REDUCE_COUNT_FALSE",
+              "groupByFields": [
+                "resource.label.project_id",
+                "resource.label.host"
+              ]
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 1,
+          "duration": "300s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "1800s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "displayName": "API healthcheck (web.app)",
+  "monitoredResource": {
+    "type": "uptime_url",
+    "labels": {
+      "project_id": "${PROJECT}",
+      "host": "${PROJECT}.web.app"
+    }
+  },
+  "httpCheck": {
+    "requestMethod": "GET",
+    "path": "/healthcheck",
+    "port": 443,
+    "useSsl": true,
+    "validateSsl": true,
+    "acceptedResponseStatusCodes": [
+      {
+        "statusValue": 200
+      }
+    ]
+  },
+  "contentMatchers": [
+    {
+      "content": "\"status\":\"ok\"",
+      "matcher": "CONTAINS_STRING"
+    }
+  ],
+  "period": "60s",
+  "timeout": "10s",
+  "selectedRegions": [
+    "USA",
+    "EUROPE",
+    "SOUTH_AMERICA"
+  ]
+}

@@ -2,10 +2,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { z } from "zod";
 
-// The monitoring setup as code: notification channels, log-based metrics and
-// alert policies, one JSON file each under ops/monitoring/. A file holds the
-// body the Cloud Monitoring or Cloud Logging API takes, so a PR shows exactly
-// what will be created; the file name is its id.
+// The monitoring setup as code: notification channels, log-based metrics,
+// uptime checks and alert policies, one JSON file each under ops/monitoring/.
+// A file holds the body the Cloud Monitoring or Cloud Logging API takes, so a
+// PR shows exactly what will be created; the file name is its id.
+//
+// Two placeholders are filled in at apply time: ${PROJECT} (the project id)
+// and, in a policy, ${uptime:<id>} (the id Google gives that uptime check).
 
 export const RUNBOOK_URL =
   "https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610";
@@ -20,6 +23,18 @@ const channelSchema = z.looseObject({
   labels: z.record(z.string(), z.string()),
 });
 
+export const PROJECT_PLACEHOLDER = "${PROJECT}";
+export const uptimePlaceholder = (id: string) => `\${uptime:${id}}`;
+
+const uptimeCheckSchema = z.looseObject({
+  displayName: z.string().min(1),
+  monitoredResource: z.looseObject({ type: z.string(), labels: z.record(z.string(), z.string()) }),
+  period: z.string(),
+  timeout: z.string(),
+  // Google requires at least three checker regions.
+  selectedRegions: z.array(z.string()).min(3),
+});
+
 const metricSchema = z.looseObject({
   name: z.string().regex(/^[a-z][a-z0-9_]*$/, "metric names are lowercase with underscores"),
   description: z.string().min(1),
@@ -31,18 +46,22 @@ const conditionSchema = z
     displayName: z.string().min(1),
     conditionMatchedLog: z.looseObject({ filter: z.string().min(1) }).optional(),
     conditionThreshold: z.looseObject({ filter: z.string().min(1) }).optional(),
+    conditionAbsent: z.looseObject({ filter: z.string().min(1), duration: z.string() }).optional(),
     conditionPrometheusQueryLanguage: z.looseObject({ query: z.string().min(1) }).optional(),
   })
   .refine(
     (condition) =>
-      [condition.conditionMatchedLog, condition.conditionThreshold, condition.conditionPrometheusQueryLanguage].filter(
-        Boolean
-      ).length === 1,
-    "a condition has exactly one of conditionMatchedLog, conditionThreshold or conditionPrometheusQueryLanguage"
+      [
+        condition.conditionMatchedLog,
+        condition.conditionThreshold,
+        condition.conditionAbsent,
+        condition.conditionPrometheusQueryLanguage,
+      ].filter(Boolean).length === 1,
+    "a condition has exactly one of conditionMatchedLog, conditionThreshold, conditionAbsent or conditionPrometheusQueryLanguage"
   );
 
 // A test log: what to write so the policy fires once it's applied. Policies
-// that watch a Google metric (5xx responses) have none.
+// that watch a Google metric (5xx responses, uptime, job runs) have none.
 const testSchema = z.object({
   resource: z.enum(["api", "sync-catalog", "process-inventory"]),
   severity: z.enum(["INFO", "WARNING", "ERROR"]),
@@ -71,6 +90,7 @@ const policyFileSchema = z.object({
 });
 
 export type Channel = z.infer<typeof channelSchema>;
+export type UptimeCheck = z.infer<typeof uptimeCheckSchema>;
 export type LogMetric = z.infer<typeof metricSchema>;
 export type PolicyFile = z.infer<typeof policyFileSchema>;
 export type TestLog = z.infer<typeof testSchema>;
@@ -78,6 +98,7 @@ export type TestLog = z.infer<typeof testSchema>;
 export interface MonitoringConfig {
   channels: Record<string, Channel>;
   metrics: Record<string, LogMetric>;
+  uptimeChecks: Record<string, UptimeCheck>;
   policies: Record<string, PolicyFile>;
 }
 
@@ -106,7 +127,15 @@ const readDir = <T>(dir: string, schema: z.ZodType<T>, errors: string[]) => {
 // Checks that hold across files: every channel a policy names exists, every
 // log-based metric a condition reads is defined, and log-match policies set
 // the notification rate limit the API requires for them.
-export const crossCheck = ({ channels, metrics, policies }: MonitoringConfig) => {
+// Every query a condition runs, whatever its kind.
+export const conditionQuery = (condition: PolicyFile["policy"]["conditions"][number]) =>
+  condition.conditionThreshold?.filter ??
+  condition.conditionAbsent?.filter ??
+  condition.conditionMatchedLog?.filter ??
+  condition.conditionPrometheusQueryLanguage?.query ??
+  "";
+
+export const crossCheck = ({ channels, metrics, uptimeChecks, policies }: MonitoringConfig) => {
   const errors: string[] = [];
   const metricNames = new Set(Object.values(metrics).map((metric) => metric.name));
   for (const [id, { policy }] of Object.entries(policies)) {
@@ -114,13 +143,12 @@ export const crossCheck = ({ channels, metrics, policies }: MonitoringConfig) =>
       if (!channels[channel]) errors.push(`policies/${id}.json: unknown notification channel "${channel}"`);
     }
     for (const condition of policy.conditions) {
-      const text =
-        condition.conditionThreshold?.filter ??
-        condition.conditionMatchedLog?.filter ??
-        condition.conditionPrometheusQueryLanguage?.query ??
-        "";
+      const text = conditionQuery(condition);
       for (const [, name] of text.matchAll(/logging\.googleapis\.com\/user\/([a-z0-9_]+)/g)) {
         if (!metricNames.has(name)) errors.push(`policies/${id}.json: unknown log-based metric "${name}"`);
+      }
+      for (const [, check] of text.matchAll(/\$\{uptime:([a-z0-9-]+)\}/g)) {
+        if (!uptimeChecks[check]) errors.push(`policies/${id}.json: unknown uptime check "${check}"`);
       }
       if (condition.conditionMatchedLog && !policy.alertStrategy?.notificationRateLimit) {
         errors.push(`policies/${id}.json: a log-match policy needs alertStrategy.notificationRateLimit`);
@@ -146,6 +174,7 @@ export const loadMonitoringConfig = (root: string): MonitoringConfig => {
   const config = {
     channels: readDir(join(root, "channels"), channelSchema, errors),
     metrics: readDir(join(root, "metrics"), metricSchema, errors),
+    uptimeChecks: readDir(join(root, "uptime-checks"), uptimeCheckSchema, errors),
     policies: readDir(join(root, "policies"), policyFileSchema, errors),
   };
   errors.push(...crossCheck(config));

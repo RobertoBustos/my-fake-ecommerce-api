@@ -1,4 +1,10 @@
-import { EMAIL_PLACEHOLDER, type MonitoringConfig, type TestLog } from "./config.js";
+import {
+  EMAIL_PLACEHOLDER,
+  PROJECT_PLACEHOLDER,
+  uptimePlaceholder,
+  type MonitoringConfig,
+  type TestLog,
+} from "./config.js";
 
 // Creates or updates, by id, everything in ops/monitoring/ in one project.
 // Running it twice changes nothing the second time: each resource carries the
@@ -68,6 +74,20 @@ const listAll = async <T>(api: MonitoringApi, url: string, key: string) => {
 
 const findManaged = <T extends Labeled>(items: T[], label: string, id: string) =>
   items.find((item) => item.userLabels?.managed_by === MANAGED_BY && item.userLabels?.[label] === id);
+
+// Fills the placeholders of a body: every text in it, at any depth.
+const fill = <T>(body: T, values: Record<string, string>): T =>
+  JSON.parse(
+    JSON.stringify(body, (_key, value) =>
+      typeof value === "string"
+        ? Object.entries(values).reduce((text, [placeholder, real]) => text.split(placeholder).join(real), value)
+        : value
+    )
+  );
+
+// The fields of an uptime check Google lets an update change; the rest
+// (what it checks, the checker type) are fixed at creation.
+const UPTIME_UPDATE_MASK = "displayName,period,timeout,httpCheck,contentMatchers,selectedRegions,userLabels";
 
 export const applyMonitoring = async ({
   config,
@@ -139,13 +159,41 @@ export const applyMonitoring = async ({
   };
 
   const failures: { id: string; error: string }[] = [];
+  // Uptime checks: Google gives each one its id on creation, and the policies
+  // that watch it name it by that id.
+  const placeholders: Record<string, string> = { [PROJECT_PLACEHOLDER]: project };
+  const existingChecks = await listAll<Labeled>(
+    api,
+    `${MONITORING}/${projectPath}/uptimeCheckConfigs`,
+    "uptimeCheckConfigs"
+  );
+  for (const [id, check] of Object.entries(config.uptimeChecks)) {
+    const body = fill({ ...check, userLabels: { managed_by: MANAGED_BY, uptime_id: id } }, placeholders);
+    const existing = findManaged(existingChecks, "uptime_id", id);
+    if (existing) {
+      placeholders[uptimePlaceholder(id)] = existing.name.split("/").pop() as string;
+      await act(`Update uptime check ${id}`, () =>
+        api.request("PATCH", `${MONITORING}/${existing.name}?updateMask=${UPTIME_UPDATE_MASK}`, body)
+      );
+    } else {
+      placeholders[uptimePlaceholder(id)] = `(new ${id})`;
+      await act(`Create uptime check ${id}`, async () => {
+        const created = await api.request<Labeled>("POST", `${MONITORING}/${projectPath}/uptimeCheckConfigs`, body);
+        placeholders[uptimePlaceholder(id)] = created.name.split("/").pop() as string;
+      });
+    }
+  }
+
   const existingPolicies = await listAll<Labeled>(api, `${MONITORING}/${projectPath}/alertPolicies`, "alertPolicies");
   for (const [id, { policy }] of Object.entries(config.policies)) {
-    const body = {
-      ...policy,
-      notificationChannels: policy.notificationChannels.map((channel) => channelNames[channel]),
-      userLabels: { managed_by: MANAGED_BY, policy_id: id },
-    };
+    const body = fill(
+      {
+        ...policy,
+        notificationChannels: policy.notificationChannels.map((channel) => channelNames[channel]),
+        userLabels: { managed_by: MANAGED_BY, policy_id: id },
+      },
+      placeholders
+    );
     const existing = findManaged(existingPolicies, "policy_id", id);
     try {
       if (existing) {
