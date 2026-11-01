@@ -6,6 +6,7 @@ import { expressMiddleware } from "@as-integrations/express5";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import { createContext } from "./context.js";
 import { requestId } from "./middleware/requestId.js";
+import { operationSummaryPlugin } from "./observability/operationSummary.js";
 import { validationRules } from "./schema/depthLimit.js";
 import { errorLoggingPlugin } from "./schema/errorLogging.js";
 import { formatError } from "./schema/formatError.js";
@@ -46,6 +47,7 @@ export const createApp = async () => {
         stopGracePeriodMillis: SHUTDOWN_GRACE_PERIOD_MS,
       }),
       errorLoggingPlugin,
+      operationSummaryPlugin,
     ],
   });
 

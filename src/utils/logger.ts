@@ -20,6 +20,13 @@ export interface LogRecord {
   fields: LogFields;
   trace?: TraceContext;
   service: { name: string; version: string };
+  // false keeps an ERROR line out of error reports (Error Reporting): for a
+  // line that summarizes an error already logged on its own.
+  report: boolean;
+}
+
+export interface LogOptions {
+  report?: boolean;
 }
 
 // Read at runtime instead of imported: package.json sits outside rootDir, and
@@ -35,7 +42,7 @@ export const setLogService = (name: string) => {
   service.name = name;
 };
 
-const write = (severity: Severity, message: string, fields: LogFields = {}) => {
+const write = (severity: Severity, message: string, fields: LogFields = {}, { report = true }: LogOptions = {}) => {
   const store = requestContext.getStore();
   const entry = formatEntry({
     severity,
@@ -45,6 +52,7 @@ const write = (severity: Severity, message: string, fields: LogFields = {}) => {
     fields,
     trace: store?.trace,
     service,
+    report,
   });
   const stream = severity === "ERROR" ? process.stderr : process.stdout;
   stream.write(`${JSON.stringify(entry)}\n`);
@@ -53,5 +61,5 @@ const write = (severity: Severity, message: string, fields: LogFields = {}) => {
 export const logger = {
   info: (message: string, fields?: LogFields) => write("INFO", message, fields),
   warn: (message: string, fields?: LogFields) => write("WARNING", message, fields),
-  error: (message: string, fields?: LogFields) => write("ERROR", message, fields),
+  error: (message: string, fields?: LogFields, options?: LogOptions) => write("ERROR", message, fields, options),
 };

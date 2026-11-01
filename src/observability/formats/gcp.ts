@@ -16,14 +16,16 @@ const REPORTED_ERROR_EVENT =
 // and the deploy sets only FIRESTORE_PROJECT_ID, which is the same project.
 const projectId = () => env.GOOGLE_CLOUD_PROJECT || env.FIRESTORE_PROJECT_ID;
 
-export const formatEntry = ({ severity, message, time, requestId, fields, trace, service }: LogRecord) => {
+export const formatEntry = ({ severity, message, time, requestId, fields, trace, service, report }: LogRecord) => {
   // Error Reporting reads the stack from stack_trace; callers keep passing
   // `stack`, as before.
   const { stack, ...rest } = fields;
   const entry: Record<string, unknown> = { severity, message, time, requestId, ...rest };
   if (stack !== undefined) entry.stack_trace = stack;
 
-  if (severity === "ERROR") {
+  // Error Reporting also takes any line with serviceContext as an error
+  // event, so a line that isn't reported carries neither field.
+  if (severity === "ERROR" && report) {
     // Groups errors by service and shows the version that raised them.
     entry.serviceContext = { service: service.name, version: service.version };
     if (entry.stack_trace === undefined) entry["@type"] = REPORTED_ERROR_EVENT;
