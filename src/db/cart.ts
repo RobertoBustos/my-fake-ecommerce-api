@@ -303,10 +303,10 @@ const writeCartItem = (
 // addToCart reserved these units; removing the item queues their release in
 // the same transaction as the delete, so they come back exactly once even if
 // the source is down right now (the inventory job retries it).
-// Returns false both for a missing item and for someone else's, so the caller
-// can't tell which (same reasoning as H2).
-export const removeFromCart = async (input: { id: string }, userId: string): Promise<boolean> => {
-  const taskIds = await runTransaction(async (tx): Promise<string[] | null> => {
+// Returns the removed item, or null both for a missing item and for someone
+// else's, so the caller can't tell which (same reasoning as H2).
+export const removeFromCart = async (input: { id: string }, userId: string): Promise<CartItem | null> => {
+  const removed = await runTransaction(async (tx): Promise<{ item: CartItem; taskIds: string[] } | null> => {
     const docRef = db.collection(COLLECTION).doc(input.id);
     const doc = await tx.get(docRef);
     if (!doc.exists || doc.get("userId") !== userId) {
@@ -322,15 +322,15 @@ export const removeFromCart = async (input: { id: string }, userId: string): Pro
         throw new OrderItemLockedError(item.orderId, order.status);
       }
     }
-    const ids = await queueInventoryTasks(tx, releaseTasks(item, "removeFromCart"));
+    const taskIds = await queueInventoryTasks(tx, releaseTasks(item, "removeFromCart"));
     tx.delete(docRef);
-    return ids;
+    return { item, taskIds };
   });
-  if (!taskIds) {
-    return false;
+  if (!removed) {
+    return null;
   }
-  await runInventoryTasks(taskIds);
-  return true;
+  await runInventoryTasks(removed.taskIds);
+  return removed.item;
 };
 
 const FIRESTORE_IN_QUERY_LIMIT = 30;

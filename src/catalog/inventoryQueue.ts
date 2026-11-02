@@ -84,10 +84,10 @@ export const runInventoryTask = async (id: string): Promise<InventoryTaskStatus 
     error = err;
   }
 
-  return runTransaction(async (tx) => {
+  const outcome = await runTransaction(async (tx): Promise<{ status: InventoryTaskStatus | null; done?: InventoryTask }> => {
     const current = await readInventoryTask(tx, id);
     // Another run already settled it.
-    if (!current || current.status !== "PENDING") return current?.status ?? null;
+    if (!current || current.status !== "PENDING") return { status: current?.status ?? null };
     const now = new Date();
     if (error === null) {
       tx.update(inventoryTaskRef(id), {
@@ -97,7 +97,7 @@ export const runInventoryTask = async (id: string): Promise<InventoryTaskStatus 
         lastError: null,
         updatedAt: now,
       });
-      return "DONE";
+      return { status: "DONE", done: { ...current, attempts: current.attempts + 1 } };
     }
     const attempts = current.attempts + 1;
     const message = (error as Error).message;
@@ -110,7 +110,7 @@ export const runInventoryTask = async (id: string): Promise<InventoryTaskStatus 
         updatedAt: now,
       });
       logFailure(current, attempts, message);
-      return "FAILED";
+      return { status: "FAILED" };
     }
     tx.update(inventoryTaskRef(id), {
       attempts,
@@ -125,8 +125,18 @@ export const runInventoryTask = async (id: string): Promise<InventoryTaskStatus 
       attempts,
       error: message,
     });
-    return "PENDING";
+    return { status: "PENDING" };
   });
+  // After the commit, and only from the run that settled it.
+  if (outcome.done) {
+    logger.event("inventory.task_done", {
+      action: outcome.done.action,
+      source: outcome.done.sourceKey,
+      reason: outcome.done.reason,
+      attempts: outcome.done.attempts,
+    });
+  }
+  return outcome.status;
 };
 
 // Right after the write that queued them commits, so the units move as soon

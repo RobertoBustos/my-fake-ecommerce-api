@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import type Stripe from "stripe";
 import stripeClient from "../config/stripe.js";
 import env from "../config/env.js";
-import { markOrderComplete } from "../db/index.js";
+import { getOrders, markOrderComplete } from "../db/index.js";
 import { markEventProcessed, unmarkEventProcessed } from "../db/webhookEvents.js";
 import { logger } from "../utils/logger.js";
 
@@ -51,7 +51,36 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             amountReceived: paymentIntent.amount_received,
             reason: result.reason,
           });
+        } else if (result.cartId) {
+          // Only the call that completed it carries the cart: an order
+          // already complete (another event, a retry) isn't a new purchase.
+          const cartId = result.cartId;
+          await logger.eventFrom("order.completed", () => ({
+            orderId,
+            cartId,
+            amount: paymentIntent.amount_received,
+            currency: paymentIntent.currency.toUpperCase(),
+          }));
         }
+      }
+    } else if (event.type === "payment_intent.payment_failed") {
+      // A declined card or a failed authentication. Nothing changes in the
+      // order (the client can try again); it's recorded for the funnel.
+      // Stripe delivers each event once here (markEventProcessed above).
+      const paymentIntent = event.data.object;
+      const orderId = paymentIntent.metadata?.order_id;
+      if (orderId) {
+        await logger.eventFrom("payment.failed", async () => {
+          const [order] = await getOrders({ id: orderId });
+          const lastError = paymentIntent.last_payment_error;
+          return {
+            orderId,
+            cartId: order?.cart ?? null,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency.toUpperCase(),
+            failureCode: lastError?.decline_code ?? lastError?.code ?? null,
+          };
+        });
       }
     }
   } catch (err) {

@@ -1,5 +1,6 @@
 import { GraphQLError } from "graphql";
 import { getCatalogProduct } from "../catalog/index.js";
+import { parseProductId } from "../catalog/productId.js";
 import {
   addToCart as addToCartDb,
   CartNotOwnedError,
@@ -16,6 +17,7 @@ import {
 } from "../schema/validators/index.js";
 import type { AddToCart, RemoveFromCart } from "../generated/graphql.js";
 import type { CartItem, MutationAck, MutationResult } from "../types/models.js";
+import { logger } from "../utils/logger.js";
 import {
   assertValidInput,
   quoteOrConflict,
@@ -109,6 +111,15 @@ export const addToCart = async (
     }
     throw err;
   }
+  logger.event("cart.item_added", {
+    cartId: cartItem.cartId,
+    orderId: cartItem.orderId,
+    source: parseProductId(cartItem.productId).sourceKey,
+    // What this call added, not the item's new total.
+    quantity: input.quantity,
+    unitPrice: cartItem.unitPrice,
+    currency: cartItem.currency,
+  });
   return {
     code: "200",
     success: true,
@@ -122,7 +133,7 @@ export const removeFromCart = async (
   userId: string
 ): Promise<MutationAck> => {
   assertValidInput(checkRemoveFromCart, input);
-  let removed: boolean;
+  let removed: CartItem | null;
   try {
     removed = await withContentionRetryHint(() => removeFromCartDb(input, userId));
   } catch (err) {
@@ -144,6 +155,12 @@ export const removeFromCart = async (
       },
     });
   }
+  logger.event("cart.item_removed", {
+    cartId: removed.cartId,
+    orderId: removed.orderId,
+    source: parseProductId(removed.productId).sourceKey,
+    quantity: removed.quantity,
+  });
   return {
     code: "200",
     success: true,

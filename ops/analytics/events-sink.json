@@ -1,0 +1,6 @@
+{
+  "name": "analytics-events",
+  "description": "Copies the key business events (src/observability/events.ts) from Cloud Logging to BigQuery, and nothing else.",
+  "dataset": "analytics_events",
+  "filter": "(resource.type=\"cloud_run_revision\" OR resource.type=\"cloud_run_job\") AND jsonPayload.schemaVersion>=1 AND jsonPayload.event:*"
+}

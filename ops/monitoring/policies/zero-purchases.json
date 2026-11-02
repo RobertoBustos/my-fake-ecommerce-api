@@ -1,0 +1,37 @@
+{
+  "policy": {
+    "displayName": "No purchases in 23 hours",
+    "severity": "WARNING",
+    "combiner": "OR",
+    "enabled": false,
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "No real purchase (order.completed outside the e2e suite) in 23 hours. Nothing failed, which is why no other alert catches it: the checkout may be broken for real users, or the payment webhook may not be arriving. The window is 23 h because alert windows must stay under 24 h.\n\nDisabled until the API has real traffic: today zero purchases a day is normal. Enable it by setting \"enabled\" to true and running scripts/applyMonitoring.ts.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Webhook-de-Stripe)."
+    },
+    "conditions": [
+      {
+        "displayName": "No order.completed outside e2e in 23 h",
+        "conditionAbsent": {
+          "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/business_events\" AND metric.label.event=\"order.completed\" AND metric.label.e2e=\"false\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "3600s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "duration": "82800s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "86400s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import db from "../config/firestore.js";
 import stripeClient from "../config/stripe.js";
+import { logger } from "../utils/logger.js";
 
 // Stripe's search language delimits values with quotes; a quote inside an
 // unescaped value breaks or manipulates the query (H4). Stripe expects
@@ -42,6 +43,9 @@ export const getCustomer = async (
     );
     customerId = created.id;
     await userRef.set({ stripeCustomerId: customerId }, { merge: true });
+    // Two concurrent first orders can both get here with the same customer
+    // (the idempotency key); the event may then repeat, which is rare enough.
+    logger.event("customer.created", {});
   }
 
   return stripeClient.customers.update(customerId, details);
