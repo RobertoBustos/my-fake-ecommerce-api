@@ -1,6 +1,5 @@
 import { register } from "node:module";
-import { readFileSync } from "node:fs";
-import { diag, DiagLogLevel, trace, type Span } from "@opentelemetry/api";
+import { trace, type Span } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
@@ -8,7 +7,6 @@ import { GraphQLInstrumentation } from "@opentelemetry/instrumentation-graphql";
 import { GrpcInstrumentation } from "@opentelemetry/instrumentation-grpc";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
-import { detectResources, envDetector, resourceFromAttributes } from "@opentelemetry/resources";
 import {
   AlwaysOnSampler,
   BatchSpanProcessor,
@@ -19,16 +17,17 @@ import {
   type SpanExporter,
 } from "@opentelemetry/sdk-trace-node";
 import { exporterCredentials } from "./exporterAuth.js";
-import { logger } from "../utils/logger.js";
-import { requestSpanNames, setTracingShutdown } from "./spans.js";
+import { onTelemetryShutdown } from "./lifecycle.js";
+import { logTelemetryDiagnostics, telemetryRequested, telemetryResource } from "./sdkCommon.js";
+import { requestSpanNames } from "./spans.js";
 
 // Traces with OpenTelemetry: every request and job run becomes a trace whose
 // spans show where the time went (GraphQL, Firestore over gRPC, Stripe and
 // Algolia over HTTPS). Spans leave over OTLP; where they go is configuration
 // (the standard OTEL_EXPORTER_OTLP_* variables), never code.
 //
-// Off unless OTEL_EXPORTER_OTLP_ENDPOINT is set, so local runs and the tests
-// trace nothing. OTEL_SDK_DISABLED=true turns it off even then.
+// Off unless an OTLP endpoint is set (sdkCommon.ts), so local runs and the
+// tests trace nothing.
 
 // Requests answered without looking at the body or the database: tracing them
 // would only fill the trace list (the uptime check calls every minute).
@@ -56,58 +55,33 @@ const sampler: Sampler = {
   toString: () => `WithoutStartupSpans{${everyRequest.toString()}}`,
 };
 
-const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
-  name: string;
-  version: string;
-};
-
-export const tracingRequested = (env: NodeJS.ProcessEnv = process.env) =>
-  env.OTEL_SDK_DISABLED !== "true" &&
-  Boolean(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || env.OTEL_EXPORTER_OTLP_ENDPOINT);
-
 export interface StartTracingOptions {
   // Replaces the OTLP exporter; tests pass one that collects spans.
   exporter?: SpanExporter;
 }
-
-// The SDK's own warnings and errors (an export Google rejected, a span that
-// couldn't be sent) go to the logs as WARNING; otherwise a broken exporter
-// would fail silently and traces would just stop arriving.
-const diagnostics = (message: string, ...args: unknown[]) =>
-  logger.warn(`OpenTelemetry: ${message}`, {
-    details: args.map((arg) => (arg instanceof Error ? arg.message : String(arg))),
-  });
 
 let started = false;
 
 // Runs before the app is loaded (src/telemetry.ts, through `node --import`):
 // instrumentation can only patch a library that hasn't been imported yet.
 export const startTracing = ({ exporter }: StartTracingOptions = {}) => {
-  if (started || (!exporter && !tracingRequested())) return false;
+  if (started || (!exporter && !telemetryRequested("traces"))) return false;
   started = true;
-  diag.setLogger(
-    { error: diagnostics, warn: diagnostics, info: () => {}, debug: () => {}, verbose: () => {} },
-    DiagLogLevel.WARN
-  );
+  logTelemetryDiagnostics();
 
   // The app is ESM: this hook lets the instrumentations patch modules loaded
   // with `import`, not only with `require`.
   register("@opentelemetry/instrumentation/hook.mjs", import.meta.url);
 
   const provider = new NodeTracerProvider({
-    // OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES win. Otherwise a job is
-    // named like its Cloud Run job, so its traces are told apart from the API's.
-    resource: resourceFromAttributes({
-      "service.name": process.env.CLOUD_RUN_JOB || pkg.name,
-      "service.version": pkg.version,
-    }).merge(detectResources({ detectors: [envDetector] })),
+    resource: telemetryResource(),
     sampler,
     spanProcessors: [
       new BatchSpanProcessor(exporter ?? new OTLPTraceExporter({ credentials: exporterCredentials() })),
     ],
   });
   provider.register();
-  setTracingShutdown(() => provider.shutdown());
+  onTelemetryShutdown(() => provider.shutdown());
 
   registerInstrumentations({
     tracerProvider: provider,

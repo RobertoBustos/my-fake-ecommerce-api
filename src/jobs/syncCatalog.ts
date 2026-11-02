@@ -1,6 +1,7 @@
 import { syncCatalog } from "../catalog/catalogSync.js";
+import { measureExchangeRateAges } from "../pricing/refreshRates.js";
 import { logger } from "../utils/logger.js";
-import { runJob } from "./runJob.js";
+import { measure, runJob } from "./runJob.js";
 
 // The catalog sync job: pulls what changed in every switched-on source into
 // the catalog index, and reconciles each source when it is due. It feeds the
@@ -23,6 +24,7 @@ await runJob("sync-catalog", async () => {
       sourceKeys: sourceKeys.length > 0 ? sourceKeys : undefined,
     });
     logger.info("Catalog synced", { synced, failed: failed.map(({ sourceKey }) => sourceKey), searchFailed });
+    await measure("exchange rate ages", () => measureExchangeRateAges());
     return failed.length > 0 ? 1 : 0;
   } catch (err) {
     logger.error("Catalog sync job failed", { error: (err as Error).message });

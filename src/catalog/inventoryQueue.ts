@@ -1,5 +1,6 @@
 import env from "../config/env.js";
 import {
+  countInventoryTasks,
   getInventoryTask,
   inventoryTaskRef,
   listDueInventoryTasks,
@@ -8,6 +9,7 @@ import {
   type InventoryTaskStatus,
 } from "../db/inventoryTasks.js";
 import { runTransaction } from "../db/transactions.js";
+import { metrics } from "../observability/metrics.js";
 import { logger } from "../utils/logger.js";
 import { OutOfStockError, ReservationExpiredError } from "./ports.js";
 import { getCatalogSource } from "./registry.js";
@@ -160,6 +162,14 @@ export const processInventoryTasks = async ({ now = new Date() }: { now?: Date }
     }
   }
   return counts;
+};
+
+// The queue's backlog, after a pass: tasks still waiting and tasks that need
+// a person. Recorded by process-inventory on every run (metrics.ts).
+export const measureInventoryQueue = async () => {
+  for (const status of ["PENDING", "FAILED"] as const) {
+    metrics.gauge("inventory.tasks", await countInventoryTasks(status), { status });
+  }
 };
 
 // For a person, after fixing what made a task fail: puts it back in the

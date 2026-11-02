@@ -37,18 +37,3 @@ export const withSpan = <T>(name: string, work: () => Promise<T>) =>
       span.end();
     }
   });
-
-let flush: (() => Promise<void>) | undefined;
-
-// Set by tracing.ts when the SDK starts.
-export const setTracingShutdown = (shutdown: () => Promise<void>) => {
-  flush = shutdown;
-};
-
-// Sends the spans still buffered and stops tracing. Called on shutdown and at
-// the end of a job; resolves at once when tracing is off.
-export const shutdownTracing = async () => {
-  const current = flush;
-  flush = undefined;
-  await current?.();
-};

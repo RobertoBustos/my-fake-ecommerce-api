@@ -49,12 +49,14 @@ jobs:
           service: ${{ env.SERVICE }}
           region: ${{ vars.GCP_REGION }}
           image: ${{ env.IMAGE }}
-          # Traces go over OTLP to Google's Telemetry API, authenticated as the
-          # runtime service account (TELEMETRY_AUTH, see src/observability/exporterAuth.ts).
+          # Traces and metrics go over OTLP to Google's Telemetry API, authenticated
+          # as the runtime service account (TELEMETRY_AUTH, see
+          # src/observability/exporterAuth.ts). Cloud Monitoring drops metric
+          # points without a region (cloud.region).
           env_vars: |
             FIRESTORE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}
             OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com
-            OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=${{ vars.GCP_PROJECT_ID }}
+            OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=${{ vars.GCP_PROJECT_ID }},cloud.region=${{ vars.GCP_REGION }}
             TELEMETRY_AUTH=google
           secrets: |
             STRIPE_SECRET_KEY=stripe-secret-key:latest

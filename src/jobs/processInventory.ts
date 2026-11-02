@@ -1,7 +1,7 @@
-import { processInventoryTasks } from "../catalog/inventoryQueue.js";
+import { measureInventoryQueue, processInventoryTasks } from "../catalog/inventoryQueue.js";
 import { sweepExpiredReservations } from "../db/reservationSweep.js";
 import { logger } from "../utils/logger.js";
-import { runJob } from "./runJob.js";
+import { measure, runJob } from "./runJob.js";
 
 // The inventory job: queues the release of expired reservations, then runs
 // every confirm and release that is due. It ships in the same image as the
@@ -14,6 +14,7 @@ await runJob("process-inventory", async () => {
     const swept = await sweepExpiredReservations();
     const tasks = await processInventoryTasks();
     logger.info("Inventory queue processed", { swept, tasks });
+    await measure("the inventory queue", measureInventoryQueue);
     return 0;
   } catch (err) {
     logger.error("Inventory job failed", { error: (err as Error).message });
