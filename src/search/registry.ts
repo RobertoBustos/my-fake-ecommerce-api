@@ -1,6 +1,7 @@
 import env from "../config/env.js";
 import { configureAlgoliaIndex, createAlgoliaSearchIndex } from "./adapters/algolia/index.js";
 import { createMemorySearchIndex } from "./adapters/memory.js";
+import { withSearchMetrics } from "./metrics.js";
 import type { SearchIndex } from "./ports.js";
 import { withSearchTimeout } from "./timeout.js";
 
@@ -15,7 +16,7 @@ interface SearchEngine {
 // Every search engine the code knows about, by the value of SEARCH_ENGINE.
 // Each is built on first use and then shared, so the sync job and the
 // resolvers of one process talk to the same index, and every search it
-// answers has a deadline (timeout.ts).
+// answers has a deadline (timeout.ts) and is measured (metrics.ts).
 const knownEngines: Record<string, SearchEngine> = {
   memory: { create: createMemorySearchIndex },
   algolia: { create: () => createAlgoliaSearchIndex(), configure: () => configureAlgoliaIndex() },
@@ -59,7 +60,7 @@ export const getSearchIndex = (): SearchIndex => {
   const engine = engineFor(key);
   let index = built.get(key);
   if (!index) {
-    index = withSearchTimeout(engine.create());
+    index = withSearchMetrics(withSearchTimeout(engine.create()));
     built.set(key, index);
   }
   return index;

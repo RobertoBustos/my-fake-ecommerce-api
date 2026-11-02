@@ -11,6 +11,7 @@ import {
   upsertCatalogEntries,
   type CatalogEntry,
 } from "../db/catalogIndex.js";
+import { metrics } from "../observability/metrics.js";
 import { getPricingSettings, type PricingSettings } from "../pricing/settings.js";
 import { getConfiguredSearchIndex } from "../search/registry.js";
 import type { SearchIndex } from "../search/ports.js";
@@ -242,5 +243,32 @@ export const syncCatalog = async ({
     }
   }
   if (search) await finishSearchIndex(search, synced.some((result) => result.mode === "reconcile"));
+  await measureCatalogSync(selected, synced, now);
+  if (searchIndex && search) {
+    metrics.gauge("search.index.failed_writes", search.failed.length, { engine: searchIndex.key });
+  }
   return { synced, failed, searchFailed: search?.failed ?? [] };
+};
+
+// How far behind each source is: 0 for one that just synced, otherwise the
+// time since its last successful sync. The alert on a stale catalog reads the
+// logs; this is the same fact as a number for the dashboard. A source that
+// never synced has no value to report.
+const measureCatalogSync = async (sources: CatalogSource[], synced: SourceSyncResult[], now: Date) => {
+  for (const source of sources) {
+    let lastSyncedAt: Date | null = now;
+    if (!synced.some((result) => result.sourceKey === source.key)) {
+      try {
+        lastSyncedAt = (await getCatalogSyncState(source.key))?.lastSyncedAt ?? null;
+      } catch {
+        // The failure that stopped the sync is already logged.
+        continue;
+      }
+    }
+    if (lastSyncedAt) {
+      metrics.gauge("catalog.source.staleness", (now.getTime() - lastSyncedAt.getTime()) / 1000, {
+        source: source.key,
+      });
+    }
+  }
 };

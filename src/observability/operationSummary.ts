@@ -2,6 +2,7 @@ import { performance } from "node:perf_hooks";
 import type { ApolloServerPlugin } from "@apollo/server";
 import { getOperationAST, Kind, type DocumentNode, type OperationDefinitionNode, type SelectionSetNode } from "graphql";
 import { logger } from "../utils/logger.js";
+import { boundedLabel, metrics } from "./metrics.js";
 import { nameRequestSpan } from "./spans.js";
 
 // Every GraphQL request is a POST /graphql that answers 200, so Cloud Run's
@@ -15,6 +16,12 @@ import { nameRequestSpan } from "./spans.js";
 
 // The code of an unexpected failure; every other code is the client's or retryable.
 const SERVER_ERROR = "INTERNAL_SERVER_ERROR";
+
+// The client names its operations, so the metric label is bounded: the first
+// 50 distinct names per instance, then "other". Error codes come from the
+// API, but are bounded too, in case a library adds its own.
+const operationLabel = boundedLabel(50);
+const errorCodeLabel = boundedLabel(20);
 
 // The root fields an operation asked for, by name (aliases are the client's
 // own words). Fragments at the root are followed.
@@ -66,6 +73,15 @@ export const operationSummaryPlugin: ApolloServerPlugin = {
         };
         // The trace takes the operation's name too: "graphql createOrderPayment".
         nameRequestSpan(`graphql ${fields.operationName}`);
+        // RED: one observation per request. An unexpected failure is the
+        // error code that counts when there are several.
+        metrics.record("graphql.operation.duration", fields.durationMs / 1000, {
+          operation: operationLabel(fields.operationName),
+          type: fields.operationType,
+          error_code: errorCodeLabel(
+            errorCodes.includes(SERVER_ERROR) ? SERVER_ERROR : (errorCodes[0] ?? "none")
+          ),
+        });
         if (errorCodes.includes(SERVER_ERROR)) {
           // The error itself is already logged with its stack
           // (errorLogging.ts); reporting the summary too would add a

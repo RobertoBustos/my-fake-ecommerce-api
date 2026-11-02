@@ -1,10 +1,10 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { spawn } from "child_process";
 import { once } from "events";
 import { ESLint } from "eslint";
 import { exporterCredentials } from "../src/observability/exporterAuth.js";
-import { setTracingShutdown } from "../src/observability/spans.js";
-import { tracingRequested } from "../src/observability/tracing.js";
+import { onTelemetryShutdown } from "../src/observability/lifecycle.js";
+import { telemetryRequested } from "../src/observability/sdkCommon.js";
 import { createShutdown, TRACE_FLUSH_TIMEOUT_MS } from "../src/shutdown.js";
 import { getLocalIdToken } from "../scripts/localToken.js";
 
@@ -34,16 +34,18 @@ const startServer = async (telemetry, port, env = {}) => {
 };
 
 describe("OpenTelemetry tracing", () => {
-  afterEach(() => {
-    setTracingShutdown(async () => {});
-  });
-
   it("is off unless an OTLP endpoint is configured", () => {
-    expect(tracingRequested({})).toBe(false);
-    expect(tracingRequested({ OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.example" })).toBe(true);
-    expect(tracingRequested({ OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://collector.example" })).toBe(true);
+    expect(telemetryRequested("traces", {})).toBe(false);
+    expect(telemetryRequested("traces", { OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.example" })).toBe(true);
+    expect(telemetryRequested("traces", { OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://collector.example" })).toBe(
+      true
+    );
+    // A signal's own endpoint turns on only that signal.
+    expect(telemetryRequested("metrics", { OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://collector.example" })).toBe(
+      false
+    );
     expect(
-      tracingRequested({ OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.example", OTEL_SDK_DISABLED: "true" })
+      telemetryRequested("traces", { OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.example", OTEL_SDK_DISABLED: "true" })
     ).toBe(false);
   });
 
@@ -121,7 +123,7 @@ describe("OpenTelemetry tracing", () => {
   it("still exits when the last spans can't be sent", async () => {
     vi.useFakeTimers();
     try {
-      setTracingShutdown(() => new Promise(() => {}));
+      onTelemetryShutdown(() => new Promise(() => {}));
       const exit = vi.fn();
       const stopping = createShutdown({ stop: async () => {} }, { exit })("SIGTERM");
       await vi.advanceTimersByTimeAsync(TRACE_FLUSH_TIMEOUT_MS);

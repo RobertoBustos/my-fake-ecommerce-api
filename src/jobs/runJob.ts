@@ -1,9 +1,10 @@
-import { shutdownTracing, withSpan } from "../observability/spans.js";
+import { shutdownTelemetry } from "../observability/lifecycle.js";
+import { withSpan } from "../observability/spans.js";
 import { logger, setLogService } from "../utils/logger.js";
 
 // Runs a job and exits with the code it returns. The run is one trace (a root
-// span named after the job), and the spans still buffered are sent before the
-// process exits: process.exit would drop them.
+// span named after the job), and the spans and metric points still buffered
+// are sent before the process exits: process.exit would drop them.
 export const runJob = async (name: string, work: () => Promise<number>) => {
   // Named like its Cloud Run job, so Error Reporting groups its errors apart.
   setLogService(name);
@@ -15,9 +16,19 @@ export const runJob = async (name: string, work: () => Promise<number>) => {
     code = 1;
   }
   try {
-    await shutdownTracing();
+    await shutdownTelemetry();
   } catch (err) {
-    logger.warn("Could not send the last traces", { error: (err as Error).message });
+    logger.warn("Could not send the last traces and metrics", { error: (err as Error).message });
   }
   process.exit(code);
+};
+
+// Takes a measurement for the job's metrics. A measurement that fails is a
+// WARNING and never fails the run: the job did its work.
+export const measure = async (what: string, work: () => Promise<void>) => {
+  try {
+    await work();
+  } catch (err) {
+    logger.warn(`Could not measure ${what}`, { error: (err as Error).message });
+  }
 };

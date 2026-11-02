@@ -107,3 +107,8 @@ export const listDueInventoryTasks = async (now: Date, limit: number) => {
     .get();
   return snapshot.docs.map(toTask);
 };
+
+// How many tasks are in a status, without reading them (one aggregation
+// query; a single equality needs no composite index).
+export const countInventoryTasks = async (status: InventoryTaskStatus) =>
+  (await db.collection(COLLECTION).where("status", "==", status).count().get()).data().count;
