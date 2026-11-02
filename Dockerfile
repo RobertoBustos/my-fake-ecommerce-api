@@ -23,6 +23,12 @@ RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
 
+# Tracing starts before the app or a job loads anything (see
+# src/telemetry.ts). Through NODE_OPTIONS so the Cloud Run jobs, which run
+# `node dist/jobs/<job>.js` from this same image, get it too. It does nothing
+# unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+ENV NODE_OPTIONS="--import=/app/dist/telemetry.js"
+
 EXPOSE 8080
 
 CMD ["node", "dist/index.js"]

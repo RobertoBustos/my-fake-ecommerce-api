@@ -49,8 +49,13 @@ jobs:
           service: ${{ env.SERVICE }}
           region: ${{ vars.GCP_REGION }}
           image: ${{ env.IMAGE }}
+          # Traces go over OTLP to Google's Telemetry API, authenticated as the
+          # runtime service account (TELEMETRY_AUTH, see src/observability/exporterAuth.ts).
           env_vars: |
             FIRESTORE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}
+            OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com
+            OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=${{ vars.GCP_PROJECT_ID }}
+            TELEMETRY_AUTH=google
           secrets: |
             STRIPE_SECRET_KEY=stripe-secret-key:latest
             STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest
