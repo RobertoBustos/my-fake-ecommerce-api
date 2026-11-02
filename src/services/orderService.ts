@@ -29,6 +29,7 @@ import type {
 } from "../generated/graphql.js";
 import type { MutationAck, MutationResult, Order, Product } from "../types/models.js";
 import { LEGACY_CURRENCY } from "../pricing/index.js";
+import { logger } from "../utils/logger.js";
 import {
   assertValidInput,
   quoteOrConflict,
@@ -65,6 +66,17 @@ export const createOrder = async (
     }
     throw err;
   }
+  await logger.eventFrom("order.created", async () => {
+    const totals = await getOrderTotals(order.id);
+    return {
+      orderId: order.id,
+      cartId: order.cart,
+      items: totals.items,
+      units: totals.units,
+      total: totals.total,
+      currency: totals.currency,
+    };
+  });
   return {
     code: "200",
     success: true,
@@ -109,6 +121,11 @@ export const updateOrder = async (
       data: null,
     };
   }
+  // Once, when the details the order was missing are complete; later edits
+  // to an order that can already be paid don't count again.
+  if (newOrder.status === "PAYMENT_PENDING" && order[0].status !== "PAYMENT_PENDING") {
+    logger.event("order.ready_to_pay", { orderId: newOrder.id, cartId: newOrder.cart });
+  }
   return {
     code: "200",
     success: true,
@@ -142,6 +159,9 @@ export const cancelOrder = async (input: CancelOrder, userId: string): Promise<M
     }
     throw err;
   }
+  if (result) {
+    logger.event("order.cancelled", { orderId: order[0].id, cartId: order[0].cart });
+  }
   return {
     code: "200",
     success: result,
@@ -157,7 +177,7 @@ export const cancelOrder = async (input: CancelOrder, userId: string): Promise<M
 // rate or in the settlement currency) is never charged silently: the items
 // move to the new price, nothing is charged, and the client gets the new
 // prices so it can show the new total and pay again.
-const assertCurrentPrices = async (orderId: string): Promise<void> => {
+const assertCurrentPrices = async ({ id: orderId, cart: cartId }: Order): Promise<void> => {
   const items = await getCart({ orderId });
 
   // A reservation past its expiry may be released at any moment, so the
@@ -168,6 +188,7 @@ const assertCurrentPrices = async (orderId: string): Promise<void> => {
     (item.reservations ?? []).some((r) => r.expiresAt !== null && r.expiresAt.getTime() <= now)
   );
   if (expired.length > 0) {
+    logger.event("payment.blocked", { orderId, cartId, reason: "reservation_expired" });
     throw new GraphQLError("The stock reservation of some items expired; add them to the cart again", {
       extensions: {
         code: "BAD_USER_INPUT",
@@ -180,6 +201,7 @@ const assertCurrentPrices = async (orderId: string): Promise<void> => {
 
   const unavailable = items.filter((_, i) => products[i] === null);
   if (unavailable.length > 0) {
+    logger.event("payment.blocked", { orderId, cartId, reason: "product_unavailable" });
     throw new GraphQLError("Some products in the order are no longer available", {
       extensions: {
         code: "BAD_USER_INPUT",
@@ -216,6 +238,7 @@ const assertCurrentPrices = async (orderId: string): Promise<void> => {
     }
     throw err;
   }
+  logger.event("payment.repriced", { orderId, cartId, changedItems: changes.length });
   throw new GraphQLError(
     "Prices changed since the products were added; review the new total and pay again",
     {
@@ -266,10 +289,11 @@ export const createOrderPayment = async (
       },
     });
   }
-  await assertCurrentPrices(order[0].id);
+  await assertCurrentPrices(order[0]);
   const totals = await getOrderTotals(order[0].id);
   // Stripe rejects a zero amount, which used to surface as an internal error.
   if (totals.total <= 0) {
+    logger.event("payment.blocked", { orderId: order[0].id, cartId: order[0].cart, reason: "empty_order" });
     throw new GraphQLError("The order has no items to pay for", {
       extensions: {
         code: "BAD_USER_INPUT",
@@ -284,6 +308,16 @@ export const createOrderPayment = async (
     totals.currency
   );
   await setOrderPayment(order[0].id, payment.paymentId);
+  // A retry, or paying again after a price change, reuses the order's
+  // PaymentIntent: only the first one is a new fact.
+  if (order[0].paymentId !== payment.paymentId) {
+    logger.event("payment.intent_created", {
+      orderId: order[0].id,
+      cartId: order[0].cart,
+      amount: totals.total,
+      currency: totals.currency,
+    });
+  }
   return {
     code: "200",
     success: true,

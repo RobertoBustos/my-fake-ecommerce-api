@@ -236,6 +236,12 @@ export const syncCatalog = async ({
       // them by sourceKey, so a source that stops syncing shows up even when
       // the others still do.
       logger.info("Catalog source synced", { sourceKey: source.key, mode: result.mode });
+      logger.event("catalog.synced", {
+        source: source.key,
+        mode: result.mode,
+        upserted: result.upserted,
+        deleted: result.deleted,
+      });
     } catch (err) {
       const error = (err as Error).message;
       logger.error("Catalog sync failed", { sourceKey: source.key, error });

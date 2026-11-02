@@ -1,0 +1,34 @@
+{
+  "name": "order_amounts",
+  "description": "Amount of each completed purchase, in cents of its currency (order.completed). The funnel's timings, such as from order to payment, come from the event timestamps in BigQuery (ops/analytics/).",
+  "filter": "resource.type=\"cloud_run_revision\" AND jsonPayload.event=\"order.completed\"",
+  "valueExtractor": "EXTRACT(jsonPayload.amount)",
+  "labelExtractors": {
+    "currency": "EXTRACT(jsonPayload.currency)",
+    "e2e": "EXTRACT(jsonPayload.e2e)"
+  },
+  "bucketOptions": {
+    "exponentialBuckets": {
+      "numFiniteBuckets": 20,
+      "growthFactor": 2,
+      "scale": 1000
+    }
+  },
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "DISTRIBUTION",
+    "unit": "1",
+    "labels": [
+      {
+        "key": "currency",
+        "valueType": "STRING",
+        "description": "ISO 4217 code of the amount."
+      },
+      {
+        "key": "e2e",
+        "valueType": "STRING",
+        "description": "\"true\" for the e2e suite's carts, \"false\" otherwise."
+      }
+    ]
+  }
+}

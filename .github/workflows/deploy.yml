@@ -52,11 +52,12 @@ jobs:
           # Traces and metrics go over OTLP to Google's Telemetry API, authenticated
           # as the runtime service account (TELEMETRY_AUTH, see
           # src/observability/exporterAuth.ts). Cloud Monitoring drops metric
-          # points without a region (cloud.region).
+          # points without a region (cloud.region). The action also splits on
+          # commas, so the one inside OTEL_RESOURCE_ATTRIBUTES is escaped.
           env_vars: |
             FIRESTORE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}
             OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com
-            OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=${{ vars.GCP_PROJECT_ID }},cloud.region=${{ vars.GCP_REGION }}
+            OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=${{ vars.GCP_PROJECT_ID }}\,cloud.region=${{ vars.GCP_REGION }}
             TELEMETRY_AUTH=google
           secrets: |
             STRIPE_SECRET_KEY=stripe-secret-key:latest
