@@ -1,3 +1,5 @@
+import { isSpanContextValid, trace, TraceFlags } from "@opentelemetry/api";
+
 // The trace a request belongs to, read from the headers Cloud Run's front end
 // adds to every request. Clients can send these headers too, so only ids in
 // the exact expected shape are kept; anything else is ignored.
@@ -46,3 +48,16 @@ export const parseTraceContext = (
 ): TraceContext | undefined =>
   (traceparent ? fromTraceparent(traceparent) : undefined) ??
   (cloudTraceContext ? fromCloudTrace(cloudTraceContext) : undefined);
+
+// The span running right now, when tracing is on: the request's server span
+// or a job's root span (or a span inside them). With tracing off there is
+// none, and the logger falls back to the request's headers.
+export const activeTraceContext = (): TraceContext | undefined => {
+  const spanContext = trace.getActiveSpan()?.spanContext();
+  if (!spanContext || !isSpanContextValid(spanContext)) return undefined;
+  return {
+    traceId: spanContext.traceId,
+    spanId: spanContext.spanId,
+    sampled: (spanContext.traceFlags & TraceFlags.SAMPLED) === TraceFlags.SAMPLED,
+  };
+};

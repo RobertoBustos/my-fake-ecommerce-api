@@ -42,6 +42,18 @@ const searchEngineImports = {
   ],
 };
 
+// Telemetry: only src/observability/ may use OpenTelemetry. The rest of the
+// code logs through the logger, so the instrumentation (and the vendor it
+// exports to) can change without touching it.
+const telemetryImports = {
+  patterns: [
+    {
+      regex: "^@opentelemetry/",
+      message: "Only src/observability/ may use OpenTelemetry; log through src/utils/logger.ts.",
+    },
+  ],
+};
+
 export default tseslint.config(
   { ignores: ["dist/", "coverage/", "src/generated/"] },
   js.configs.recommended,
@@ -68,13 +80,28 @@ export default tseslint.config(
     },
   },
   // A file matched by several of these blocks gets only the last block's
-  // no-restricted-imports, so the later blocks repeat the search engine
-  // patterns instead of losing them.
+  // no-restricted-imports, so the later blocks repeat the search engine and
+  // telemetry patterns instead of losing them.
   {
     files: ["src/**/*.ts", "scripts/**/*.ts"],
-    ignores: ["src/search/adapters/**"],
+    ignores: ["src/search/adapters/**", "src/observability/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [...searchEngineImports.patterns, ...telemetryImports.patterns] },
+      ],
+    },
+  },
+  {
+    files: ["src/observability/**/*.ts"],
     rules: {
       "no-restricted-imports": ["error", searchEngineImports],
+    },
+  },
+  {
+    files: ["src/search/adapters/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", telemetryImports],
     },
   },
   {
@@ -83,7 +110,13 @@ export default tseslint.config(
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [...dataLayerImports.patterns, ...searchEngineImports.patterns] },
+        {
+          patterns: [
+            ...dataLayerImports.patterns,
+            ...searchEngineImports.patterns,
+            ...telemetryImports.patterns,
+          ],
+        },
       ],
     },
   },
@@ -93,7 +126,13 @@ export default tseslint.config(
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [...databaseClientImports.patterns, ...searchEngineImports.patterns] },
+        {
+          patterns: [
+            ...databaseClientImports.patterns,
+            ...searchEngineImports.patterns,
+            ...telemetryImports.patterns,
+          ],
+        },
       ],
     },
   }

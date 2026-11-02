@@ -2,6 +2,7 @@ import { performance } from "node:perf_hooks";
 import type { ApolloServerPlugin } from "@apollo/server";
 import { getOperationAST, Kind, type DocumentNode, type OperationDefinitionNode, type SelectionSetNode } from "graphql";
 import { logger } from "../utils/logger.js";
+import { nameRequestSpan } from "./spans.js";
 
 // Every GraphQL request is a POST /graphql that answers 200, so Cloud Run's
 // request logs can't tell a slow purchase from a fast listing. This plugin
@@ -63,6 +64,8 @@ export const operationSummaryPlugin: ApolloServerPlugin = {
           durationMs: Math.round((performance.now() - start) * 10) / 10,
           ...(errorCodes.length > 0 && { errorCodes }),
         };
+        // The trace takes the operation's name too: "graphql createOrderPayment".
+        nameRequestSpan(`graphql ${fields.operationName}`);
         if (errorCodes.includes(SERVER_ERROR)) {
           // The error itself is already logged with its stack
           // (errorLogging.ts); reporting the summary too would add a

@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync } from "node:fs";
 import { formatEntry } from "../observability/formats/gcp.js";
-import type { TraceContext } from "../observability/traceContext.js";
+import { activeTraceContext, type TraceContext } from "../observability/traceContext.js";
 
 // Holds per-request data (the request ID and its trace) so any log call made
 // while handling a request includes it, without threading it through every call.
@@ -50,7 +50,9 @@ const write = (severity: Severity, message: string, fields: LogFields = {}, { re
     time: new Date().toISOString(),
     requestId: store?.requestId,
     fields,
-    trace: store?.trace,
+    // The span this line was written in, when tracing is on; otherwise the
+    // trace Cloud Run's front end put in the request's headers.
+    trace: activeTraceContext() ?? store?.trace,
     service,
     report,
   });
