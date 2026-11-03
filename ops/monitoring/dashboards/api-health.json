@@ -101,7 +101,7 @@
               {
                 "plotType": "LINE",
                 "timeSeriesQuery": {
-                  "prometheusQuery": "sum(rate(logging_googleapis_com:user_graphql_server_errors[1h])) / sum(rate(logging_googleapis_com:user_graphql_requests[1h]))"
+                  "prometheusQuery": "(sum(rate(logging_googleapis_com:user_graphql_server_errors[1h])) or vector(0)) / sum(rate(logging_googleapis_com:user_graphql_requests[1h]))"
                 }
               }
             ],
@@ -198,7 +198,7 @@
               {
                 "plotType": "STACKED_BAR",
                 "timeSeriesQuery": {
-                  "prometheusQuery": "sum by (event) (increase(logging_googleapis_com:user_business_events{e2e=\"false\",event=~\"cart.item_added|order.created|order.ready_to_pay|payment.intent_created|order.completed\"}[1d]))"
+                  "prometheusQuery": "sum by (event) (increase(logging_googleapis_com:user_business_events{monitored_resource=\"cloud_run_revision\",e2e=\"false\",event=~\"cart.item_added|order.created|order.ready_to_pay|payment.intent_created|order.completed\"}[1d]))"
                 },
                 "minAlignmentPeriod": "86400s"
               }
@@ -221,7 +221,7 @@
               {
                 "plotType": "STACKED_BAR",
                 "timeSeriesQuery": {
-                  "prometheusQuery": "sum by (event) (increase(logging_googleapis_com:user_business_events{e2e=\"false\",event=~\"payment.failed|payment.blocked|payment.repriced|order.cancelled|reservation.expired\"}[1d]))"
+                  "prometheusQuery": "sum by (event) (increase(logging_googleapis_com:user_business_events{monitored_resource=\"cloud_run_revision\",e2e=\"false\",event=~\"payment.failed|payment.blocked|payment.repriced|order.cancelled|reservation.expired\"}[1d]))"
                 },
                 "minAlignmentPeriod": "86400s"
               }

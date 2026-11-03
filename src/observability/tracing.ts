@@ -13,6 +13,7 @@ import {
   NodeTracerProvider,
   ParentBasedSampler,
   SamplingDecision,
+  type ReadableSpan,
   type Sampler,
   type SpanExporter,
 } from "@opentelemetry/sdk-trace-node";
@@ -55,6 +56,27 @@ const sampler: Sampler = {
   toString: () => `WithoutStartupSpans{${everyRequest.toString()}}`,
 };
 
+// Attributes that never leave the process. The HTTP instrumentation records
+// the client's IP on every incoming request; with real users that's personal
+// data, which traces keep out like events and metrics do.
+export const REDACTED_ATTRIBUTES = ["client.address", "http.client_ip"] as const;
+
+// The span as it is, minus those attributes. Spans are read-only once ended,
+// so the copy keeps the original as its prototype and shadows its attributes.
+const redact = (span: ReadableSpan): ReadableSpan => {
+  if (!REDACTED_ATTRIBUTES.some((key) => key in span.attributes)) return span;
+  const attributes = { ...span.attributes };
+  for (const key of REDACTED_ATTRIBUTES) delete attributes[key];
+  return Object.create(span, { attributes: { value: attributes, enumerable: true } }) as ReadableSpan;
+};
+
+// Every exporter goes through this, the OTLP one and the tests' alike.
+export const withoutRedactedAttributes = (exporter: SpanExporter): SpanExporter => ({
+  export: (spans, done) => exporter.export(spans.map(redact), done),
+  shutdown: () => exporter.shutdown(),
+  ...(exporter.forceFlush && { forceFlush: () => exporter.forceFlush!() }),
+});
+
 export interface StartTracingOptions {
   // Replaces the OTLP exporter; tests pass one that collects spans.
   exporter?: SpanExporter;
@@ -77,7 +99,9 @@ export const startTracing = ({ exporter }: StartTracingOptions = {}) => {
     resource: telemetryResource(),
     sampler,
     spanProcessors: [
-      new BatchSpanProcessor(exporter ?? new OTLPTraceExporter({ credentials: exporterCredentials() })),
+      new BatchSpanProcessor(
+        withoutRedactedAttributes(exporter ?? new OTLPTraceExporter({ credentials: exporterCredentials() }))
+      ),
     ],
   });
   provider.register();

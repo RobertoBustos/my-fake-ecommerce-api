@@ -172,16 +172,39 @@ const logMetricsIn = (text: string) =>
     ([, filterName, promName]) => (filterName ? [filterName] : [promName, promName.replace(/_(count|sum|bucket)$/, "")])
   );
 
+// The resource types a log-based metric counts on, from its filter. PromQL
+// refuses a metric that lives on more than one ("must specify a label matcher
+// on the 'monitored_resource' label"), and the error only shows once the
+// metric has data, so it's checked here instead.
+const resourceTypesOf = (filter: string) =>
+  new Set([...filter.matchAll(/resource\.type="([a-z_]+)"/g)].map(([, type]) => type));
+
+// Every PromQL selector of a log-based metric in a text: its name (with the
+// _count, _sum or _bucket suffix PromQL adds to a distribution) and its labels.
+const promSelectors = (text: string) =>
+  [...text.matchAll(/logging_googleapis_com:user_([a-z0-9_]+)(\{[^}]*\})?/g)].map(([, name, labels = ""]) => ({
+    names: [name, name.replace(/_(count|sum|bucket)$/, "")],
+    labels,
+  }));
+
 // Checks that hold across files: every channel a policy names exists, every
 // log-based metric a condition, SLO or dashboard reads is defined, every SLO
-// a policy watches is defined, and log-match policies set the notification
-// rate limit the API requires for them.
+// a policy watches is defined, a PromQL query names the resource of a metric
+// that lives on several, and log-match policies set the notification rate
+// limit the API requires for them.
 export const crossCheck = ({ channels, metrics, uptimeChecks, services, policies, dashboards }: MonitoringConfig) => {
   const errors: string[] = [];
   const metricNames = new Set(Object.values(metrics).map((metric) => metric.name));
+  const metricResources = new Map(Object.values(metrics).map((metric) => [metric.name, resourceTypesOf(metric.filter)]));
   const unknownMetrics = (where: string, text: string) => {
     for (const readings of logMetricsIn(text)) {
       if (!readings.some((name) => metricNames.has(name))) errors.push(`${where}: unknown log-based metric "${readings[0]}"`);
+    }
+    for (const { names, labels } of promSelectors(text)) {
+      const name = names.find((candidate) => metricResources.has(candidate));
+      if (name && (metricResources.get(name)?.size ?? 0) > 1 && !labels.includes("monitored_resource=")) {
+        errors.push(`${where}: PromQL on "${name}" must set monitored_resource, because the metric is on several resource types`);
+      }
     }
   };
   for (const [id, { policy }] of Object.entries(policies)) {
