@@ -4,7 +4,7 @@ import {
   uptimePlaceholder,
   type MonitoringConfig,
   type TestLog,
-} from "./config.js";
+} from "./config.ts";
 
 // Creates or updates, by id, everything in ops/monitoring/ in one project.
 // Running it twice changes nothing the second time: each resource carries the

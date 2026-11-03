@@ -9,8 +9,8 @@
   "type": "module",
   "imports": {
     "#src/*": {
-      "dist": "./dist/*",
-      "default": "./src/*"
+      "dist": "./dist/*.js",
+      "default": "./src/*.ts"
     }
   },
   "engines": {

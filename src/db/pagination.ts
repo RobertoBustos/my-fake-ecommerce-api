@@ -1,11 +1,11 @@
 import { FieldPath, type Query, type QueryDocumentSnapshot } from "firebase-admin/firestore";
-import type { Connection, Page } from "#src/types/models.js";
+import type { Connection, Page } from "#src/types/models";
 import {
   cursorNotInList,
   decodeCursor,
   resolvePageSize,
   toConnection,
-} from "#src/utils/pagination.js";
+} from "#src/utils/pagination";
 
 // Pages inside Firestore instead of reading the whole collection: a stable
 // order by document id, startAfter the cursor and one extra document to know

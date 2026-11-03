@@ -1,17 +1,17 @@
 import { GraphQLError } from "graphql";
-import { getSearchIndex } from "#src/search/registry.js";
+import { getSearchIndex } from "#src/search/registry";
 import {
   SearchUnavailableError,
   type Facet,
   type SearchQuery,
   type SearchResult,
   type SearchSort,
-} from "#src/search/ports.js";
-import type { Product } from "#src/types/models.js";
-import { logger } from "#src/utils/logger.js";
-import { cursorNotInList, decodeCursor, encodeCursor } from "#src/utils/pagination.js";
-import { getIndexedCatalogProducts } from "./index.js";
-import { listEnabledSources } from "./registry.js";
+} from "#src/search/ports";
+import type { Product } from "#src/types/models";
+import { logger } from "#src/utils/logger";
+import { cursorNotInList, decodeCursor, encodeCursor } from "#src/utils/pagination";
+import { getIndexedCatalogProducts } from "./index.ts";
+import { listEnabledSources } from "./registry.ts";
 
 // The searchProducts query: the search index finds and orders the ids, and
 // the catalog index turns them into products, the same ones the products

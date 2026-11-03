@@ -3,7 +3,7 @@
 //   INCOMPLETE | PAYMENT_PENDING -> CANCELLED   cancelOrder
 //   PAYMENT_PENDING -> COMPLETE                 only the Stripe webhook
 // COMPLETE and CANCELLED are final: their items, details and stock are settled.
-import type { Order, OrderStatus } from "#src/types/models.js";
+import type { Order, OrderStatus } from "#src/types/models";
 
 export const OPEN_STATUSES: OrderStatus[] = ["INCOMPLETE", "PAYMENT_PENDING"];
 

@@ -1,9 +1,9 @@
 import { metrics } from "@opentelemetry/api";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-grpc";
 import { MeterProvider, PeriodicExportingMetricReader, type PushMetricExporter } from "@opentelemetry/sdk-metrics";
-import { exporterCredentials } from "./exporterAuth.js";
-import { onTelemetryShutdown } from "./lifecycle.js";
-import { logTelemetryDiagnostics, telemetryRequested, telemetryResource } from "./sdkCommon.js";
+import { exporterCredentials } from "./exporterAuth.ts";
+import { onTelemetryShutdown } from "./lifecycle.ts";
+import { logTelemetryDiagnostics, telemetryRequested, telemetryResource } from "./sdkCommon.ts";
 
 // Exports the metrics declared in metrics.ts over OTLP every 60 s, to the same
 // configurable destination as the traces. A job doesn't live 60 s: what it

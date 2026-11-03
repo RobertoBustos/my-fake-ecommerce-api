@@ -1,4 +1,4 @@
-import { DEFAULT_SOURCE_KEY } from "./registry.js";
+import { DEFAULT_SOURCE_KEY } from "./registry.ts";
 
 // The id clients see for a product: "<sourceKey>:<localId>" in base64url, so
 // two sources can both have a product "42" and the app still treats the id as

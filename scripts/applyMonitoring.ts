@@ -6,8 +6,8 @@ import {
   MonitoringApplyError,
   writeTestLogs,
   type MonitoringApi,
-} from "./monitoring/apply.js";
-import { loadMonitoringConfig } from "./monitoring/config.js";
+} from "./monitoring/apply.ts";
+import { loadMonitoringConfig } from "./monitoring/config.ts";
 
 // Applies ops/monitoring/ (notification channel, log-based metrics, uptime
 // check, SLOs, alert policies and dashboard) to a Google Cloud project. Idempotent: run it after changing any

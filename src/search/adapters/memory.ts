@@ -1,4 +1,4 @@
-import type { Facet, SearchDoc, SearchIndex, SearchQuery, SearchResult } from "#src/search/ports.js";
+import type { Facet, SearchDoc, SearchIndex, SearchQuery, SearchResult } from "#src/search/ports";
 
 // An in-memory search index for tests and local runs (SEARCH_ENGINE=memory).
 // It follows the same rules a hosted engine applies by default, kept simple:

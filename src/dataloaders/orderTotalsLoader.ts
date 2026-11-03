@@ -1,7 +1,7 @@
 import DataLoader from "dataloader";
-import { getCartByOrderIds } from "#src/db/cart.js";
-import type { CartItem, OrderTotals } from "#src/types/models.js";
-import { computeOrderTotals } from "#src/utils/orderTotals.js";
+import { getCartByOrderIds } from "#src/db/cart";
+import type { CartItem, OrderTotals } from "#src/types/models";
+import { computeOrderTotals } from "#src/utils/orderTotals";
 
 // New instance per request: batches the .load(orderId) calls made in the
 // same tick into a single round of cartItems reads, instead of one query

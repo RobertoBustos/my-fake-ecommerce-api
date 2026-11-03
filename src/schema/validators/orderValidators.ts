@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { firstInvalidField } from "./validate.js";
+import { firstInvalidField } from "./validate.ts";
 
 const id = z.string().trim().min(1);
 const text = (max: number) => z.string().trim().min(1).max(max);

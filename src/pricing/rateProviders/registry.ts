@@ -1,5 +1,5 @@
-import { createBanxicoProvider } from "./banxico.js";
-import type { RateProvider } from "./ports.js";
+import { createBanxicoProvider } from "./banxico.ts";
+import type { RateProvider } from "./ports.ts";
 
 // Every provider the code knows about, by the key settings/pricing uses.
 const providers: Record<string, () => RateProvider> = {

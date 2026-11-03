@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { firstInvalidField } from "./validate.js";
+import { firstInvalidField } from "./validate.ts";
 
 export const SEARCH_DEFAULT_PAGE_SIZE = 20;
 export const SEARCH_MAX_PAGE_SIZE = 50;

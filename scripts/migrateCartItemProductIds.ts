@@ -1,8 +1,8 @@
 import { fileURLToPath } from "url";
 import type { Query } from "firebase-admin/firestore";
-import { canonicalProductId, getCatalogProducts, parseProductId } from "#src/catalog/index.js";
-import db from "#src/config/firestore.js";
-import type { CartItem } from "#src/types/models.js";
+import { canonicalProductId, getCatalogProducts, parseProductId } from "#src/catalog/index";
+import db from "#src/config/firestore";
+import type { CartItem } from "#src/types/models";
 
 // Cart items written before global product ids hold the bare Firestore id in
 // productId and no copy of the product. This script rewrites productId to

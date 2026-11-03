@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import env from "./env.js";
+import env from "./env.ts";
 
 // The single firebase-admin app, shared with Auth (src/auth/verifyIdToken.ts)
 // so token verification doesn't depend on which module happens to load first.

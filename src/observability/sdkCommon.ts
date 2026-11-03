@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { diag, DiagLogLevel } from "@opentelemetry/api";
 import { detectResources, envDetector, resourceFromAttributes } from "@opentelemetry/resources";
-import { logger } from "#src/utils/logger.js";
+import { logger } from "#src/utils/logger";
 
 // What the trace and metric SDKs share: when they start, who they say they
 // are, and where their own errors go.

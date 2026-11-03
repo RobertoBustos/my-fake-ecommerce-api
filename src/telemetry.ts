@@ -1,5 +1,5 @@
-import { startMetrics } from "./observability/metricsSdk.js";
-import { startTracing } from "./observability/tracing.js";
+import { startMetrics } from "./observability/metricsSdk.ts";
+import { startTracing } from "./observability/tracing.ts";
 
 // Loaded before the app or a job with `node --import ./dist/telemetry.js` (the
 // Dockerfile sets it in NODE_OPTIONS, so the API and every Cloud Run job get

@@ -1,7 +1,7 @@
 import type Stripe from "stripe";
-import db from "#src/config/firestore.js";
-import stripeClient from "#src/config/stripe.js";
-import { logger } from "#src/utils/logger.js";
+import db from "#src/config/firestore";
+import stripeClient from "#src/config/stripe";
+import { logger } from "#src/utils/logger";
 
 // Stripe's search language delimits values with quotes; a quote inside an
 // unescaped value breaks or manipulates the query (H4). Stripe expects

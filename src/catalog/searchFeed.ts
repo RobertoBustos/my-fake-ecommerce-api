@@ -1,9 +1,9 @@
-import type { CatalogEntry, SearchPriceState } from "#src/db/catalogIndex.js";
-import { convertPrice } from "#src/pricing/convert.js";
-import { ExchangeRateUnavailableError, getUsableRate } from "#src/pricing/quote.js";
-import type { PricingSettings } from "#src/pricing/settings.js";
-import type { SearchDoc, SearchIndex } from "#src/search/ports.js";
-import { logger } from "#src/utils/logger.js";
+import type { CatalogEntry, SearchPriceState } from "#src/db/catalogIndex";
+import { convertPrice } from "#src/pricing/convert";
+import { ExchangeRateUnavailableError, getUsableRate } from "#src/pricing/quote";
+import type { PricingSettings } from "#src/pricing/settings";
+import type { SearchDoc, SearchIndex } from "#src/search/ports";
+import { logger } from "#src/utils/logger";
 
 // The search index is one more copy of the catalog index, fed by the catalog
 // sync in the same pass: each page the sync writes to the catalog index goes

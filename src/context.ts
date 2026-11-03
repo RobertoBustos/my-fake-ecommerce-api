@@ -1,5 +1,5 @@
-import { verifyIdToken } from "./auth/verifyIdToken.js";
-import { createLoaders } from "./dataloaders/index.js";
+import { verifyIdToken } from "./auth/verifyIdToken.ts";
+import { createLoaders } from "./dataloaders/index.ts";
 
 import type { Request } from "express";
 import type { DecodedIdToken } from "firebase-admin/auth";

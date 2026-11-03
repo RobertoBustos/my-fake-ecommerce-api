@@ -1,36 +1,36 @@
 import { GraphQLError } from "graphql";
-import { getCatalogEntries, listCatalogEntries, type CatalogEntry } from "#src/db/catalogIndex.js";
-import { TransactionContentionError } from "#src/db/transactions.js";
-import type { Connection, Page, Product } from "#src/types/models.js";
-import { logger } from "#src/utils/logger.js";
-import type { CatalogSource, SourceProduct } from "./ports.js";
+import { getCatalogEntries, listCatalogEntries, type CatalogEntry } from "#src/db/catalogIndex";
+import { TransactionContentionError } from "#src/db/transactions";
+import type { Connection, Page, Product } from "#src/types/models";
+import { logger } from "#src/utils/logger";
+import type { CatalogSource, SourceProduct } from "./ports.ts";
 import {
   OutOfStockError,
   ReservationExpiredError,
   SourceUnavailableError,
   UnknownSourceError,
-} from "./ports.js";
-import { canonicalProductId, parseProductId, toGlobalProductId } from "./productId.js";
-import { getCatalogSource, listEnabledSources } from "./registry.js";
+} from "./ports.ts";
+import { canonicalProductId, parseProductId, toGlobalProductId } from "./productId.ts";
+import { getCatalogSource, listEnabledSources } from "./registry.ts";
 
 export {
   OutOfStockError,
   ReservationExpiredError,
   SourceUnavailableError,
   UnknownSourceError,
-} from "./ports.js";
-export type { CatalogSource, Reservation, SourceProduct } from "./ports.js";
-export { canonicalProductId, parseProductId, toGlobalProductId } from "./productId.js";
-export type { ProductRef } from "./productId.js";
-export { DEFAULT_SOURCE_KEY, getCatalogSource, listEnabledSources } from "./registry.js";
-export { withCoreReservations } from "./coreReservations.js";
-export { reservationTtlMs } from "./reservationTtl.js";
+} from "./ports.ts";
+export type { CatalogSource, Reservation, SourceProduct } from "./ports.ts";
+export { canonicalProductId, parseProductId, toGlobalProductId } from "./productId.ts";
+export type { ProductRef } from "./productId.ts";
+export { DEFAULT_SOURCE_KEY, getCatalogSource, listEnabledSources } from "./registry.ts";
+export { withCoreReservations } from "./coreReservations.ts";
+export { reservationTtlMs } from "./reservationTtl.ts";
 export {
   processInventoryTasks,
   retryInventoryTask,
   runInventoryTask,
   runInventoryTasks,
-} from "./inventoryQueue.js";
+} from "./inventoryQueue.ts";
 
 // The shape the rest of the API (and the GraphQL Product type) uses.
 export const toProduct = (

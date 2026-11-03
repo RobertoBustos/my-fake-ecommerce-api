@@ -1,10 +1,10 @@
-import { listExchangeRates, writeExchangeRates, type StoredExchangeRate } from "#src/db/pricing.js";
-import { metrics } from "#src/observability/metrics.js";
-import { logger } from "#src/utils/logger.js";
-import { roundRate } from "./convert.js";
-import { getRateProvider } from "./rateProviders/registry.js";
-import type { RateProvider } from "./rateProviders/ports.js";
-import { getPricingSettings } from "./settings.js";
+import { listExchangeRates, writeExchangeRates, type StoredExchangeRate } from "#src/db/pricing";
+import { metrics } from "#src/observability/metrics";
+import { logger } from "#src/utils/logger";
+import { roundRate } from "./convert.ts";
+import { getRateProvider } from "./rateProviders/registry.ts";
+import type { RateProvider } from "./rateProviders/ports.ts";
+import { getPricingSettings } from "./settings.ts";
 
 // A provider that keeps answering with an old date has stopped publishing;
 // the rate is still used (its fetchedAt is fresh) but someone should look.

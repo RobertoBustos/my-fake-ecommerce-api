@@ -1,7 +1,7 @@
-import env from "./config/env.js";
-import { createApp } from "./app.js";
-import { createShutdown } from "./shutdown.js";
-import { logger } from "./utils/logger.js";
+import env from "./config/env.ts";
+import { createApp } from "./app.ts";
+import { createShutdown } from "./shutdown.ts";
+import { logger } from "./utils/logger.ts";
 
 const PORT = env.PORT;
 const HOST = env.HOST;

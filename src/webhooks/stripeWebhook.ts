@@ -1,10 +1,10 @@
 import type { Request, Response } from "express";
 import type Stripe from "stripe";
-import stripeClient from "#src/config/stripe.js";
-import env from "#src/config/env.js";
-import { getOrders, markOrderComplete } from "#src/db/index.js";
-import { markEventProcessed, unmarkEventProcessed } from "#src/db/webhookEvents.js";
-import { logger } from "#src/utils/logger.js";
+import stripeClient from "#src/config/stripe";
+import env from "#src/config/env";
+import { getOrders, markOrderComplete } from "#src/db/index";
+import { markEventProcessed, unmarkEventProcessed } from "#src/db/webhookEvents";
+import { logger } from "#src/utils/logger";
 
 // H11: payment used to be confirmed only client-side (the client claimed
 // "I already paid"). Now the order only moves to COMPLETE when Stripe

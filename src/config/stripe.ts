@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import env from "./env.js";
+import env from "./env.ts";
 
 const stripeClient = new Stripe(env.STRIPE_SECRET_KEY as string);
 

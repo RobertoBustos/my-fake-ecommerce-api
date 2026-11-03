@@ -1,9 +1,9 @@
-import { listCatalogProducts } from "#src/catalog/index.js";
-import { searchCatalogProducts } from "#src/catalog/searchProducts.js";
-import { listCartItemsWithoutOrder, listIncompleteOrders, listOrders } from "#src/db/index.js";
-import type { QueryResolvers } from "#src/generated/graphql.js";
-import { assertValidInput } from "#src/services/errors.js";
-import { checkSearchProducts, SEARCH_DEFAULT_PAGE_SIZE } from "#src/schema/validators/index.js";
+import { listCatalogProducts } from "#src/catalog/index";
+import { searchCatalogProducts } from "#src/catalog/searchProducts";
+import { listCartItemsWithoutOrder, listIncompleteOrders, listOrders } from "#src/db/index";
+import type { QueryResolvers } from "#src/generated/graphql";
+import { assertValidInput } from "#src/services/errors";
+import { checkSearchProducts, SEARCH_DEFAULT_PAGE_SIZE } from "#src/schema/validators/index";
 
 // Read-only resolvers may call db/ directly: there are no business rules to
 // apply on a plain read. Anything that writes goes through services/ (see

@@ -17,10 +17,10 @@ import {
   type Sampler,
   type SpanExporter,
 } from "@opentelemetry/sdk-trace-node";
-import { exporterCredentials } from "./exporterAuth.js";
-import { onTelemetryShutdown } from "./lifecycle.js";
-import { logTelemetryDiagnostics, telemetryRequested, telemetryResource } from "./sdkCommon.js";
-import { requestSpanNames } from "./spans.js";
+import { exporterCredentials } from "./exporterAuth.ts";
+import { onTelemetryShutdown } from "./lifecycle.ts";
+import { logTelemetryDiagnostics, telemetryRequested, telemetryResource } from "./sdkCommon.ts";
+import { requestSpanNames } from "./spans.ts";
 
 // Traces with OpenTelemetry: every request and job run becomes a trace whose
 // spans show where the time went (GraphQL, Firestore over gRPC, Stripe and

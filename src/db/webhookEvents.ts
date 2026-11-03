@@ -1,4 +1,4 @@
-import db from "#src/config/firestore.js";
+import db from "#src/config/firestore";
 
 const COLLECTION = "processedWebhookEvents";
 const FIRESTORE_ALREADY_EXISTS = 6;

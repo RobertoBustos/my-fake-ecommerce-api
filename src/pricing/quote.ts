@@ -1,7 +1,7 @@
-import { readExchangeRate } from "#src/db/pricing.js";
-import { logger } from "#src/utils/logger.js";
-import { convertPrice } from "./convert.js";
-import { getPricingSettings } from "./settings.js";
+import { readExchangeRate } from "#src/db/pricing";
+import { logger } from "#src/utils/logger";
+import { convertPrice } from "./convert.ts";
+import { getPricingSettings } from "./settings.ts";
 
 // Cart items written before prices carried a currency were all in MXN.
 export const LEGACY_CURRENCY = "MXN";
