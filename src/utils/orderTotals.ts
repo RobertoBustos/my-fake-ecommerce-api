@@ -1,4 +1,4 @@
-import type { CartItem, OrderTotals } from "#src/types/models.js";
+import type { CartItem, OrderTotals } from "#src/types/models";
 
 // Items written before prices carried a currency were in MXN.
 const LEGACY_CURRENCY = "MXN";

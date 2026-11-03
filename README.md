@@ -121,11 +121,13 @@ resolvers really return (the Firestore documents in `src/types/models.ts`, or
 Stripe objects). Tests stay in JavaScript; Vitest resolves their `.js`
 imports to the `.ts` sources.
 
-Imports between folders use the `#src/*` alias instead of `../` paths
-(`import { logger } from "#src/utils/logger.js"`); imports within the same
-folder stay relative (`./cart.js`). It's a Node subpath import (`"imports"` in
-`package.json`): it points at `src/` by default, which is what `tsx`, Vitest
-and `tsc` use, and at `dist/` under the `dist` condition. Compiled code runs
+Imports between folders use the `#src/*` alias, without an extension, instead
+of `../` paths (`import { logger } from "#src/utils/logger"`); imports within
+the same folder stay relative and name the `.ts` file (`./cart.ts`), which `tsc`
+rewrites to `.js` in `dist/` (`rewriteRelativeImportExtensions`). A test fails
+if a `.js` import comes back. The alias is a Node subpath import (`"imports"` in
+`package.json`): it points at `src/*.ts` by default, which is what `tsx`, Vitest
+and `tsc` use, and at `dist/*.js` under the `dist` condition. Compiled code runs
 with `--conditions=dist`: `npm start` passes it, and the Docker image sets it in
 `NODE_OPTIONS` for the service and the Cloud Run jobs. Running `node dist/...`
 without it fails with `ERR_MODULE_NOT_FOUND`.

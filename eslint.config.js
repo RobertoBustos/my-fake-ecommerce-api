@@ -12,7 +12,7 @@ const dataLayerImports = {
       message: "Writes go through src/services/; only queries.ts and fields.ts may read db/ directly.",
     },
     {
-      regex: "(^|/)config/(firestore|stripe)(\\.js)?$",
+      regex: "(^|/)config/(firestore|stripe)(\\.[jt]s)?$",
       message: "Resolvers must not talk to Firestore or Stripe directly; use src/services/.",
     },
   ],
@@ -24,7 +24,7 @@ const dataLayerImports = {
 const databaseClientImports = {
   patterns: [
     {
-      regex: "(^|/)config/firestore(\\.js)?$|^firebase-admin/firestore$|^(mysql2|mongodb|pg)(/|$)|^@supabase/",
+      regex: "(^|/)config/firestore(\\.[jt]s)?$|^firebase-admin/firestore$|^(mysql2|mongodb|pg)(/|$)|^@supabase/",
       message: "Only a catalog adapter in src/catalog/sources/ may use a database client; go through CatalogSource.",
     },
   ],

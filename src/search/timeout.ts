@@ -1,5 +1,5 @@
-import env from "#src/config/env.js";
-import { SearchUnavailableError, type SearchIndex } from "./ports.js";
+import env from "#src/config/env";
+import { SearchUnavailableError, type SearchIndex } from "./ports.ts";
 
 // A search engine is an external service: it can be slow as well as down.
 // Every search gets a deadline, whatever the engine, so searchProducts

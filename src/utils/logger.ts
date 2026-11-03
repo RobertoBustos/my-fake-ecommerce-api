@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync } from "node:fs";
-import { eventFields, type EventFields, type EventName } from "#src/observability/events.js";
-import { formatEntry } from "#src/observability/formats/gcp.js";
-import { activeTraceContext, type TraceContext } from "#src/observability/traceContext.js";
+import { eventFields, type EventFields, type EventName } from "#src/observability/events";
+import { formatEntry } from "#src/observability/formats/gcp";
+import { activeTraceContext, type TraceContext } from "#src/observability/traceContext";
 
 // Holds per-request data (the request ID and its trace) so any log call made
 // while handling a request includes it, without threading it through every call.

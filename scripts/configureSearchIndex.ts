@@ -1,4 +1,4 @@
-import { configureSearchEngine } from "#src/search/registry.js";
+import { configureSearchEngine } from "#src/search/registry";
 
 // Applies the index settings of the engine SEARCH_ENGINE names (searchable
 // attributes, facets, ranking, sort replicas), creating the index if it

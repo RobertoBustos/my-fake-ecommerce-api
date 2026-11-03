@@ -1,4 +1,4 @@
-import env from "#src/config/env.js";
+import env from "#src/config/env";
 import {
   deleteCatalogEntries,
   getCatalogSyncState,
@@ -10,16 +10,16 @@ import {
   saveSearchPriceState,
   upsertCatalogEntries,
   type CatalogEntry,
-} from "#src/db/catalogIndex.js";
-import { metrics } from "#src/observability/metrics.js";
-import { getPricingSettings, type PricingSettings } from "#src/pricing/settings.js";
-import { getConfiguredSearchIndex } from "#src/search/registry.js";
-import type { SearchIndex } from "#src/search/ports.js";
-import { logger } from "#src/utils/logger.js";
-import type { CatalogSource, ChangedProducts, SourceProduct } from "./ports.js";
-import { toGlobalProductId } from "./productId.js";
-import { listEnabledSources } from "./registry.js";
-import { createSearchFeed, createSearchPricer, detectPriceChanges, type SearchFeed } from "./searchFeed.js";
+} from "#src/db/catalogIndex";
+import { metrics } from "#src/observability/metrics";
+import { getPricingSettings, type PricingSettings } from "#src/pricing/settings";
+import { getConfiguredSearchIndex } from "#src/search/registry";
+import type { SearchIndex } from "#src/search/ports";
+import { logger } from "#src/utils/logger";
+import type { CatalogSource, ChangedProducts, SourceProduct } from "./ports.ts";
+import { toGlobalProductId } from "./productId.ts";
+import { listEnabledSources } from "./registry.ts";
+import { createSearchFeed, createSearchPricer, detectPriceChanges, type SearchFeed } from "./searchFeed.ts";
 
 // Keeps the catalog index (db/catalogIndex.ts) in step with every switched-on
 // source:

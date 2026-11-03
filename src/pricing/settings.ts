@@ -1,7 +1,7 @@
 import { z } from "zod";
-import env from "#src/config/env.js";
-import { readPricingSettings } from "#src/db/pricing.js";
-import { logger } from "#src/utils/logger.js";
+import env from "#src/config/env";
+import { readPricingSettings } from "#src/db/pricing";
+import { logger } from "#src/utils/logger";
 
 // The settlement currency lives in Firestore (settings/pricing), not in the
 // code: changing it is an edit to that document, picked up within a few

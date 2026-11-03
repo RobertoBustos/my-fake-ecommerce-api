@@ -1,7 +1,7 @@
-import cartTypes from "./cartTypes.js";
-import orderTypes from "./orderTypes.js";
-import paymentTypes from "./paymentTypes.js";
-import productTypes from "./productTypes.js";
+import cartTypes from "./cartTypes.ts";
+import orderTypes from "./orderTypes.ts";
+import paymentTypes from "./paymentTypes.ts";
+import productTypes from "./productTypes.ts";
 
 const rootTypes = /* GraphQL */ `#graphql
   # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.

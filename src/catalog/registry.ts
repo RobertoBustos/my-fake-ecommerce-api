@@ -1,7 +1,7 @@
-import env from "#src/config/env.js";
-import { withCoreReservations } from "./coreReservations.js";
-import { UnknownSourceError, type CatalogSource } from "./ports.js";
-import { firestoreCatalogSource } from "./sources/firestore/adapter.js";
+import env from "#src/config/env";
+import { withCoreReservations } from "./coreReservations.ts";
+import { UnknownSourceError, type CatalogSource } from "./ports.ts";
+import { firestoreCatalogSource } from "./sources/firestore/adapter.ts";
 
 // Every adapter the code knows about, by key. CATALOG_SOURCES (a comma
 // separated list, "fs" by default) says which of them are switched on.

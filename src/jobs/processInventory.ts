@@ -1,7 +1,7 @@
-import { measureInventoryQueue, processInventoryTasks } from "#src/catalog/inventoryQueue.js";
-import { sweepExpiredReservations } from "#src/db/reservationSweep.js";
-import { logger } from "#src/utils/logger.js";
-import { measure, runJob } from "./runJob.js";
+import { measureInventoryQueue, processInventoryTasks } from "#src/catalog/inventoryQueue";
+import { sweepExpiredReservations } from "#src/db/reservationSweep";
+import { logger } from "#src/utils/logger";
+import { measure, runJob } from "./runJob.ts";
 
 // The inventory job: queues the release of expired reservations, then runs
 // every confirm and release that is due. It ships in the same image as the

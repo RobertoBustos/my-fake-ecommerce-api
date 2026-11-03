@@ -1,7 +1,7 @@
-import { syncCatalog } from "#src/catalog/catalogSync.js";
-import { measureExchangeRateAges } from "#src/pricing/refreshRates.js";
-import { logger } from "#src/utils/logger.js";
-import { measure, runJob } from "./runJob.js";
+import { syncCatalog } from "#src/catalog/catalogSync";
+import { measureExchangeRateAges } from "#src/pricing/refreshRates";
+import { logger } from "#src/utils/logger";
+import { measure, runJob } from "./runJob.ts";
 
 // The catalog sync job: pulls what changed in every switched-on source into
 // the catalog index, and reconciles each source when it is due. It feeds the

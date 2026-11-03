@@ -1,10 +1,10 @@
 import { FieldPath, Timestamp, type DocumentSnapshot, type Query } from "firebase-admin/firestore";
-import db from "#src/config/firestore.js";
-import { getProductsByIds } from "#src/db/products.js";
-import { readReservation, reservationRef, type ReservationDoc } from "#src/db/reservations.js";
-import { runTransaction } from "#src/db/transactions.js";
-import type { Product } from "#src/types/models.js";
-import { reservationTtlMs } from "#src/catalog/reservationTtl.js";
+import db from "#src/config/firestore";
+import { getProductsByIds } from "#src/db/products";
+import { readReservation, reservationRef, type ReservationDoc } from "#src/db/reservations";
+import { runTransaction } from "#src/db/transactions";
+import type { Product } from "#src/types/models";
+import { reservationTtlMs } from "#src/catalog/reservationTtl";
 import {
   OutOfStockError,
   ReservationExpiredError,
@@ -12,7 +12,7 @@ import {
   type ChangedProducts,
   type Reservation,
   type SourceProduct,
-} from "#src/catalog/ports.js";
+} from "#src/catalog/ports";
 
 const SOURCE_KEY = "fs";
 

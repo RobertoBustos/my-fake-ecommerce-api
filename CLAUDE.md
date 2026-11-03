@@ -24,10 +24,12 @@
   `parseProductId` de `src/catalog/productId.ts`; nunca se parte un id a mano.
 - Precios: la moneda de liquidación vive en `settings/pricing` (Firestore), nunca en el
   código; un precio solo cambia de moneda con `convertPrice` (`src/pricing/convert.ts`).
-- TypeScript: `src/` y `scripts/` son `.ts` en modo `strict`; los imports llevan extensión
-  `.js` (nodenext). Entre carpetas se importa con el alias `#src/...` (campo `imports` de
-  `package.json`), nunca con `../`; dentro de la misma carpeta, relativo (`./x.js`). El alias
-  apunta a `src/` por defecto y a `dist/` con la condición `dist`: todo lo que corre código
+- TypeScript: `src/` y `scripts/` son `.ts` en modo `strict` (nodenext). Entre carpetas se
+  importa con el alias `#src/...` **sin extensión** (`#src/utils/logger`, campo `imports` de
+  `package.json`), nunca con `../`; dentro de la misma carpeta, relativo y **con `.ts`**
+  (`./cart.ts`), que `tsc` reescribe a `.js` en `dist/` (`rewriteRelativeImportExtensions`).
+  Un test (`tests/importLayers.test.js`) falla si vuelve un import `.js`. El alias apunta a
+  `src/*.ts` por defecto y a `dist/*.js` con la condición `dist`: todo lo que corre código
   compilado lleva `--conditions=dist` (`npm start`, `NODE_OPTIONS` del Dockerfile). Si cambias `src/schema/typeDefs`, corre `npm run codegen` y commitea
   `src/generated/graphql.ts` (el job `typecheck` falla si quedó desactualizado). Los tests
   siguen en `.js`. Antes de entregar: `npm run lint`, `npm run typecheck` y `npm run test:emulator`.

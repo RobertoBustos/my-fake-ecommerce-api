@@ -1,6 +1,6 @@
 import type { ApolloServer } from "@apollo/server";
-import { shutdownTelemetry } from "./observability/lifecycle.js";
-import { logger } from "./utils/logger.js";
+import { shutdownTelemetry } from "./observability/lifecycle.ts";
+import { logger } from "./utils/logger.ts";
 
 // Cloud Run sends SIGTERM on every deploy and scale-down, then kills the
 // instance 10 seconds later. In-flight requests get most of that window.

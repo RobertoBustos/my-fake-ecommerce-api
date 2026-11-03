@@ -1,5 +1,5 @@
 import { GraphQLError } from "graphql";
-import type { Connection } from "#src/types/models.js";
+import type { Connection } from "#src/types/models";
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
