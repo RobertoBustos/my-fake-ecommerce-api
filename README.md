@@ -286,7 +286,7 @@ The same job feeds the search index when `SEARCH_ENGINE` names one
   - The record is saved only when every search write of the run succeeded, so a
     failed reprice is tried again by the next run.
   - A rate refreshed by `rates:refresh` reaches the search index with the next
-    sync, within 15 minutes.
+    sync-catalog run (once a week, or run it by hand).
 
 ## Search index
 
