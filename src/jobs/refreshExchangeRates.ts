@@ -1,6 +1,6 @@
-import { refreshExchangeRates } from "../pricing/refreshRates.js";
-import { logger } from "../utils/logger.js";
-import { runJob } from "./runJob.js";
+import { refreshExchangeRates } from "#src/pricing/refreshRates";
+import { logger } from "#src/utils/logger";
+import { runJob } from "./runJob.ts";
 
 // The daily exchange rates job. It ships in the same image as the API, so a
 // Cloud Run job can run it with `node dist/jobs/refreshExchangeRates.js`

@@ -1,6 +1,6 @@
 import { GraphQLError } from "graphql";
-import { getCatalogProduct } from "../catalog/index.js";
-import { parseProductId } from "../catalog/productId.js";
+import { getCatalogProduct } from "#src/catalog/index";
+import { parseProductId } from "#src/catalog/productId";
 import {
   addToCart as addToCartDb,
   CartNotOwnedError,
@@ -9,21 +9,21 @@ import {
   isOrderOpen,
   OrderItemLockedError,
   removeFromCart as removeFromCartDb,
-} from "../db/index.js";
+} from "#src/db/index";
 import {
   checkAddToCart,
   checkRemoveFromCart,
   validateCartQuantity,
-} from "../schema/validators/index.js";
-import type { AddToCart, RemoveFromCart } from "../generated/graphql.js";
-import type { CartItem, MutationAck, MutationResult } from "../types/models.js";
-import { logger } from "../utils/logger.js";
+} from "#src/schema/validators/index";
+import type { AddToCart, RemoveFromCart } from "#src/generated/graphql";
+import type { CartItem, MutationAck, MutationResult } from "#src/types/models";
+import { logger } from "#src/utils/logger";
 import {
   assertValidInput,
   quoteOrConflict,
   withContentionRetryHint,
   withSourceRetryHint,
-} from "./errors.js";
+} from "./errors.ts";
 
 // Every write takes the authenticated user's uid and only touches what that
 // user owns; anything else answers NOT_FOUND, as if it didn't exist (H2).

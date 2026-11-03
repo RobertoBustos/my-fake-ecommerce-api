@@ -1,6 +1,6 @@
 import type { DocumentSnapshot, Transaction } from "firebase-admin/firestore";
-import type { Reservation } from "../catalog/ports.js";
-import db from "../config/firestore.js";
+import type { Reservation } from "#src/catalog/ports";
+import db from "#src/config/firestore";
 
 // inventoryTasks/{reservationId}-{action}: the outbox of the purchase saga.
 // A confirm or release that a source must run is written here in the same

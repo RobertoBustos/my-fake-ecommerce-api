@@ -4,7 +4,7 @@ import {
   uptimePlaceholder,
   type MonitoringConfig,
   type TestLog,
-} from "./config.js";
+} from "./config.ts";
 
 // Creates or updates, by id, everything in ops/monitoring/ in one project.
 // Running it twice changes nothing the second time: each resource carries the
@@ -64,8 +64,47 @@ const errorMessage = (err: unknown) => {
 };
 
 // A log-based metric takes up to 10 minutes to be usable in an alert policy
-// after it's created; until then creating the policy fails with this.
-const isMetricNotReady = (message: string) => /cannot find metric/i.test(message);
+// or an SLO after it's created or updated; until then writing one fails. The
+// wording differs by API and by case, so every known form counts: the v1.7.0
+// release left five policies unapplied because only the first was recognized.
+export const isMetricNotReady = (message: string) =>
+  /cannot find metric|metric referenced by the provided filter is unknown|could not find (the )?metric|unknown metric/i.test(
+    message
+  );
+
+// What decides a log-based metric's behavior, in a form that compares equal
+// however Google orders it or fills in defaults (a STRING label comes back
+// without its valueType, and the descriptor gains a name and a type).
+interface LogMetricBody {
+  filter?: string;
+  description?: string;
+  valueExtractor?: string;
+  labelExtractors?: Record<string, string>;
+  bucketOptions?: unknown;
+  metricDescriptor?: {
+    metricKind?: string;
+    valueType?: string;
+    unit?: string;
+    labels?: { key: string; valueType?: string; description?: string }[];
+  };
+}
+
+const metricShape = (metric: LogMetricBody) => {
+  const descriptor = metric.metricDescriptor ?? {};
+  return JSON.stringify({
+    filter: metric.filter,
+    description: metric.description,
+    valueExtractor: metric.valueExtractor ?? "",
+    labelExtractors: Object.entries(metric.labelExtractors ?? {}).sort(),
+    bucketOptions: metric.bucketOptions ?? null,
+    metricKind: descriptor.metricKind,
+    valueType: descriptor.valueType,
+    unit: descriptor.unit ?? "",
+    labels: (descriptor.labels ?? [])
+      .map(({ key, valueType, description }) => [key, valueType ?? "STRING", description ?? ""])
+      .sort(),
+  });
+};
 
 const listAll = async <T>(api: MonitoringApi, url: string, key: string) => {
   const items: T[] = [];
@@ -145,7 +184,19 @@ export const applyMonitoring = async ({
   }
 
   // Log-based metrics: update creates the metric when it doesn't exist yet.
+  // One that hasn't changed is left alone: updating a metric makes it
+  // unusable for a few minutes, and the policies that read it would fail.
+  const existingMetrics = await listAll<LogMetricBody & { name: string }>(
+    api,
+    `${LOGGING}/${projectPath}/metrics`,
+    "metrics"
+  );
   for (const metric of Object.values(config.metrics)) {
+    const current = existingMetrics.find((item) => item.name === metric.name);
+    if (current && metricShape(current) === metricShape(metric as LogMetricBody)) {
+      log(`Log-based metric ${metric.name} unchanged`);
+      continue;
+    }
     await act(`Apply log-based metric ${metric.name}`, () =>
       api.request("PUT", `${LOGGING}/${projectPath}/metrics/${metric.name}`, metric)
     );

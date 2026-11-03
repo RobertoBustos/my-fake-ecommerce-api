@@ -4,18 +4,18 @@ import express, { type ErrorRequestHandler } from "express";
 import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@as-integrations/express5";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
-import { createContext } from "./context.js";
-import { requestId } from "./middleware/requestId.js";
-import { operationSummaryPlugin } from "./observability/operationSummary.js";
-import { validationRules } from "./schema/depthLimit.js";
-import { errorLoggingPlugin } from "./schema/errorLogging.js";
-import { formatError } from "./schema/formatError.js";
-import resolvers from "./schema/resolvers.js";
-import { assertSearchEngineConfig } from "./search/registry.js";
-import typeDefs from "./schema/typeDefs/index.js";
-import { logger } from "./utils/logger.js";
-import { SHUTDOWN_GRACE_PERIOD_MS } from "./shutdown.js";
-import { handleStripeWebhook } from "./webhooks/stripeWebhook.js";
+import { createContext } from "./context.ts";
+import { requestId } from "./middleware/requestId.ts";
+import { operationSummaryPlugin } from "./observability/operationSummary.ts";
+import { validationRules } from "./schema/depthLimit.ts";
+import { errorLoggingPlugin } from "./schema/errorLogging.ts";
+import { formatError } from "./schema/formatError.ts";
+import resolvers from "./schema/resolvers.ts";
+import { assertSearchEngineConfig } from "./search/registry.ts";
+import typeDefs from "./schema/typeDefs/index.ts";
+import { logger } from "./utils/logger.ts";
+import { SHUTDOWN_GRACE_PERIOD_MS } from "./shutdown.ts";
+import { handleStripeWebhook } from "./webhooks/stripeWebhook.ts";
 
 // Separated from index.ts so tests can build the app without binding a real
 // port (supertest hits the `app` object directly).

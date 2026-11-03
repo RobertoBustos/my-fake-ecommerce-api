@@ -1,6 +1,6 @@
 import DataLoader from "dataloader";
-import type { SearchQuery, SearchResult } from "../search/ports.js";
-import { getSearchIndex } from "../search/registry.js";
+import type { SearchQuery, SearchResult } from "#src/search/ports";
+import { getSearchIndex } from "#src/search/registry";
 
 // New instance per request: identical searches made while answering one
 // request (two aliases of the same searchProducts) reach the engine once,

@@ -1,9 +1,9 @@
-import env from "../config/env.js";
-import { configureAlgoliaIndex, createAlgoliaSearchIndex } from "./adapters/algolia/index.js";
-import { createMemorySearchIndex } from "./adapters/memory.js";
-import { withSearchMetrics } from "./metrics.js";
-import type { SearchIndex } from "./ports.js";
-import { withSearchTimeout } from "./timeout.js";
+import env from "#src/config/env";
+import { configureAlgoliaIndex, createAlgoliaSearchIndex } from "./adapters/algolia/index.ts";
+import { createMemorySearchIndex } from "./adapters/memory.ts";
+import { withSearchMetrics } from "./metrics.ts";
+import type { SearchIndex } from "./ports.ts";
+import { withSearchTimeout } from "./timeout.ts";
 
 interface SearchEngine {
   create(): SearchIndex;

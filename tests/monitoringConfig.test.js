@@ -8,7 +8,7 @@ import {
   MonitoringConfigError,
   RUNBOOK_URL,
 } from "../scripts/monitoring/config.js";
-import { applyMonitoring, buildTestEntries, MonitoringApplyError } from "../scripts/monitoring/apply.js";
+import { applyMonitoring, buildTestEntries, isMetricNotReady, MonitoringApplyError } from "../scripts/monitoring/apply.js";
 import { METRICS } from "../src/observability/metrics.js";
 
 const ROOT = new URL("../ops/monitoring/", import.meta.url).pathname;
@@ -50,6 +50,7 @@ const fakeApi = () => {
       }
       if (method === "GET" && path.endsWith("/services")) return { services: state.services };
       if (method === "GET" && path.endsWith("/dashboards")) return { dashboards: state.dashboards };
+      if (method === "GET" && path.endsWith("/metrics")) return { metrics: Object.values(state.metrics) };
       if (method === "POST" && path.endsWith("/services")) {
         const service = { ...body, name: `${path.split("/v3/")[1]}/${query.get("serviceId")}` };
         state.services.push(service);
@@ -119,12 +120,10 @@ describe("ops/monitoring/ config", () => {
     expect(Object.keys(config.policies).sort()).toEqual([
       "algolia-usage",
       "api-down",
-      "catalog-stale",
       "exchange-rate-unavailable",
       "http-5xx",
       "inventory-task-failed",
       "job-failed",
-      "job-missing",
       "payment-not-applied",
       "search-engine-down",
       "search-index-unsynced",
@@ -149,13 +148,11 @@ describe("ops/monitoring/ config", () => {
     const { policies } = loadMonitoringConfig(ROOT);
     const withoutTest = Object.keys(policies).filter((id) => !policies[id].test);
     // These watch Google's own metrics (5xx responses, uptime, job runs), an
-    // SLO's budget or the absence of a log, which no test log can produce.
+    // SLO's budget or the absence of purchases, which no test log can produce.
     expect(withoutTest.sort()).toEqual([
       "api-down",
-      "catalog-stale",
       "http-5xx",
       "job-failed",
-      "job-missing",
       "slo-availability-burn",
       "slo-latency-burn",
       "zero-purchases",
@@ -254,6 +251,19 @@ describe("ops/monitoring/ config", () => {
     ]);
   });
 
+  it("rejects PromQL on a metric that lives on several resource types without naming one", () => {
+    const dir = copyConfig();
+    edit(dir, "dashboards/api-health.json", (file) => {
+      const funnel = file.mosaicLayout.tiles.find((tile) => tile.widget.title === "Funnel steps per day");
+      const query = funnel.widget.xyChart.dataSets[0].timeSeriesQuery;
+      query.prometheusQuery = query.prometheusQuery.replace('monitored_resource="cloud_run_revision",', "");
+      return file;
+    });
+    expect(errorsOf(dir)).toEqual([
+      expect.stringContaining('dashboards/api-health.json: PromQL on "business_events" must set monitored_resource'),
+    ]);
+  });
+
   it("rejects a dashboard tile without a title", () => {
     const dir = copyConfig();
     edit(dir, "dashboards/api-health.json", (file) => {
@@ -314,7 +324,7 @@ describe("applying the monitoring config", () => {
       "search_index_sync_failures",
       "search_requests",
     ]);
-    expect(api.state.policies).toHaveLength(14);
+    expect(api.state.policies).toHaveLength(12);
     for (const policy of api.state.policies) {
       expect(policy.notificationChannels).toEqual([api.state.channels[0].name]);
       expect(policy.userLabels.managed_by).toBe("ops-monitoring");
@@ -395,7 +405,49 @@ describe("applying the monitoring config", () => {
     expect(api.state.services).toHaveLength(1);
     expect(api.state.slos).toHaveLength(3);
     expect(api.state.policies.map((policy) => policy.name).sort()).toEqual(names);
+    // Unchanged log-based metrics aren't rewritten: an update makes a metric
+    // unusable for minutes, and the policies that read it would fail.
+    expect(api.state.writes.filter((write) => write.url.includes("/metrics/"))).toEqual([]);
     expect(api.state.writes.filter((write) => write.method === "POST")).toEqual([]);
+  });
+
+  it("treats a metric as unchanged however Google orders it or fills in defaults", async () => {
+    const api = fakeApi();
+    for (const metric of Object.values(config.metrics)) {
+      const descriptor = metric.metricDescriptor ?? {};
+      // As the Logging API returns it: STRING labels without valueType, in
+      // another order, and the descriptor with its name and type.
+      api.state.metrics[metric.name] = {
+        ...metric,
+        metricDescriptor: {
+          ...descriptor,
+          name: `projects/p/metricDescriptors/logging.googleapis.com/user/${metric.name}`,
+          type: `logging.googleapis.com/user/${metric.name}`,
+          labels: [...(descriptor.labels ?? [])]
+            .reverse()
+            .map(({ valueType, ...label }) => (valueType === "STRING" ? label : { ...label, valueType })),
+        },
+        createTime: "2026-11-01T00:00:00Z",
+      };
+    }
+    api.state.metrics.search_requests = { ...api.state.metrics.search_requests, filter: "changed" };
+
+    await applyMonitoring({ config, api, project: "p", email: "alerts@example.com", log: quiet });
+
+    expect(api.state.writes.filter((write) => write.url.includes("/metrics/")).map((write) => write.url)).toEqual([
+      expect.stringContaining("/metrics/search_requests"),
+    ]);
+  });
+
+  it("recognizes every known form of the 'metric not usable yet' error", () => {
+    for (const message of [
+      'Cannot find metric(s) that match type = "logging.googleapis.com/user/search_requests".',
+      'Invalid SLO definition: Cannot find metric(s) that match type = "logging.googleapis.com/user/business_events" label = "e2e".',
+      "Field alertPolicy.conditions[0].conditionThreshold.filter had an invalid value: The metric referenced by the provided filter is unknown.",
+    ]) {
+      expect(isMetricNotReady(message), message).toBe(true);
+    }
+    expect(isMetricNotReady("Field alertPolicy.conditions[0] is invalid")).toBe(false);
   });
 
   it("reports a managed policy that is no longer in the files, without deleting it", async () => {
@@ -455,7 +507,7 @@ describe("applying the monitoring config", () => {
     });
 
     expect(waits).toEqual([60_000, 60_000]);
-    expect(api.state.policies).toHaveLength(14);
+    expect(api.state.policies).toHaveLength(12);
   });
 
   it("applies the other policies when one fails, then lists the failure", async () => {
@@ -465,7 +517,7 @@ describe("applying the monitoring config", () => {
 
     await expect(result).rejects.toThrow(MonitoringApplyError);
     await expect(result).rejects.toThrow(/algolia-usage: Field alertPolicy.conditions\[0\] is invalid/);
-    expect(api.state.policies).toHaveLength(13);
+    expect(api.state.policies).toHaveLength(11);
   });
 
   it("gives up after the last retry", async () => {
@@ -482,7 +534,7 @@ describe("applying the monitoring config", () => {
     });
 
     await expect(result).rejects.toThrow(/algolia-usage: Cannot find metric/);
-    expect(api.state.policies).toHaveLength(13);
+    expect(api.state.policies).toHaveLength(11);
   });
 
   it("builds the test logs where the real ones would land, marked as tests", () => {

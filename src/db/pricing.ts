@@ -1,4 +1,4 @@
-import db from "../config/firestore.js";
+import db from "#src/config/firestore";
 
 // settings/pricing holds the settlement currency and how exchange rates are
 // kept; exchangeRates/{FROM}_{TO} holds one rate each. Both are written by

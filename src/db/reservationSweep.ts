@@ -1,9 +1,9 @@
-import db from "../config/firestore.js";
-import type { OrderStatus } from "../types/models.js";
-import { logger } from "../utils/logger.js";
-import { inventoryTaskId, inventoryTaskRef, queueInventoryTasks } from "./inventoryTasks.js";
-import { listExpiredHeldReservations } from "./reservations.js";
-import { runTransaction } from "./transactions.js";
+import db from "#src/config/firestore";
+import type { OrderStatus } from "#src/types/models";
+import { logger } from "#src/utils/logger";
+import { inventoryTaskId, inventoryTaskRef, queueInventoryTasks } from "./inventoryTasks.ts";
+import { listExpiredHeldReservations } from "./reservations.ts";
+import { runTransaction } from "./transactions.ts";
 
 // Queues the release of reservations that expired in abandoned carts; the
 // inventory job runs the queue right after the sweep.

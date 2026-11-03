@@ -5,6 +5,16 @@
   (`hotfix/ECOMAPI-<n>-<slug>`). El job `branch-guard` de CI rechaza cualquier otra rama hacia `main`.
 - Protegidas: `dev` y `main` (PR obligatorio y rama al día). Checks obligatorios en verde:
   `lint`, `test`, `gitleaks`, `docker-build` y `typecheck`; en `main` además `branch-guard`.
+- **`main` solo acepta merge commit** (ruleset "main: merge commits only", desde el 2 nov 2026):
+  las releases v1.6.0 y v1.7.0 se fusionaron con squash por error y `main` dejó de ser
+  ancestro de `dev`. El PR `main` → `dev` también va con merge commit, pero ahí nadie lo
+  impone (`dev` acepta squash para las tareas): al dar el comando, `gh pr merge <n> --merge`.
+- Si `main` no es ancestro de `dev` (`git merge-base --is-ancestor origin/main origin/dev`
+  falla), un merge normal da conflictos falsos porque la base común es vieja. Primero se
+  comprueba que el contenido de `main` ya está en `dev` (su árbol es el de un commit de
+  `dev`, o solo difiere en la versión y el `CHANGELOG.md`), y entonces se fusiona con
+  `git merge -s ours`: en la rama de release, `-s ours origin/main`; para el regreso, una
+  rama desde `main` con `-s ours origin/dev`.
 - Capas: las mutations de GraphQL pasan por `src/services/`. Solo los resolvers de lectura
   (`src/schema/resolvers/queries.ts` y `fields.ts`) pueden importar `src/db/`; ESLint lo hace cumplir.
 - Catálogo: productos y stock se leen y se apartan a través del contrato `CatalogSource`
@@ -14,8 +24,13 @@
   `parseProductId` de `src/catalog/productId.ts`; nunca se parte un id a mano.
 - Precios: la moneda de liquidación vive en `settings/pricing` (Firestore), nunca en el
   código; un precio solo cambia de moneda con `convertPrice` (`src/pricing/convert.ts`).
-- TypeScript: `src/` y `scripts/` son `.ts` en modo `strict`; los imports llevan extensión
-  `.js` (nodenext). Si cambias `src/schema/typeDefs`, corre `npm run codegen` y commitea
+- TypeScript: `src/` y `scripts/` son `.ts` en modo `strict` (nodenext). Entre carpetas se
+  importa con el alias `#src/...` **sin extensión** (`#src/utils/logger`, campo `imports` de
+  `package.json`), nunca con `../`; dentro de la misma carpeta, relativo y **con `.ts`**
+  (`./cart.ts`), que `tsc` reescribe a `.js` en `dist/` (`rewriteRelativeImportExtensions`).
+  Un test (`tests/importLayers.test.js`) falla si vuelve un import `.js`. El alias apunta a
+  `src/*.ts` por defecto y a `dist/*.js` con la condición `dist`: todo lo que corre código
+  compilado lleva `--conditions=dist` (`npm start`, `NODE_OPTIONS` del Dockerfile). Si cambias `src/schema/typeDefs`, corre `npm run codegen` y commitea
   `src/generated/graphql.ts` (el job `typecheck` falla si quedó desactualizado). Los tests
   siguen en `.js`. Antes de entregar: `npm run lint`, `npm run typecheck` y `npm run test:emulator`.
 - Commits y PRs: clave de Jira al inicio del mensaje (`ECOMAPI-<n>: ...`).

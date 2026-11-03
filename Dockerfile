@@ -23,11 +23,13 @@ RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
 
-# Tracing starts before the app or a job loads anything (see
-# src/telemetry.ts). Through NODE_OPTIONS so the Cloud Run jobs, which run
-# `node dist/jobs/<job>.js` from this same image, get it too. It does nothing
-# unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
-ENV NODE_OPTIONS="--import=/app/dist/telemetry.js"
+# Through NODE_OPTIONS so the Cloud Run jobs, which run
+# `node dist/jobs/<job>.js` from this same image, get both flags too:
+# - --conditions=dist points the #src/* imports at the compiled dist/
+#   instead of src/ (see "imports" in package.json);
+# - --import starts tracing before the app or a job loads anything (see
+#   src/telemetry.ts). It does nothing unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+ENV NODE_OPTIONS="--conditions=dist --import=/app/dist/telemetry.js"
 
 EXPOSE 8080
 

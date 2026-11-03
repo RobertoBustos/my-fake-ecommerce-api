@@ -1,5 +1,5 @@
 import type { ApolloServerPlugin } from "@apollo/server";
-import { logger } from "../utils/logger.js";
+import { logger } from "#src/utils/logger";
 
 // formatError hides the details of unexpected errors from the client; this
 // plugin keeps them in the logs. Known domain errors (with their own code)

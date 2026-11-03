@@ -1,7 +1,7 @@
 import type Stripe from "stripe";
-import db from "../config/firestore.js";
-import stripeClient from "../config/stripe.js";
-import { logger } from "../utils/logger.js";
+import db from "#src/config/firestore";
+import stripeClient from "#src/config/stripe";
+import { logger } from "#src/utils/logger";
 
 // Stripe's search language delimits values with quotes; a quote inside an
 // unescaped value breaks or manipulates the query (H4). Stripe expects
@@ -75,7 +75,8 @@ export const createPayment = async (
         currency,
         customer: customerId,
         amount: amount,
-        payment_method_types: ["card"],
+        // Cards only. Called payment_method_types before the endive API.
+        allowed_payment_method_types: ["card"],
         metadata: {
           order_id: orderId,
         },
@@ -94,6 +95,8 @@ export const createPayment = async (
     }
   }
 
+  // An ephemeral key carries the API version of the app's Stripe mobile SDK,
+  // not the server's pinned one: change it only when the app updates its SDK.
   const ephemeralKey = await stripeClient.ephemeralKeys.create(
     { customer: customerId },
     { apiVersion: "2024-11-20.acacia" }

@@ -1,5 +1,5 @@
-import env from "../../config/env.js";
-import type { ProviderRate, RateProvider } from "./ports.js";
+import env from "#src/config/env";
+import type { ProviderRate, RateProvider } from "./ports.ts";
 
 // Banco de México's SIE API. Each currency is a series; "oportuno" returns
 // its latest published value. SF43718 is the FIX rate (pesos per US dollar)

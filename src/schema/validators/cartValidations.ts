@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { Product } from "../../types/models.js";
-import { firstInvalidField } from "./validate.js";
+import type { Product } from "#src/types/models";
+import { firstInvalidField } from "./validate.ts";
 
 const id = z.string().trim().min(1);
 

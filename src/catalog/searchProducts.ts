@@ -1,24 +1,24 @@
 import { GraphQLError } from "graphql";
-import { getSearchIndex } from "../search/registry.js";
+import { getSearchIndex } from "#src/search/registry";
 import {
   SearchUnavailableError,
   type Facet,
   type SearchQuery,
   type SearchResult,
   type SearchSort,
-} from "../search/ports.js";
-import type { Product } from "../types/models.js";
-import { logger } from "../utils/logger.js";
-import { cursorNotInList, decodeCursor, encodeCursor } from "../utils/pagination.js";
-import { getIndexedCatalogProducts } from "./index.js";
-import { listEnabledSources } from "./registry.js";
+} from "#src/search/ports";
+import type { Product } from "#src/types/models";
+import { logger } from "#src/utils/logger";
+import { cursorNotInList, decodeCursor, encodeCursor } from "#src/utils/pagination";
+import { getIndexedCatalogProducts } from "./index.ts";
+import { listEnabledSources } from "./registry.ts";
 
 // The searchProducts query: the search index finds and orders the ids, and
 // the catalog index turns them into products, the same ones the products
 // query lists (price converted by the Product field resolvers).
 //
-// The search index can be a little behind the catalog (the sync runs every
-// 15 minutes, and an engine may answer a repeated query from its own cache),
+// The search index can be behind the catalog (the sync runs once a week,
+// and an engine may answer a repeated query from its own cache),
 // so an id the catalog no longer holds is left out of the page instead of
 // failing it, and totalCount may still count it.
 

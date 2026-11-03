@@ -1,9 +1,9 @@
 import { performance } from "node:perf_hooks";
 import type { ApolloServerPlugin } from "@apollo/server";
 import { getOperationAST, Kind, type DocumentNode, type OperationDefinitionNode, type SelectionSetNode } from "graphql";
-import { logger } from "../utils/logger.js";
-import { boundedLabel, metrics } from "./metrics.js";
-import { nameRequestSpan } from "./spans.js";
+import { logger } from "#src/utils/logger";
+import { boundedLabel, metrics } from "./metrics.ts";
+import { nameRequestSpan } from "./spans.ts";
 
 // Every GraphQL request is a POST /graphql that answers 200, so Cloud Run's
 // request logs can't tell a slow purchase from a fast listing. This plugin

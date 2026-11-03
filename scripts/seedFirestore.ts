@@ -1,9 +1,9 @@
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
-import { reconcileCatalogSource } from "../src/catalog/catalogSync.js";
-import { firestoreCatalogSource } from "../src/catalog/sources/firestore/adapter.js";
-import db from "../src/config/firestore.js";
+import { reconcileCatalogSource } from "#src/catalog/catalogSync";
+import { firestoreCatalogSource } from "#src/catalog/sources/firestore/adapter";
+import db from "#src/config/firestore";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

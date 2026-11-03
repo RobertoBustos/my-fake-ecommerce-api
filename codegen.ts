@@ -19,16 +19,16 @@ const config: CodegenConfig = {
       config: {
         useTypeImports: true,
         enumsAsTypes: true,
-        contextType: "../context.js#Context",
+        contextType: "../context.ts#Context",
         // Imported as ProductModel, OrderModel...: the schema has types with the same names.
         mapperTypeSuffix: "Model",
         mappers: {
-          Product: "../types/models.js#Product",
-          CartItem: "../types/models.js#CartItem",
-          Order: "../types/models.js#Order",
-          Customer: "../types/models.js#StripeCustomer",
-          Payment: "../types/models.js#StripePaymentIntent",
-          PaymentMethod: "../types/models.js#StripePaymentMethod",
+          Product: "../types/models.ts#Product",
+          CartItem: "../types/models.ts#CartItem",
+          Order: "../types/models.ts#Order",
+          Customer: "../types/models.ts#StripeCustomer",
+          Payment: "../types/models.ts#StripePaymentIntent",
+          PaymentMethod: "../types/models.ts#StripePaymentMethod",
         },
       },
     },

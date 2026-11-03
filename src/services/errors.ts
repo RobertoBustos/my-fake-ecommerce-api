@@ -1,7 +1,7 @@
 import { GraphQLError } from "graphql";
-import { SourceUnavailableError } from "../catalog/ports.js";
-import { TransactionContentionError } from "../db/index.js";
-import { ExchangeRateUnavailableError, quotePrice, type PriceQuote } from "../pricing/index.js";
+import { SourceUnavailableError } from "#src/catalog/ports";
+import { TransactionContentionError } from "#src/db/index";
+import { ExchangeRateUnavailableError, quotePrice, type PriceQuote } from "#src/pricing/index";
 
 // Throws BAD_USER_INPUT, naming the field, when a check* validator (see
 // schema/validators) rejects the input.

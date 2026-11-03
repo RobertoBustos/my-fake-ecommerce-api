@@ -1,5 +1,5 @@
 import type { Transaction } from "firebase-admin/firestore";
-import db from "../config/firestore.js";
+import db from "#src/config/firestore";
 
 // gRPC status code Firestore uses when a transaction loses a lock fight and
 // runs out of retries.

@@ -7,7 +7,7 @@ import {
   OrderItemLockedError,
   removeFromCart,
   updateCartItems,
-} from "./cart.js";
+} from "./cart.ts";
 import {
   cancelOrder,
   CartAlreadyOrderedError,
@@ -23,15 +23,15 @@ import {
   repriceOrderItems,
   setOrderPayment,
   updateOrder,
-} from "./orders.js";
+} from "./orders.ts";
 import {
   cancelPayment,
   createPayment,
   getCustomer,
   searchPayment,
   searchPaymentMethod,
-} from "./payment.js";
-import { TransactionContentionError } from "./transactions.js";
+} from "./payment.ts";
+import { TransactionContentionError } from "./transactions.ts";
 
 export {
   addToCart,

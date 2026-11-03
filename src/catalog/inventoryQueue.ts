@@ -1,4 +1,4 @@
-import env from "../config/env.js";
+import env from "#src/config/env";
 import {
   countInventoryTasks,
   getInventoryTask,
@@ -7,12 +7,12 @@ import {
   readInventoryTask,
   type InventoryTask,
   type InventoryTaskStatus,
-} from "../db/inventoryTasks.js";
-import { runTransaction } from "../db/transactions.js";
-import { metrics } from "../observability/metrics.js";
-import { logger } from "../utils/logger.js";
-import { OutOfStockError, ReservationExpiredError } from "./ports.js";
-import { getCatalogSource } from "./registry.js";
+} from "#src/db/inventoryTasks";
+import { runTransaction } from "#src/db/transactions";
+import { metrics } from "#src/observability/metrics";
+import { logger } from "#src/utils/logger";
+import { OutOfStockError, ReservationExpiredError } from "./ports.ts";
+import { getCatalogSource } from "./registry.ts";
 
 // Runs the confirm and release tasks of the outbox against their sources.
 // Every source call carries an idempotency key, so running a task twice

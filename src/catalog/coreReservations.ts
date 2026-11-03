@@ -1,12 +1,12 @@
-import { readReservation, reservationRef, type ReservationDoc } from "../db/reservations.js";
-import { runTransaction } from "../db/transactions.js";
+import { readReservation, reservationRef, type ReservationDoc } from "#src/db/reservations";
+import { runTransaction } from "#src/db/transactions";
 import {
   OutOfStockError,
   ReservationExpiredError,
   type CatalogSource,
   type Reservation,
-} from "./ports.js";
-import { reservationTtlMs } from "./reservationTtl.js";
+} from "./ports.ts";
+import { reservationTtlMs } from "./reservationTtl.ts";
 
 // For a source that can't set units aside (capabilities.reservations false,
 // e.g. a read-only vendor API), the reservation lives only in our

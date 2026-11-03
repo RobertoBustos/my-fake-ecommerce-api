@@ -6,6 +6,55 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-03
+
+Sprint 8: leaving the project up to date after the observability release. It
+fixes the gaps found when v1.7.0 reached production, cuts the cost of the
+scheduled jobs, and brings the dependencies and the import conventions up to
+date. **No API changes:** the schema, the responses and the behavior seen by
+clients are the same as in v1.7.0.
+
+### Changed
+
+- The scheduled jobs run once a week (`sync-catalog` on Mondays at 06:00 and
+  `process-inventory` at 06:30, Mexico City) instead of every 15 and 5
+  minutes. They were most of the Cloud Run bill for an API nobody uses yet.
+  An expired reservation can now hold stock, and the catalog and search can
+  lag their source, for up to a week; run a job by hand when that matters.
+  The schedule is configuration and was applied on Nov 3, 2026, before this
+  release.
+- The alerts follow the weekly jobs: the absence alerts `job-missing` and
+  `catalog-stale` are gone (Cloud Monitoring can't watch a weekly window), and
+  `search-index-unsynced` fires on the first failed write.
+- Stripe SDK 17 → 23. The SDK pins the `2026-10-28.endive` API version, which
+  renamed `payment_method_types` to `allowed_payment_method_types` when
+  creating a PaymentIntent. The webhook destination stays on
+  `2024-11-20.acacia`, like the mobile app's ephemeral key; the fields the
+  handler reads are the same in both versions.
+- Faster startup: the ESM hook of the OpenTelemetry instrumentations only
+  wraps the modules they patch (`http`, `https`, `express`, `graphql`,
+  `@grpc/grpc-js`). Measured on Cloud Run with 1 vCPU, it saves about 0.85 s.
+- Imports between folders use the `#src/*` alias without an extension, and
+  relative imports name the `.ts` file; `tsc` rewrites them to `.js` in
+  `dist/`. Compiled code resolves the alias with `--conditions=dist`, which the
+  Docker image sets in `NODE_OPTIONS` for the service and the jobs, and
+  `npm start` passes.
+- Dependabot ignores `@types/node` majors, which follow the Node 22 runtime.
+
+### Fixed
+
+- Traces no longer store the client's IP: `client.address` and
+  `http.client_ip` are dropped before any span leaves the process.
+- The dashboard's purchase funnel charts showed no data, and the 5xx ratio
+  showed "no data" when there were no errors.
+- `applyMonitoring` no longer rewrites unchanged log-based metrics, which left
+  the alerts that read them unusable for a few minutes on every run.
+
+### Removed
+
+- The `dotenv` dev dependency: the tests load `.env` with Node's
+  `process.loadEnvFile()`.
+
 ## [1.7.0] - 2026-11-02
 
 Observability in production: errors grouped in Error Reporting and linked to
@@ -507,6 +556,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.7.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.4.0...v1.5.0

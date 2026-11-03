@@ -1,5 +1,5 @@
-import env from "../../config/env.js";
-import type { LogRecord } from "../../utils/logger.js";
+import env from "#src/config/env";
+import type { LogRecord } from "#src/utils/logger";
 
 // Turns a log record into the JSON line Google Cloud Logging, Error Reporting
 // and Cloud Trace understand. Every Google-specific field is written here and

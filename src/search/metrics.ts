@@ -1,7 +1,7 @@
 import { performance } from "node:perf_hooks";
-import { metrics } from "../observability/metrics.js";
-import { SearchUnavailableError, type SearchIndex } from "./ports.js";
-import { SearchTimeoutError } from "./timeout.js";
+import { metrics } from "#src/observability/metrics";
+import { SearchUnavailableError, type SearchIndex } from "./ports.ts";
+import { SearchTimeoutError } from "./timeout.ts";
 
 // The same index, with the duration and outcome of every search recorded
 // (search.request.duration), labeled with the engine: the engine's share of

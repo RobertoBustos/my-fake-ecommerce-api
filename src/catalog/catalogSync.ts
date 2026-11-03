@@ -1,4 +1,4 @@
-import env from "../config/env.js";
+import env from "#src/config/env";
 import {
   deleteCatalogEntries,
   getCatalogSyncState,
@@ -10,16 +10,16 @@ import {
   saveSearchPriceState,
   upsertCatalogEntries,
   type CatalogEntry,
-} from "../db/catalogIndex.js";
-import { metrics } from "../observability/metrics.js";
-import { getPricingSettings, type PricingSettings } from "../pricing/settings.js";
-import { getConfiguredSearchIndex } from "../search/registry.js";
-import type { SearchIndex } from "../search/ports.js";
-import { logger } from "../utils/logger.js";
-import type { CatalogSource, ChangedProducts, SourceProduct } from "./ports.js";
-import { toGlobalProductId } from "./productId.js";
-import { listEnabledSources } from "./registry.js";
-import { createSearchFeed, createSearchPricer, detectPriceChanges, type SearchFeed } from "./searchFeed.js";
+} from "#src/db/catalogIndex";
+import { metrics } from "#src/observability/metrics";
+import { getPricingSettings, type PricingSettings } from "#src/pricing/settings";
+import { getConfiguredSearchIndex } from "#src/search/registry";
+import type { SearchIndex } from "#src/search/ports";
+import { logger } from "#src/utils/logger";
+import type { CatalogSource, ChangedProducts, SourceProduct } from "./ports.ts";
+import { toGlobalProductId } from "./productId.ts";
+import { listEnabledSources } from "./registry.ts";
+import { createSearchFeed, createSearchPricer, detectPriceChanges, type SearchFeed } from "./searchFeed.ts";
 
 // Keeps the catalog index (db/catalogIndex.ts) in step with every switched-on
 // source:
@@ -232,9 +232,9 @@ export const syncCatalog = async ({
         ? await reconcileCatalogSource(source, { now })
         : await pullCatalogSource(source, { now, search });
       synced.push(result);
-      // One line per source that synced: the catalog-staleness alert counts
-      // them by sourceKey, so a source that stops syncing shows up even when
-      // the others still do.
+      // One line per source that synced: the catalog_source_syncs metric
+      // counts them by sourceKey, so a source that stops syncing shows up
+      // even when the others still do.
       logger.info("Catalog source synced", { sourceKey: source.key, mode: result.mode });
       logger.event("catalog.synced", {
         source: source.key,
