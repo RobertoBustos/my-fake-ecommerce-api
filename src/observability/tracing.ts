@@ -77,6 +77,12 @@ export const withoutRedactedAttributes = (exporter: SpanExporter): SpanExporter 
   ...(exporter.forceFlush && { forceFlush: () => exporter.forceFlush!() }),
 });
 
+// The modules the instrumentations below patch, for the ESM hook. A new
+// instrumentation adds its module here, or its spans silently disappear;
+// tests/tracing.test.js checks each kind. Undici needs none: it's traced
+// through diagnostics_channel.
+const INSTRUMENTED_MODULES = ["http", "https", "express", "graphql", "@grpc/grpc-js"] as const;
+
 export interface StartTracingOptions {
   // Replaces the OTLP exporter; tests pass one that collects spans.
   exporter?: SpanExporter;
@@ -92,8 +98,12 @@ export const startTracing = ({ exporter }: StartTracingOptions = {}) => {
   logTelemetryDiagnostics();
 
   // The app is ESM: this hook lets the instrumentations patch modules loaded
-  // with `import`, not only with `require`.
-  register("@opentelemetry/instrumentation/hook.mjs", import.meta.url);
+  // with `import`, not only with `require`. Limited to the modules they
+  // patch: otherwise it wraps every module the app loads, which cost about
+  // 0.85 s of startup on Cloud Run's 1 vCPU (ECOMAPI-119).
+  register("@opentelemetry/instrumentation/hook.mjs", import.meta.url, {
+    data: { include: [...INSTRUMENTED_MODULES] },
+  });
 
   const provider = new NodeTracerProvider({
     resource: telemetryResource(),
