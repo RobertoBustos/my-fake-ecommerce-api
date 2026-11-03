@@ -14,6 +14,12 @@ updates:
     commit-message:
       prefix: deps
       prefix-development: deps-dev
+    ignore:
+      # @types/node follows the Node runtime (22 in the Dockerfile and CI): a
+      # newer major types APIs production doesn't have. Drop this when the
+      # runtime moves up.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       # One PR for every minor and patch bump; majors come one per package so
       # their breaking changes can be reviewed on their own.
