@@ -6,7 +6,7 @@ import { measure, runJob } from "./runJob.js";
 // The inventory job: queues the release of expired reservations, then runs
 // every confirm and release that is due. It ships in the same image as the
 // API, so a Cloud Run job runs it with `node dist/jobs/processInventory.js`
-// (Cloud Scheduler starts it every few minutes); locally,
+// (Cloud Scheduler starts it once a week); locally,
 // `npm run inventory:process`. A failure exits with 1 so the run shows as failed.
 
 await runJob("process-inventory", async () => {

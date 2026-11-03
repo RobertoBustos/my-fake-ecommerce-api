@@ -8,8 +8,8 @@ import { measure, runJob } from "./runJob.js";
 // search index too when SEARCH_ENGINE names one; a search write that fails
 // is a WARNING and doesn't fail the run. It ships in
 // the same image as the API, so a Cloud Run job runs it with
-// `node dist/jobs/syncCatalog.js` (Cloud Scheduler starts it every few
-// minutes); locally, `npm run catalog:sync`. Options:
+// `node dist/jobs/syncCatalog.js` (Cloud Scheduler starts it once a
+// week); locally, `npm run catalog:sync`. Options:
 //   --reconcile        reconcile every selected source now
 //   --source <key>     only that source (repeatable)
 // A failure exits with 1 so the run shows as failed.

@@ -120,12 +120,10 @@ describe("ops/monitoring/ config", () => {
     expect(Object.keys(config.policies).sort()).toEqual([
       "algolia-usage",
       "api-down",
-      "catalog-stale",
       "exchange-rate-unavailable",
       "http-5xx",
       "inventory-task-failed",
       "job-failed",
-      "job-missing",
       "payment-not-applied",
       "search-engine-down",
       "search-index-unsynced",
@@ -150,13 +148,11 @@ describe("ops/monitoring/ config", () => {
     const { policies } = loadMonitoringConfig(ROOT);
     const withoutTest = Object.keys(policies).filter((id) => !policies[id].test);
     // These watch Google's own metrics (5xx responses, uptime, job runs), an
-    // SLO's budget or the absence of a log, which no test log can produce.
+    // SLO's budget or the absence of purchases, which no test log can produce.
     expect(withoutTest.sort()).toEqual([
       "api-down",
-      "catalog-stale",
       "http-5xx",
       "job-failed",
-      "job-missing",
       "slo-availability-burn",
       "slo-latency-burn",
       "zero-purchases",
@@ -328,7 +324,7 @@ describe("applying the monitoring config", () => {
       "search_index_sync_failures",
       "search_requests",
     ]);
-    expect(api.state.policies).toHaveLength(14);
+    expect(api.state.policies).toHaveLength(12);
     for (const policy of api.state.policies) {
       expect(policy.notificationChannels).toEqual([api.state.channels[0].name]);
       expect(policy.userLabels.managed_by).toBe("ops-monitoring");
@@ -511,7 +507,7 @@ describe("applying the monitoring config", () => {
     });
 
     expect(waits).toEqual([60_000, 60_000]);
-    expect(api.state.policies).toHaveLength(14);
+    expect(api.state.policies).toHaveLength(12);
   });
 
   it("applies the other policies when one fails, then lists the failure", async () => {
@@ -521,7 +517,7 @@ describe("applying the monitoring config", () => {
 
     await expect(result).rejects.toThrow(MonitoringApplyError);
     await expect(result).rejects.toThrow(/algolia-usage: Field alertPolicy.conditions\[0\] is invalid/);
-    expect(api.state.policies).toHaveLength(13);
+    expect(api.state.policies).toHaveLength(11);
   });
 
   it("gives up after the last retry", async () => {
@@ -538,7 +534,7 @@ describe("applying the monitoring config", () => {
     });
 
     await expect(result).rejects.toThrow(/algolia-usage: Cannot find metric/);
-    expect(api.state.policies).toHaveLength(13);
+    expect(api.state.policies).toHaveLength(11);
   });
 
   it("builds the test logs where the real ones would land, marked as tests", () => {
