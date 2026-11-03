@@ -12,7 +12,7 @@ process.env.STRIPE_WEBHOOK_SECRET = WEBHOOK_SECRET;
 // need the signature on the final event to be genuinely verified.
 vi.mock("../src/config/stripe.js", async () => {
   const Stripe = (await import("stripe")).default;
-  const realStripe = Stripe("sk_test_fake_key_for_webhook_crypto_only");
+  const realStripe = new Stripe("sk_test_fake_key_for_webhook_crypto_only");
   return {
     default: {
       customers: {
