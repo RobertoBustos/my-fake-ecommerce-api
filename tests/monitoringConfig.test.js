@@ -1,6 +1,7 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { URLSearchParams } from "node:url";
 import { describe, it, expect, afterEach } from "vitest";
 import {
   loadMonitoringConfig,
@@ -8,6 +9,7 @@ import {
   RUNBOOK_URL,
 } from "../scripts/monitoring/config.js";
 import { applyMonitoring, buildTestEntries, MonitoringApplyError } from "../scripts/monitoring/apply.js";
+import { METRICS } from "../src/observability/metrics.js";
 
 const ROOT = new URL("../ops/monitoring/", import.meta.url).pathname;
 
@@ -35,12 +37,35 @@ const errorsOf = (dir) => {
 
 // An in-memory stand-in for the Monitoring and Logging APIs.
 const fakeApi = () => {
-  const state = { channels: [], policies: [], uptimeChecks: [], metrics: {}, writes: [] };
+  const state = { channels: [], policies: [], uptimeChecks: [], metrics: {}, services: [], slos: [], dashboards: [], writes: [] };
   let next = 1;
   return {
     state,
     request: async (method, url, body) => {
-      if (method !== "GET") state.writes.push({ method, url });
+      if (method !== "GET") state.writes.push({ method, url, body });
+      const path = url.split("?")[0];
+      const query = new URLSearchParams(url.split("?")[1]);
+      if (method === "GET" && path.endsWith("/serviceLevelObjectives")) {
+        return { serviceLevelObjectives: state.slos.filter((slo) => slo.name.startsWith(path.split("/v3/")[1])) };
+      }
+      if (method === "GET" && path.endsWith("/services")) return { services: state.services };
+      if (method === "GET" && path.endsWith("/dashboards")) return { dashboards: state.dashboards };
+      if (method === "POST" && path.endsWith("/services")) {
+        const service = { ...body, name: `${path.split("/v3/")[1]}/${query.get("serviceId")}` };
+        state.services.push(service);
+        return service;
+      }
+      if (method === "POST" && path.endsWith("/serviceLevelObjectives")) {
+        const service = path.split("/v3/")[1].replace(/\/serviceLevelObjectives$/, "");
+        const slo = { ...body, name: `${service}/serviceLevelObjectives/${query.get("serviceLevelObjectiveId")}` };
+        state.slos.push(slo);
+        return slo;
+      }
+      if (method === "POST" && path.endsWith("/dashboards")) {
+        const dashboard = { ...body, name: `projects/p/dashboards/${next++}`, etag: "etag-1" };
+        state.dashboards.push(dashboard);
+        return dashboard;
+      }
       if (method === "GET" && url.includes("/notificationChannels")) return { notificationChannels: state.channels };
       if (method === "GET" && url.includes("/alertPolicies")) return { alertPolicies: state.policies };
       if (method === "GET" && url.includes("/uptimeCheckConfigs")) return { uptimeCheckConfigs: state.uptimeChecks };
@@ -64,12 +89,17 @@ const fakeApi = () => {
         return policy;
       }
       if (method === "PATCH") {
-        const path = url.split("?")[0];
         const list = path.includes("/notificationChannels/")
           ? state.channels
           : path.includes("/uptimeCheckConfigs/")
             ? state.uptimeChecks
-            : state.policies;
+            : path.includes("/serviceLevelObjectives/")
+              ? state.slos
+              : path.includes("/services/")
+                ? state.services
+                : path.includes("/dashboards/")
+                  ? state.dashboards
+                  : state.policies;
         const index = list.findIndex((item) => path.endsWith(item.name));
         list[index] = { ...body, name: list[index].name };
         return list[index];
@@ -98,9 +128,13 @@ describe("ops/monitoring/ config", () => {
       "payment-not-applied",
       "search-engine-down",
       "search-index-unsynced",
+      "slo-availability-burn",
+      "slo-latency-burn",
       "zero-purchases",
     ]);
     expect(Object.keys(config.uptimeChecks)).toEqual(["healthcheck"]);
+    expect(Object.keys(config.services.api.slos)).toEqual(["availability", "read-latency", "payment-latency"]);
+    expect(Object.keys(config.dashboards)).toEqual(["api-health"]);
     for (const { policy } of Object.values(config.policies)) {
       expect(policy.documentation.content).toContain(RUNBOOK_URL);
       expect(policy.notificationChannels).toEqual(["email"]);
@@ -114,14 +148,16 @@ describe("ops/monitoring/ config", () => {
   it("has a test log for every policy that a log can fire", () => {
     const { policies } = loadMonitoringConfig(ROOT);
     const withoutTest = Object.keys(policies).filter((id) => !policies[id].test);
-    // These watch Google's own metrics (5xx responses, uptime, job runs) or
-    // the absence of a log, which no test log can produce.
+    // These watch Google's own metrics (5xx responses, uptime, job runs), an
+    // SLO's budget or the absence of a log, which no test log can produce.
     expect(withoutTest.sort()).toEqual([
       "api-down",
       "catalog-stale",
       "http-5xx",
       "job-failed",
       "job-missing",
+      "slo-availability-burn",
+      "slo-latency-burn",
       "zero-purchases",
     ]);
   });
@@ -129,6 +165,27 @@ describe("ops/monitoring/ config", () => {
   it("creates the zero-purchases alert switched off until there is real traffic", () => {
     const { policies } = loadMonitoringConfig(ROOT);
     expect(policies["zero-purchases"].policy.enabled).toBe(false);
+  });
+
+  it("creates the latency burn alert switched off until its limits are confirmed", () => {
+    const { policies } = loadMonitoringConfig(ROOT);
+    expect(policies["slo-latency-burn"].policy.enabled).toBe(false);
+    expect(policies["slo-availability-burn"].policy.enabled).toBeUndefined();
+  });
+
+  it("puts each latency SLO's limit on a bucket bound of the histogram it reads", () => {
+    // An SLO counts whole buckets: a limit between two bounds would count
+    // some slow operations as fast.
+    const { services } = loadMonitoringConfig(ROOT);
+    const buckets = METRICS["graphql.operation.duration"].buckets;
+    const cuts = Object.values(services.api.slos)
+      .map((slo) => slo.serviceLevelIndicator.requestBased.distributionCut)
+      .filter(Boolean);
+    expect(cuts.map((cut) => cut.range.max)).toEqual([0.5, 2]);
+    for (const cut of cuts) {
+      expect(cut.distributionFilter).toContain("graphql.operation.duration/histogram");
+      expect(buckets).toContain(cut.range.max);
+    }
   });
 
   it("fires the threshold policies with their test logs", () => {
@@ -167,6 +224,43 @@ describe("ops/monitoring/ config", () => {
         expect.stringContaining("payment-not-applied.json: a log-match policy needs"),
       ])
     );
+  });
+
+  it("rejects a policy that watches an unknown SLO", () => {
+    const dir = copyConfig();
+    edit(dir, "policies/slo-availability-burn.json", (file) => {
+      file.policy.conditions[0].conditionThreshold.filter =
+        'select_slo_burn_rate("projects/${PROJECT}/services/api/serviceLevelObjectives/nope", "3600s")';
+      return file;
+    });
+    expect(errorsOf(dir)).toEqual([expect.stringContaining('unknown SLO "api/nope"')]);
+  });
+
+  it("rejects an SLO or a dashboard chart that reads an unknown log-based metric", () => {
+    const dir = copyConfig();
+    edit(dir, "services/api.json", (file) => {
+      file.slos.availability.serviceLevelIndicator.requestBased.goodTotalRatio.badServiceFilter =
+        'metric.type="logging.googleapis.com/user/nope"';
+      return file;
+    });
+    edit(dir, "dashboards/api-health.json", (file) => {
+      file.mosaicLayout.tiles[1].widget.xyChart.dataSets[0].timeSeriesQuery.prometheusQuery =
+        "sum(rate(logging_googleapis_com:user_missing_count[5m]))";
+      return file;
+    });
+    expect(errorsOf(dir).sort()).toEqual([
+      expect.stringContaining('dashboards/api-health.json: unknown log-based metric "missing_count"'),
+      expect.stringContaining('services/api.json: unknown log-based metric "nope"'),
+    ]);
+  });
+
+  it("rejects a dashboard tile without a title", () => {
+    const dir = copyConfig();
+    edit(dir, "dashboards/api-health.json", (file) => {
+      delete file.mosaicLayout.tiles[1].widget.title;
+      return file;
+    });
+    expect(errorsOf(dir)[0]).toContain("dashboards/api-health.json: mosaicLayout.tiles.1.widget.title");
   });
 
   it("rejects a real email address in a channel file", () => {
@@ -213,12 +307,14 @@ describe("applying the monitoring config", () => {
     expect(Object.keys(api.state.metrics).sort()).toEqual([
       "business_events",
       "catalog_source_syncs",
+      "graphql_requests",
+      "graphql_server_errors",
       "order_amounts",
       "search_engine_failures",
       "search_index_sync_failures",
       "search_requests",
     ]);
-    expect(api.state.policies).toHaveLength(12);
+    expect(api.state.policies).toHaveLength(14);
     for (const policy of api.state.policies) {
       expect(policy.notificationChannels).toEqual([api.state.channels[0].name]);
       expect(policy.userLabels.managed_by).toBe("ops-monitoring");
@@ -235,6 +331,42 @@ describe("applying the monitoring config", () => {
     const apiDown = api.state.policies.find((policy) => policy.userLabels.policy_id === "api-down");
     expect(apiDown.conditions[0].conditionThreshold.filter).toContain(`metric.label.check_id="${checkId}"`);
     expect(JSON.stringify(api.state.policies)).not.toContain("${");
+  });
+
+  it("creates the service and its SLOs by id, and points the burn alerts at them", async () => {
+    const api = fakeApi();
+    await applyMonitoring({ config, api, project: "my-project", email: "alerts@example.com", log: quiet });
+
+    expect(api.state.services.map((service) => service.name)).toEqual(["projects/my-project/services/api"]);
+    expect(api.state.services[0].userLabels).toEqual({ managed_by: "ops-monitoring" });
+    expect(api.state.slos.map((slo) => slo.name)).toEqual([
+      "projects/my-project/services/api/serviceLevelObjectives/availability",
+      "projects/my-project/services/api/serviceLevelObjectives/read-latency",
+      "projects/my-project/services/api/serviceLevelObjectives/payment-latency",
+    ]);
+    const burn = api.state.policies.find((policy) => policy.userLabels.policy_id === "slo-availability-burn");
+    expect(burn.conditions[0].conditionThreshold.filter).toBe(
+      'select_slo_burn_rate("projects/my-project/services/api/serviceLevelObjectives/availability", "3600s")'
+    );
+    // The services are applied before the policies that watch their SLOs.
+    const order = api.state.writes.map((write) => write.url);
+    expect(order.findIndex((url) => url.includes("serviceLevelObjectiveId=payment-latency"))).toBeLessThan(
+      order.findIndex((url) => url.endsWith("/alertPolicies"))
+    );
+  });
+
+  it("creates the dashboard labeled with its id, and updates it with the etag it read", async () => {
+    const api = fakeApi();
+    await applyMonitoring({ config, api, project: "p", email: "alerts@example.com", log: quiet });
+    expect(api.state.dashboards).toHaveLength(1);
+    expect(api.state.dashboards[0].labels).toEqual({ managed_by: "ops-monitoring", dashboard_id: "api-health" });
+    api.state.writes.length = 0;
+
+    await applyMonitoring({ config, api, project: "p", email: "alerts@example.com", log: quiet });
+
+    expect(api.state.dashboards).toHaveLength(1);
+    const update = api.state.writes.find((write) => write.url.includes("/dashboards/"));
+    expect(update).toMatchObject({ method: "PATCH", body: { etag: "etag-1" } });
   });
 
   it("updates an existing uptime check only in the fields Google allows", async () => {
@@ -260,6 +392,8 @@ describe("applying the monitoring config", () => {
     await applyMonitoring({ config, api, project: "p", email: "alerts@example.com", log: quiet });
 
     expect(api.state.channels).toHaveLength(1);
+    expect(api.state.services).toHaveLength(1);
+    expect(api.state.slos).toHaveLength(3);
     expect(api.state.policies.map((policy) => policy.name).sort()).toEqual(names);
     expect(api.state.writes.filter((write) => write.method === "POST")).toEqual([]);
   });
@@ -321,7 +455,7 @@ describe("applying the monitoring config", () => {
     });
 
     expect(waits).toEqual([60_000, 60_000]);
-    expect(api.state.policies).toHaveLength(12);
+    expect(api.state.policies).toHaveLength(14);
   });
 
   it("applies the other policies when one fails, then lists the failure", async () => {
@@ -331,7 +465,7 @@ describe("applying the monitoring config", () => {
 
     await expect(result).rejects.toThrow(MonitoringApplyError);
     await expect(result).rejects.toThrow(/algolia-usage: Field alertPolicy.conditions\[0\] is invalid/);
-    expect(api.state.policies).toHaveLength(11);
+    expect(api.state.policies).toHaveLength(13);
   });
 
   it("gives up after the last retry", async () => {
@@ -348,7 +482,7 @@ describe("applying the monitoring config", () => {
     });
 
     await expect(result).rejects.toThrow(/algolia-usage: Cannot find metric/);
-    expect(api.state.policies).toHaveLength(11);
+    expect(api.state.policies).toHaveLength(13);
   });
 
   it("builds the test logs where the real ones would land, marked as tests", () => {

@@ -20,8 +20,10 @@ interface Definition {
   buckets?: number[];
 }
 
-// Seconds, from 5 ms to 10 s: a GraphQL operation or a search call.
-const LATENCY_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
+// Seconds, from 5 ms to 10 s: a GraphQL operation or a search call. 0.5 and
+// 2 are the latency SLOs' limits (ops/monitoring/services/), which count
+// whole buckets: a limit between two bounds can't be measured exactly.
+const LATENCY_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 2.5, 5, 10];
 
 export const METRICS = {
   // RED per operation: the count is the rate, error_code="none" splits
