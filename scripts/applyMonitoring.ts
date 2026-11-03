@@ -9,8 +9,8 @@ import {
 } from "./monitoring/apply.js";
 import { loadMonitoringConfig } from "./monitoring/config.js";
 
-// Applies ops/monitoring/ (notification channel, log-based metrics and alert
-// policies) to a Google Cloud project. Idempotent: run it after changing any
+// Applies ops/monitoring/ (notification channel, log-based metrics, uptime
+// check, SLOs, alert policies and dashboard) to a Google Cloud project. Idempotent: run it after changing any
 // of those files. It talks to the APIs directly with your Application Default
 // Credentials (`gcloud auth application-default login`), so it needs no .env:
 //
