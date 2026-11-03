@@ -1,0 +1,44 @@
+{
+  "policy": {
+    "displayName": "Latency SLO: error budget burning fast",
+    "severity": "WARNING",
+    "combiner": "OR",
+    "enabled": false,
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "In the last hour half of the queries took more than 500 ms, or half of the CreateOrderPayment calls more than 2 s: 10 times the pace the latency SLOs allow (95% in 30 days). Usually cold starts, a slow dependency (Firestore, Algolia, Stripe) or a slow deploy; the dashboard splits the latency by operation and shows Algolia's apart.\n\nDisabled until the latency limits are confirmed: with today's cold starts the query p95 is above 500 ms, so it would fire all the time. Enable it by setting \"enabled\" to true and running scripts/applyMonitoring.ts.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#SLO-y-dashboard)."
+    },
+    "conditions": [
+      {
+        "displayName": "Query latency budget burn rate above 10 over 1 h",
+        "conditionThreshold": {
+          "filter": "select_slo_burn_rate(\"projects/${PROJECT}/services/api/serviceLevelObjectives/read-latency\", \"3600s\")",
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 10,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      },
+      {
+        "displayName": "CreateOrderPayment latency budget burn rate above 10 over 1 h",
+        "conditionThreshold": {
+          "filter": "select_slo_burn_rate(\"projects/${PROJECT}/services/api/serviceLevelObjectives/payment-latency\", \"3600s\")",
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 10,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "3600s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}

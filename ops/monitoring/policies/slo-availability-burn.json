@@ -1,0 +1,31 @@
+{
+  "policy": {
+    "displayName": "Availability SLO: error budget burning fast",
+    "severity": "ERROR",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "In the last hour /graphql answered 5xx at 10 times the rate the availability SLO allows (99.5% in 30 days, about 3.6 hours of budget a month): about 5% of requests. At that pace the month's budget is gone in 3 days. With little traffic a couple of 5xx are enough, so check how many requests there were before rolling back.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#SLO-y-dashboard)."
+    },
+    "conditions": [
+      {
+        "displayName": "Availability budget burn rate above 10 over 1 h",
+        "conditionThreshold": {
+          "filter": "select_slo_burn_rate(\"projects/${PROJECT}/services/api/serviceLevelObjectives/availability\", \"3600s\")",
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 10,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "3600s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}

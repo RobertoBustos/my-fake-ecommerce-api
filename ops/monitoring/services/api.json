@@ -1,0 +1,51 @@
+{
+  "service": {
+    "displayName": "my-fake-ecommerce-api GraphQL API",
+    "custom": {}
+  },
+  "slos": {
+    "availability": {
+      "displayName": "99.5% of /graphql requests without a 5xx, over 30 days",
+      "goal": 0.995,
+      "rollingPeriod": "2592000s",
+      "serviceLevelIndicator": {
+        "requestBased": {
+          "goodTotalRatio": {
+            "badServiceFilter": "metric.type=\"logging.googleapis.com/user/graphql_server_errors\" resource.type=\"cloud_run_revision\"",
+            "totalServiceFilter": "metric.type=\"logging.googleapis.com/user/graphql_requests\" resource.type=\"cloud_run_revision\""
+          }
+        }
+      }
+    },
+    "read-latency": {
+      "displayName": "95% of queries under 500 ms, over 30 days",
+      "goal": 0.95,
+      "rollingPeriod": "2592000s",
+      "serviceLevelIndicator": {
+        "requestBased": {
+          "distributionCut": {
+            "distributionFilter": "metric.type=\"prometheus.googleapis.com/graphql.operation.duration/histogram\" resource.type=\"prometheus_target\" metric.label.type=\"query\"",
+            "range": {
+              "max": 0.5
+            }
+          }
+        }
+      }
+    },
+    "payment-latency": {
+      "displayName": "95% of CreateOrderPayment under 2 s, over 30 days",
+      "goal": 0.95,
+      "rollingPeriod": "2592000s",
+      "serviceLevelIndicator": {
+        "requestBased": {
+          "distributionCut": {
+            "distributionFilter": "metric.type=\"prometheus.googleapis.com/graphql.operation.duration/histogram\" resource.type=\"prometheus_target\" metric.label.operation=\"CreateOrderPayment\"",
+            "range": {
+              "max": 2
+            }
+          }
+        }
+      }
+    }
+  }
+}

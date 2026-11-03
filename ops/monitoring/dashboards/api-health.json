@@ -1,0 +1,603 @@
+{
+  "displayName": "my-fake-ecommerce-api: health",
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "xPos": 0,
+        "yPos": 0,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "RED per GraphQL operation",
+          "sectionHeader": {
+            "subtitle": "Rate, errors and duration of each operation, from the API's own metric (graphql.operation.duration). The operation is the name the client gives it.",
+            "dividerBelow": true
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 4,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Requests per operation (req/s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (operation) (rate({\"graphql.operation.duration_count\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 4,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Errors per operation and code (req/s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (operation, error_code) (rate({\"graphql.operation.duration_count\",error_code!=\"none\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 4,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "p95 duration per operation (s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum by (operation, le) (rate({\"graphql.operation.duration_bucket\"}[5m])))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR",
+              "label": "seconds"
+            },
+            "thresholds": [
+              {
+                "value": 0.5,
+                "label": "Query SLO (500 ms)"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 20,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "/graphql 5xx ratio (availability SLO: under 0.5%)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(logging_googleapis_com:user_graphql_server_errors[1h])) / sum(rate(logging_googleapis_com:user_graphql_requests[1h]))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            },
+            "thresholds": [
+              {
+                "value": 0.005,
+                "label": "SLO 0.5%"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 20,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Share of queries under 500 ms (SLO: 95%)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate({\"graphql.operation.duration_bucket\",type=\"query\",le=\"0.5\"}[1h])) / sum(rate({\"graphql.operation.duration_count\",type=\"query\"}[1h]))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            },
+            "thresholds": [
+              {
+                "value": 0.95,
+                "label": "SLO 95%"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 20,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Share of CreateOrderPayment under 2 s (SLO: 95%)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate({\"graphql.operation.duration_bucket\",operation=\"CreateOrderPayment\",le=\"2\"}[1h])) / sum(rate({\"graphql.operation.duration_count\",operation=\"CreateOrderPayment\"}[1h]))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            },
+            "thresholds": [
+              {
+                "value": 0.95,
+                "label": "SLO 95%"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 36,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Purchase funnel",
+          "sectionHeader": {
+            "subtitle": "Key business events per day, without the e2e suite's (e2e=\"false\"). The funnel with conversions and time to pay is ops/analytics/funnel.sql in BigQuery.",
+            "dividerBelow": true
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 40,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Funnel steps per day",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (event) (increase(logging_googleapis_com:user_business_events{e2e=\"false\",event=~\"cart.item_added|order.created|order.ready_to_pay|payment.intent_created|order.completed\"}[1d]))"
+                },
+                "minAlignmentPeriod": "86400s"
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 40,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Failed, blocked and cancelled per day",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (event) (increase(logging_googleapis_com:user_business_events{e2e=\"false\",event=~\"payment.failed|payment.blocked|payment.repriced|order.cancelled|reservation.expired\"}[1d]))"
+                },
+                "minAlignmentPeriod": "86400s"
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 40,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Revenue per day (cents, by currency)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (currency) (increase(logging_googleapis_com:user_order_amounts_sum{e2e=\"false\"}[1d]))"
+                },
+                "minAlignmentPeriod": "86400s"
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 56,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Scheduled jobs",
+          "sectionHeader": {
+            "subtitle": "sync-catalog and process-inventory: their runs and what each run measured.",
+            "dividerBelow": true
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 60,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Job executions per hour, by result",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (job_name, result) (increase(run_googleapis_com:job_completed_execution_count{monitored_resource=\"cloud_run_job\"}[1h]))"
+                },
+                "minAlignmentPeriod": "3600s"
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 12,
+        "yPos": 60,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Catalog delay per source (s since last sync)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "max by (source) ({\"catalog.source.staleness\"})"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR",
+              "label": "seconds"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "yPos": 60,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Inventory tasks by status",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (status) ({\"inventory.tasks\"})"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 36,
+        "yPos": 60,
+        "width": 12,
+        "height": 16,
+        "widget": {
+          "title": "Exchange rate age per pair (s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "max by (pair) ({\"pricing.exchange_rate.age\"})"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR",
+              "label": "seconds"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 76,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Search (Algolia)",
+          "sectionHeader": {
+            "subtitle": "Usage against the Algolia Free plan (10,000 searches a month; at the limit search stops, nothing is charged), the engine's failures and latency, and the index writes sync-catalog couldn't make.",
+            "dividerBelow": true
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 80,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Searches per day",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(logging_googleapis_com:user_search_requests[1d]))"
+                },
+                "minAlignmentPeriod": "86400s"
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 80,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Searches in the last 30 days vs the plan",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(logging_googleapis_com:user_search_requests[30d]))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            },
+            "thresholds": [
+              {
+                "value": 8000,
+                "label": "80% of the plan"
+              },
+              {
+                "value": 10000,
+                "label": "Plan limit"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 80,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "searchProducts answered SERVICE_UNAVAILABLE (per 5 min)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(logging_googleapis_com:user_search_engine_failures[5m]))"
+                },
+                "minAlignmentPeriod": "300s"
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 96,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "p95 latency: Algolia call vs SearchProducts operation (s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "label_replace(histogram_quantile(0.95, sum by (le) (rate({\"search.request.duration_bucket\"}[5m]))), \"part\", \"Algolia call\", \"\", \"\") or label_replace(histogram_quantile(0.95, sum by (le) (rate({\"graphql.operation.duration_bucket\",operation=\"SearchProducts\"}[5m]))), \"part\", \"SearchProducts operation\", \"\", \"\")"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR",
+              "label": "seconds"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 96,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Search engine calls by outcome (req/s)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (engine, outcome) (rate({\"search.request.duration_count\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 96,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Failed index writes in the last sync-catalog run",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "max by (engine) ({\"search.index.failed_writes\"})"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 112,
+        "width": 48,
+        "height": 4,
+        "widget": {
+          "title": "Cold starts",
+          "sectionHeader": {
+            "subtitle": "A new instance takes seconds to start, and the first request waits for it. The uptime check, once a minute, keeps an instance warm most of the time.",
+            "dividerBelow": true
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 116,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Instance starts per hour",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(run_googleapis_com:container_startup_latencies_count{monitored_resource=\"cloud_run_revision\",service_name=\"my-fake-ecommerce-api\"}[1h]))"
+                },
+                "minAlignmentPeriod": "3600s"
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 16,
+        "yPos": 116,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "p95 startup latency (ms)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum by (le) (rate(run_googleapis_com:container_startup_latencies_bucket{monitored_resource=\"cloud_run_revision\",service_name=\"my-fake-ecommerce-api\"}[1h])))"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR",
+              "label": "ms"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 32,
+        "yPos": 116,
+        "width": 16,
+        "height": 16,
+        "widget": {
+          "title": "Instances",
+          "xyChart": {
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (state) (run_googleapis_com:container_instance_count{monitored_resource=\"cloud_run_revision\",service_name=\"my-fake-ecommerce-api\"})"
+                }
+              }
+            ],
+            "yAxis": {
+              "scale": "LINEAR"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -3,7 +3,8 @@ import { basename, join } from "node:path";
 import { z } from "zod";
 
 // The monitoring setup as code: notification channels, log-based metrics,
-// uptime checks and alert policies, one JSON file each under ops/monitoring/.
+// uptime checks, services with their SLOs, alert policies and dashboards,
+// one JSON file each under ops/monitoring/.
 // A file holds the body the Cloud Monitoring or Cloud Logging API takes, so a
 // PR shows exactly what will be created; the file name is its id.
 //
@@ -39,6 +40,32 @@ const metricSchema = z.looseObject({
   name: z.string().regex(/^[a-z][a-z0-9_]*$/, "metric names are lowercase with underscores"),
   description: z.string().min(1),
   filter: z.string().min(1),
+});
+
+// A service and its SLOs. The file name is the service id and each key of
+// "slos" an SLO id; an alert policy watches an SLO's error budget with
+// select_slo_burn_rate("projects/${PROJECT}/services/<id>/serviceLevelObjectives/<slo>", ...).
+const sloSchema = z.looseObject({
+  displayName: z.string().min(1),
+  goal: z.number().gt(0).lt(1),
+  rollingPeriod: z.string(),
+  serviceLevelIndicator: z.looseObject({}),
+});
+
+const serviceFileSchema = z.object({
+  service: z.looseObject({ displayName: z.string().min(1), custom: z.object({}) }),
+  slos: z
+    .record(z.string().regex(/^[a-z][a-z0-9-]*$/, "SLO ids are lowercase with hyphens"), sloSchema)
+    .refine((slos) => Object.keys(slos).length > 0, "a service has at least one SLO"),
+});
+
+// A dashboard: every tile has a title, so nobody has to guess what a chart is.
+const dashboardSchema = z.looseObject({
+  displayName: z.string().min(1),
+  mosaicLayout: z.looseObject({
+    columns: z.int(),
+    tiles: z.array(z.looseObject({ widget: z.looseObject({ title: z.string().min(1) }) })).min(1),
+  }),
 });
 
 const conditionSchema = z
@@ -93,13 +120,17 @@ export type Channel = z.infer<typeof channelSchema>;
 export type UptimeCheck = z.infer<typeof uptimeCheckSchema>;
 export type LogMetric = z.infer<typeof metricSchema>;
 export type PolicyFile = z.infer<typeof policyFileSchema>;
+export type ServiceFile = z.infer<typeof serviceFileSchema>;
+export type Dashboard = z.infer<typeof dashboardSchema>;
 export type TestLog = z.infer<typeof testSchema>;
 
 export interface MonitoringConfig {
   channels: Record<string, Channel>;
   metrics: Record<string, LogMetric>;
   uptimeChecks: Record<string, UptimeCheck>;
+  services: Record<string, ServiceFile>;
   policies: Record<string, PolicyFile>;
+  dashboards: Record<string, Dashboard>;
 }
 
 const ID = /^[a-z][a-z0-9-]*$/;
@@ -124,9 +155,6 @@ const readDir = <T>(dir: string, schema: z.ZodType<T>, errors: string[]) => {
   return entries;
 };
 
-// Checks that hold across files: every channel a policy names exists, every
-// log-based metric a condition reads is defined, and log-match policies set
-// the notification rate limit the API requires for them.
 // Every query a condition runs, whatever its kind.
 export const conditionQuery = (condition: PolicyFile["policy"]["conditions"][number]) =>
   condition.conditionThreshold?.filter ??
@@ -135,17 +163,36 @@ export const conditionQuery = (condition: PolicyFile["policy"]["conditions"][num
   condition.conditionPrometheusQueryLanguage?.query ??
   "";
 
-export const crossCheck = ({ channels, metrics, uptimeChecks, policies }: MonitoringConfig) => {
+// The log-based metrics a text reads, by filter (logging.googleapis.com/user/<name>)
+// or by PromQL (logging_googleapis_com:user_<name>, plus _count, _sum or
+// _bucket for a distribution). PromQL suffixes are ambiguous with names, so
+// either reading is accepted.
+const logMetricsIn = (text: string) =>
+  [...text.matchAll(/logging\.googleapis\.com\/user\/([a-z0-9_]+)|logging_googleapis_com:user_([a-z0-9_]+)/g)].map(
+    ([, filterName, promName]) => (filterName ? [filterName] : [promName, promName.replace(/_(count|sum|bucket)$/, "")])
+  );
+
+// Checks that hold across files: every channel a policy names exists, every
+// log-based metric a condition, SLO or dashboard reads is defined, every SLO
+// a policy watches is defined, and log-match policies set the notification
+// rate limit the API requires for them.
+export const crossCheck = ({ channels, metrics, uptimeChecks, services, policies, dashboards }: MonitoringConfig) => {
   const errors: string[] = [];
   const metricNames = new Set(Object.values(metrics).map((metric) => metric.name));
+  const unknownMetrics = (where: string, text: string) => {
+    for (const readings of logMetricsIn(text)) {
+      if (!readings.some((name) => metricNames.has(name))) errors.push(`${where}: unknown log-based metric "${readings[0]}"`);
+    }
+  };
   for (const [id, { policy }] of Object.entries(policies)) {
     for (const channel of policy.notificationChannels) {
       if (!channels[channel]) errors.push(`policies/${id}.json: unknown notification channel "${channel}"`);
     }
     for (const condition of policy.conditions) {
       const text = conditionQuery(condition);
-      for (const [, name] of text.matchAll(/logging\.googleapis\.com\/user\/([a-z0-9_]+)/g)) {
-        if (!metricNames.has(name)) errors.push(`policies/${id}.json: unknown log-based metric "${name}"`);
+      unknownMetrics(`policies/${id}.json`, text);
+      for (const [, service, slo] of text.matchAll(/services\/([a-z0-9-]+)\/serviceLevelObjectives\/([a-z0-9-]+)/g)) {
+        if (!services[service]?.slos[slo]) errors.push(`policies/${id}.json: unknown SLO "${service}/${slo}"`);
       }
       for (const [, check] of text.matchAll(/\$\{uptime:([a-z0-9-]+)\}/g)) {
         if (!uptimeChecks[check]) errors.push(`policies/${id}.json: unknown uptime check "${check}"`);
@@ -155,6 +202,8 @@ export const crossCheck = ({ channels, metrics, uptimeChecks, policies }: Monito
       }
     }
   }
+  for (const [id, file] of Object.entries(services)) unknownMetrics(`services/${id}.json`, JSON.stringify(file.slos));
+  for (const [id, dashboard] of Object.entries(dashboards)) unknownMetrics(`dashboards/${id}.json`, JSON.stringify(dashboard));
   for (const [id, channel] of Object.entries(channels)) {
     if (channel.type === "email" && channel.labels.email_address !== EMAIL_PLACEHOLDER) {
       errors.push(`channels/${id}.json: email_address must be ${EMAIL_PLACEHOLDER}, never a real address`);
@@ -175,7 +224,9 @@ export const loadMonitoringConfig = (root: string): MonitoringConfig => {
     channels: readDir(join(root, "channels"), channelSchema, errors),
     metrics: readDir(join(root, "metrics"), metricSchema, errors),
     uptimeChecks: readDir(join(root, "uptime-checks"), uptimeCheckSchema, errors),
+    services: readDir(join(root, "services"), serviceFileSchema, errors),
     policies: readDir(join(root, "policies"), policyFileSchema, errors),
+    dashboards: readDir(join(root, "dashboards"), dashboardSchema, errors),
   };
   errors.push(...crossCheck(config));
   if (errors.length > 0) throw new MonitoringConfigError(errors);

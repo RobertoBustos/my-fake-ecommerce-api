@@ -1,0 +1,10 @@
+{
+  "name": "graphql_requests",
+  "description": "Requests to /graphql, from Cloud Run's request logs: the total of the availability SLO. A GraphQL error answers 200, so only a request the API couldn't answer (a crash, a timeout, no instance) is a 5xx.",
+  "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"my-fake-ecommerce-api\" AND log_id(\"run.googleapis.com/requests\") AND httpRequest.requestUrl:\"/graphql\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1"
+  }
+}
