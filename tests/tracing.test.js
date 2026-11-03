@@ -110,6 +110,10 @@ describe("OpenTelemetry tracing", () => {
 
     // Neither the variables nor values written inline in the query.
     expect(JSON.stringify(spans)).not.toContain(secret);
+    // Nor the client's IP, which the HTTP instrumentation records.
+    for (const key of ["client.address", "http.client_ip"]) {
+      expect(spans.filter((span) => key in span.attributes)).toEqual([]);
+    }
     // The health check isn't traced, nor is the schema parse at startup.
     expect(spans.some((span) => span.attributes["url.path"] === "/healthcheck")).toBe(false);
     expect(spans.some((span) => span.name === "graphql.parseSchema")).toBe(false);

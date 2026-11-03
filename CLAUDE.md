@@ -5,6 +5,16 @@
   (`hotfix/ECOMAPI-<n>-<slug>`). El job `branch-guard` de CI rechaza cualquier otra rama hacia `main`.
 - Protegidas: `dev` y `main` (PR obligatorio y rama al día). Checks obligatorios en verde:
   `lint`, `test`, `gitleaks`, `docker-build` y `typecheck`; en `main` además `branch-guard`.
+- **`main` solo acepta merge commit** (ruleset "main: merge commits only", desde el 2 nov 2026):
+  las releases v1.6.0 y v1.7.0 se fusionaron con squash por error y `main` dejó de ser
+  ancestro de `dev`. El PR `main` → `dev` también va con merge commit, pero ahí nadie lo
+  impone (`dev` acepta squash para las tareas): al dar el comando, `gh pr merge <n> --merge`.
+- Si `main` no es ancestro de `dev` (`git merge-base --is-ancestor origin/main origin/dev`
+  falla), un merge normal da conflictos falsos porque la base común es vieja. Primero se
+  comprueba que el contenido de `main` ya está en `dev` (su árbol es el de un commit de
+  `dev`, o solo difiere en la versión y el `CHANGELOG.md`), y entonces se fusiona con
+  `git merge -s ours`: en la rama de release, `-s ours origin/main`; para el regreso, una
+  rama desde `main` con `-s ours origin/dev`.
 - Capas: las mutations de GraphQL pasan por `src/services/`. Solo los resolvers de lectura
   (`src/schema/resolvers/queries.ts` y `fields.ts`) pueden importar `src/db/`; ESLint lo hace cumplir.
 - Catálogo: productos y stock se leen y se apartan a través del contrato `CatalogSource`
