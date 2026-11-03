@@ -29,6 +29,16 @@ describe("Idempotency key on the PaymentIntent", () => {
     expect(options).toMatchObject({ idempotencyKey: "order-order-123-payment-intent" });
   });
 
+  it("allows cards only, with the parameter the pinned API version accepts", async () => {
+    createMock.mockClear();
+
+    await createPayment("order-789", 2500, "cus_3");
+
+    const [params] = createMock.mock.calls[0];
+    expect(params.allowed_payment_method_types).toEqual(["card"]);
+    expect(params).not.toHaveProperty("payment_method_types");
+  });
+
   it("the key is stable for the same order (retries don't create another payment)", async () => {
     createMock.mockClear();
 
