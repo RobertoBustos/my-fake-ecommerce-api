@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { RequestHandler } from "express";
-import { parseTraceContext } from "../observability/traceContext.js";
-import { requestContext } from "../utils/logger.js";
+import { parseTraceContext } from "#src/observability/traceContext.js";
+import { requestContext } from "#src/utils/logger.js";
 
 // An incoming X-Request-Id is reused only if it's safe to write to the logs;
 // anything else gets a fresh UUID.

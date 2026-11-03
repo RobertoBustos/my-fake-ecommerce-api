@@ -1,8 +1,8 @@
 import { GraphQLError } from "graphql";
-import { getCatalogEntries, listCatalogEntries, type CatalogEntry } from "../db/catalogIndex.js";
-import { TransactionContentionError } from "../db/transactions.js";
-import type { Connection, Page, Product } from "../types/models.js";
-import { logger } from "../utils/logger.js";
+import { getCatalogEntries, listCatalogEntries, type CatalogEntry } from "#src/db/catalogIndex.js";
+import { TransactionContentionError } from "#src/db/transactions.js";
+import type { Connection, Page, Product } from "#src/types/models.js";
+import { logger } from "#src/utils/logger.js";
 import type { CatalogSource, SourceProduct } from "./ports.js";
 import {
   OutOfStockError,

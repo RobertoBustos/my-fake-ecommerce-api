@@ -1,5 +1,5 @@
-import { refreshExchangeRates } from "../pricing/refreshRates.js";
-import { logger } from "../utils/logger.js";
+import { refreshExchangeRates } from "#src/pricing/refreshRates.js";
+import { logger } from "#src/utils/logger.js";
 import { runJob } from "./runJob.js";
 
 // The daily exchange rates job. It ships in the same image as the API, so a

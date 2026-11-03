@@ -1,4 +1,4 @@
-import env from "../config/env.js";
+import env from "#src/config/env.js";
 import { withCoreReservations } from "./coreReservations.js";
 import { UnknownSourceError, type CatalogSource } from "./ports.js";
 import { firestoreCatalogSource } from "./sources/firestore/adapter.js";

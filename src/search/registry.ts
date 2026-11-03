@@ -1,4 +1,4 @@
-import env from "../config/env.js";
+import env from "#src/config/env.js";
 import { configureAlgoliaIndex, createAlgoliaSearchIndex } from "./adapters/algolia/index.js";
 import { createMemorySearchIndex } from "./adapters/memory.js";
 import { withSearchMetrics } from "./metrics.js";

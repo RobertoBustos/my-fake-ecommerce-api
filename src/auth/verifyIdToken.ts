@@ -1,6 +1,6 @@
 import { GraphQLError } from "graphql";
 import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
-import { firebaseApp } from "../config/firestore.js";
+import { firebaseApp } from "#src/config/firestore.js";
 
 // This is thrown while building the context, before the operation runs, and
 // Apollo answers those errors with a 500 unless extensions.http says

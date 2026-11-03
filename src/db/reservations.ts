@@ -1,5 +1,5 @@
 import type { DocumentReference, Transaction } from "firebase-admin/firestore";
-import db from "../config/firestore.js";
+import db from "#src/config/firestore.js";
 
 // reservations/{key}: units set aside for a cart item. The document id is
 // the idempotency key of the reserve call, so repeating a call finds the

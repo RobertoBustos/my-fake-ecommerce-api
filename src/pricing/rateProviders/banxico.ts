@@ -1,4 +1,4 @@
-import env from "../../config/env.js";
+import env from "#src/config/env.js";
 import type { ProviderRate, RateProvider } from "./ports.js";
 
 // Banco de México's SIE API. Each currency is a series; "oportuno" returns

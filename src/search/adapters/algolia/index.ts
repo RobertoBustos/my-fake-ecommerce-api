@@ -1,7 +1,7 @@
 import { algoliasearch, type Algoliasearch } from "algoliasearch";
-import env from "../../../config/env.js";
-import { SearchUnavailableError, type Facet, type SearchDoc, type SearchFilters, type SearchIndex } from "../../ports.js";
-import { searchTimeoutMs } from "../../timeout.js";
+import env from "#src/config/env.js";
+import { SearchUnavailableError, type Facet, type SearchDoc, type SearchFilters, type SearchIndex } from "#src/search/ports.js";
+import { searchTimeoutMs } from "#src/search/timeout.js";
 import { indexSettings, replicaNames } from "./settings.js";
 
 // The SearchIndex port on Algolia (SEARCH_ENGINE=algolia). Records are the

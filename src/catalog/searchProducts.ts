@@ -1,15 +1,15 @@
 import { GraphQLError } from "graphql";
-import { getSearchIndex } from "../search/registry.js";
+import { getSearchIndex } from "#src/search/registry.js";
 import {
   SearchUnavailableError,
   type Facet,
   type SearchQuery,
   type SearchResult,
   type SearchSort,
-} from "../search/ports.js";
-import type { Product } from "../types/models.js";
-import { logger } from "../utils/logger.js";
-import { cursorNotInList, decodeCursor, encodeCursor } from "../utils/pagination.js";
+} from "#src/search/ports.js";
+import type { Product } from "#src/types/models.js";
+import { logger } from "#src/utils/logger.js";
+import { cursorNotInList, decodeCursor, encodeCursor } from "#src/utils/pagination.js";
 import { getIndexedCatalogProducts } from "./index.js";
 import { listEnabledSources } from "./registry.js";
 

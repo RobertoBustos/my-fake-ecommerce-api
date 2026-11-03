@@ -1,6 +1,6 @@
 import DataLoader from "dataloader";
-import { getIndexedCatalogProducts } from "../catalog/index.js";
-import type { Product } from "../types/models.js";
+import { getIndexedCatalogProducts } from "#src/catalog/index.js";
+import type { Product } from "#src/types/models.js";
 
 // New instance per request (don't share across requests): batches every
 // .load(productId) call made in the same tick into a single batch call.

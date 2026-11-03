@@ -1,6 +1,6 @@
 import { FieldPath, type DocumentSnapshot, type Query, type WriteBatch } from "firebase-admin/firestore";
-import db from "../config/firestore.js";
-import type { Connection, Page } from "../types/models.js";
+import db from "#src/config/firestore.js";
+import type { Connection, Page } from "#src/types/models.js";
 import { paginateQuery } from "./pagination.js";
 
 // catalog/{globalProductId}: our own copy of every product of every source,

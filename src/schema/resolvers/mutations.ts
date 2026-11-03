@@ -1,6 +1,6 @@
-import * as cartService from "../../services/cartService.js";
-import * as orderService from "../../services/orderService.js";
-import type { MutationResolvers } from "../../generated/graphql.js";
+import * as cartService from "#src/services/cartService.js";
+import * as orderService from "#src/services/orderService.js";
+import type { MutationResolvers } from "#src/generated/graphql.js";
 
 // Mutations only delegate to services/, which own validation and business
 // rules. Each one passes the authenticated uid so the service can check
