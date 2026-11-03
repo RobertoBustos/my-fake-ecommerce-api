@@ -1,6 +1,6 @@
 import DataLoader from "dataloader";
-import { convertPrice, getPricingSettings, LEGACY_CURRENCY } from "../pricing/index.js";
-import { getUsableRate } from "../pricing/quote.js";
+import { convertPrice, getPricingSettings, LEGACY_CURRENCY } from "#src/pricing/index.js";
+import { getUsableRate } from "#src/pricing/quote.js";
 
 export interface DisplayPrice {
   unitPrice: number;

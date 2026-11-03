@@ -1,5 +1,5 @@
 import { GraphQLError } from "graphql";
-import { canonicalProductId, getCatalogProducts } from "../catalog/index.js";
+import { canonicalProductId, getCatalogProducts } from "#src/catalog/index.js";
 import {
   cancelOrder as cancelOrderDb,
   CartAlreadyOrderedError,
@@ -13,23 +13,23 @@ import {
   repriceOrderItems,
   setOrderPayment,
   updateOrder as updateOrderDb,
-} from "../db/index.js";
+} from "#src/db/index.js";
 import {
   checkCancelOrder,
   checkCreateOrder,
   checkCreateOrderPayment,
   checkUpdateOrder,
-} from "../schema/validators/index.js";
-import type { PaymentCreated } from "../db/payment.js";
+} from "#src/schema/validators/index.js";
+import type { PaymentCreated } from "#src/db/payment.js";
 import type {
   CancelOrder,
   CreateOrder,
   CreateOrderPayment,
   UpdateOrder,
-} from "../generated/graphql.js";
-import type { MutationAck, MutationResult, Order, Product } from "../types/models.js";
-import { LEGACY_CURRENCY } from "../pricing/index.js";
-import { logger } from "../utils/logger.js";
+} from "#src/generated/graphql.js";
+import type { MutationAck, MutationResult, Order, Product } from "#src/types/models.js";
+import { LEGACY_CURRENCY } from "#src/pricing/index.js";
+import { logger } from "#src/utils/logger.js";
 import {
   assertValidInput,
   quoteOrConflict,

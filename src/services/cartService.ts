@@ -1,6 +1,6 @@
 import { GraphQLError } from "graphql";
-import { getCatalogProduct } from "../catalog/index.js";
-import { parseProductId } from "../catalog/productId.js";
+import { getCatalogProduct } from "#src/catalog/index.js";
+import { parseProductId } from "#src/catalog/productId.js";
 import {
   addToCart as addToCartDb,
   CartNotOwnedError,
@@ -9,15 +9,15 @@ import {
   isOrderOpen,
   OrderItemLockedError,
   removeFromCart as removeFromCartDb,
-} from "../db/index.js";
+} from "#src/db/index.js";
 import {
   checkAddToCart,
   checkRemoveFromCart,
   validateCartQuantity,
-} from "../schema/validators/index.js";
-import type { AddToCart, RemoveFromCart } from "../generated/graphql.js";
-import type { CartItem, MutationAck, MutationResult } from "../types/models.js";
-import { logger } from "../utils/logger.js";
+} from "#src/schema/validators/index.js";
+import type { AddToCart, RemoveFromCart } from "#src/generated/graphql.js";
+import type { CartItem, MutationAck, MutationResult } from "#src/types/models.js";
+import { logger } from "#src/utils/logger.js";
 import {
   assertValidInput,
   quoteOrConflict,

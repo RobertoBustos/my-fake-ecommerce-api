@@ -1,4 +1,4 @@
-import env from "../config/env.js";
+import env from "#src/config/env.js";
 
 const DEFAULT_TTL_MINUTES = 60;
 

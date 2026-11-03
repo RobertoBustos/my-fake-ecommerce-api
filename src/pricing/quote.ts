@@ -1,5 +1,5 @@
-import { readExchangeRate } from "../db/pricing.js";
-import { logger } from "../utils/logger.js";
+import { readExchangeRate } from "#src/db/pricing.js";
+import { logger } from "#src/utils/logger.js";
 import { convertPrice } from "./convert.js";
 import { getPricingSettings } from "./settings.js";
 

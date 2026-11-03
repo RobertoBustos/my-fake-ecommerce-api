@@ -1,6 +1,6 @@
-import { measureInventoryQueue, processInventoryTasks } from "../catalog/inventoryQueue.js";
-import { sweepExpiredReservations } from "../db/reservationSweep.js";
-import { logger } from "../utils/logger.js";
+import { measureInventoryQueue, processInventoryTasks } from "#src/catalog/inventoryQueue.js";
+import { sweepExpiredReservations } from "#src/db/reservationSweep.js";
+import { logger } from "#src/utils/logger.js";
 import { measure, runJob } from "./runJob.js";
 
 // The inventory job: queues the release of expired reservations, then runs

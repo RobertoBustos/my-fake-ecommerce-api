@@ -1,5 +1,5 @@
-import { readReservation, reservationRef, type ReservationDoc } from "../db/reservations.js";
-import { runTransaction } from "../db/transactions.js";
+import { readReservation, reservationRef, type ReservationDoc } from "#src/db/reservations.js";
+import { runTransaction } from "#src/db/transactions.js";
 import {
   OutOfStockError,
   ReservationExpiredError,

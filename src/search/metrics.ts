@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import { metrics } from "../observability/metrics.js";
+import { metrics } from "#src/observability/metrics.js";
 import { SearchUnavailableError, type SearchIndex } from "./ports.js";
 import { SearchTimeoutError } from "./timeout.js";
 

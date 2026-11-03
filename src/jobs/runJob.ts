@@ -1,6 +1,6 @@
-import { shutdownTelemetry } from "../observability/lifecycle.js";
-import { withSpan } from "../observability/spans.js";
-import { logger, setLogService } from "../utils/logger.js";
+import { shutdownTelemetry } from "#src/observability/lifecycle.js";
+import { withSpan } from "#src/observability/spans.js";
+import { logger, setLogService } from "#src/utils/logger.js";
 
 // Runs a job and exits with the code it returns. The run is one trace (a root
 // span named after the job), and the spans and metric points still buffered

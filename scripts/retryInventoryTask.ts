@@ -1,5 +1,5 @@
-import { retryInventoryTask } from "../src/catalog/inventoryQueue.js";
-import { getInventoryTask } from "../src/db/inventoryTasks.js";
+import { retryInventoryTask } from "#src/catalog/inventoryQueue.js";
+import { getInventoryTask } from "#src/db/inventoryTasks.js";
 
 // Puts a FAILED inventory task back in the queue with a fresh set of
 // attempts and runs it once: `npm run inventory:retry -- <taskId>`.

@@ -1,5 +1,5 @@
 import type { IndexSettings } from "algoliasearch";
-import type { SearchSort } from "../../ports.js";
+import type { SearchSort } from "#src/search/ports.js";
 
 // The Algolia index settings, as code: scripts/configureSearchIndex.ts applies
 // them (npm run search:configure), and the dashboard is never edited by hand.

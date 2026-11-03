@@ -1,12 +1,12 @@
-import { getCart, searchPayment, searchPaymentMethod } from "../../db/index.js";
+import { getCart, searchPayment, searchPaymentMethod } from "#src/db/index.js";
 import type {
   CartItemResolvers,
   OrderResolvers,
   PaymentResolvers,
   ProductResolvers,
-} from "../../generated/graphql.js";
-import { LEGACY_CURRENCY } from "../../pricing/index.js";
-import type { Product as ProductModel } from "../../types/models.js";
+} from "#src/generated/graphql.js";
+import { LEGACY_CURRENCY } from "#src/pricing/index.js";
+import type { Product as ProductModel } from "#src/types/models.js";
 
 // Field resolvers are reads too, so like queries.ts they may call db/.
 // A product is shown at its price in the settlement currency; unitPrice and

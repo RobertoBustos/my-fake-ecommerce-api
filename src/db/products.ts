@@ -1,6 +1,6 @@
 import type { DocumentSnapshot } from "firebase-admin/firestore";
-import type { Product } from "../types/models.js";
-import db from "../config/firestore.js";
+import type { Product } from "#src/types/models.js";
+import db from "#src/config/firestore.js";
 
 // The products collection of the Firestore catalog source. Only its adapter
 // (src/catalog/sources/firestore/) reads it; listing the catalog reads the

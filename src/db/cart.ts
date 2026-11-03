@@ -8,10 +8,10 @@ import {
   parseProductId,
   toGlobalProductId,
   type Reservation,
-} from "../catalog/index.js";
-import { runInventoryTasks } from "../catalog/inventoryQueue.js";
-import db from "../config/firestore.js";
-import type { PriceQuote } from "../pricing/index.js";
+} from "#src/catalog/index.js";
+import { runInventoryTasks } from "#src/catalog/inventoryQueue.js";
+import db from "#src/config/firestore.js";
+import type { PriceQuote } from "#src/pricing/index.js";
 import type {
   CartItem,
   CartItemReservation,
@@ -19,12 +19,12 @@ import type {
   OrderStatus,
   Page,
   Product,
-} from "../types/models.js";
+} from "#src/types/models.js";
 import { queueInventoryTasks, type InventoryTaskDraft } from "./inventoryTasks.js";
 import { isOrderOpen } from "./orderStatus.js";
 import { paginateQuery } from "./pagination.js";
 import { runTransaction } from "./transactions.js";
-import { logger } from "../utils/logger.js";
+import { logger } from "#src/utils/logger.js";
 
 const COLLECTION = "cartItems";
 const toDate = (value: unknown): Date | null =>

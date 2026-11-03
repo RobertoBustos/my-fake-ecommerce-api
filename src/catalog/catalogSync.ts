@@ -1,4 +1,4 @@
-import env from "../config/env.js";
+import env from "#src/config/env.js";
 import {
   deleteCatalogEntries,
   getCatalogSyncState,
@@ -10,12 +10,12 @@ import {
   saveSearchPriceState,
   upsertCatalogEntries,
   type CatalogEntry,
-} from "../db/catalogIndex.js";
-import { metrics } from "../observability/metrics.js";
-import { getPricingSettings, type PricingSettings } from "../pricing/settings.js";
-import { getConfiguredSearchIndex } from "../search/registry.js";
-import type { SearchIndex } from "../search/ports.js";
-import { logger } from "../utils/logger.js";
+} from "#src/db/catalogIndex.js";
+import { metrics } from "#src/observability/metrics.js";
+import { getPricingSettings, type PricingSettings } from "#src/pricing/settings.js";
+import { getConfiguredSearchIndex } from "#src/search/registry.js";
+import type { SearchIndex } from "#src/search/ports.js";
+import { logger } from "#src/utils/logger.js";
 import type { CatalogSource, ChangedProducts, SourceProduct } from "./ports.js";
 import { toGlobalProductId } from "./productId.js";
 import { listEnabledSources } from "./registry.js";

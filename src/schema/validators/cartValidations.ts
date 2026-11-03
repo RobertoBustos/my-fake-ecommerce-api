@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Product } from "../../types/models.js";
+import type { Product } from "#src/types/models.js";
 import { firstInvalidField } from "./validate.js";
 
 const id = z.string().trim().min(1);

@@ -1,7 +1,7 @@
 import { performance } from "node:perf_hooks";
 import type { ApolloServerPlugin } from "@apollo/server";
 import { getOperationAST, Kind, type DocumentNode, type OperationDefinitionNode, type SelectionSetNode } from "graphql";
-import { logger } from "../utils/logger.js";
+import { logger } from "#src/utils/logger.js";
 import { boundedLabel, metrics } from "./metrics.js";
 import { nameRequestSpan } from "./spans.js";
 
