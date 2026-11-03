@@ -105,8 +105,10 @@ describe("OpenTelemetry tracing", () => {
     expect(trace.map((span) => span.name)).toEqual(
       expect.arrayContaining(["query TracedProducts", "graphql.resolve products"])
     );
-    // Firestore, over gRPC.
+    // Firestore, over gRPC, and Express's middleware: each instrumentation
+    // still patches its module with the ESM hook limited to them.
     expect(trace.some((span) => span.attributes["rpc.system"] === "grpc")).toBe(true);
+    expect(trace.some((span) => span.name.startsWith("middleware - "))).toBe(true);
 
     // Neither the variables nor values written inline in the query.
     expect(JSON.stringify(spans)).not.toContain(secret);
