@@ -1,0 +1,37 @@
+{
+  "policy": {
+    "displayName": "Inventory task FAILED",
+    "severity": "ERROR",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "An inventory queue task ran out of attempts: sold units weren't confirmed in their source, or reserved stock wasn't released. Stock in that source is off until the task is retried.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Qu%C3%A9-hacer-con-una-tarea-FAILED)."
+    },
+    "conditions": [
+      {
+        "displayName": "Inventory task FAILED",
+        "conditionMatchedLog": {
+          "filter": "(jsonPayload.message=\"Sold units not confirmed in their source\" OR jsonPayload.message=\"Reserved stock not released\")"
+        }
+      }
+    ],
+    "alertStrategy": {
+      "notificationRateLimit": {
+        "period": "1800s"
+      },
+      "autoClose": "1800s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  },
+  "test": {
+    "resource": "process-inventory",
+    "severity": "ERROR",
+    "payload": {
+      "message": "Reserved stock not released",
+      "taskId": "test"
+    },
+    "count": 1
+  }
+}

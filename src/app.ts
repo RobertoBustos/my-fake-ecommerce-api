@@ -6,6 +6,7 @@ import { expressMiddleware } from "@as-integrations/express5";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import { createContext } from "./context.js";
 import { requestId } from "./middleware/requestId.js";
+import { operationSummaryPlugin } from "./observability/operationSummary.js";
 import { validationRules } from "./schema/depthLimit.js";
 import { errorLoggingPlugin } from "./schema/errorLogging.js";
 import { formatError } from "./schema/formatError.js";
@@ -37,6 +38,12 @@ export const createApp = async () => {
     // With introspection off, validation errors would still leak the schema
     // through "Did you mean ...?" suggestions.
     hideSchemaDetailsFromClientErrors: process.env.NODE_ENV === "production",
+    // shutdown.ts handles SIGTERM and SIGINT. Apollo's own handler (on
+    // everywhere but NODE_ENV=test) would call stop() first, and a second
+    // stop() while one is running never resolves: the shutdown never got past
+    // server.stop(), so "Shutdown complete" was never logged and the process
+    // just ran out of work.
+    stopOnTerminationSignals: false,
     // Recommended by Apollo when integrating with a self-managed
     // http.Server: on server.stop() (see shutdown.ts), lets in-flight
     // requests finish instead of dropping them.
@@ -46,6 +53,7 @@ export const createApp = async () => {
         stopGracePeriodMillis: SHUTDOWN_GRACE_PERIOD_MS,
       }),
       errorLoggingPlugin,
+      operationSummaryPlugin,
     ],
   });
 

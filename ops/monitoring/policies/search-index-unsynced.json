@@ -1,0 +1,48 @@
+{
+  "policy": {
+    "displayName": "Search index not syncing",
+    "severity": "WARNING",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "Search index writes failed in more than one sync-catalog run in 45 minutes (the job runs every 15). Search results fall behind the catalog until a run succeeds.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Buscador-%28Algolia%29)."
+    },
+    "conditions": [
+      {
+        "displayName": "Search index not syncing",
+        "conditionThreshold": {
+          "filter": "resource.type=\"cloud_run_job\" AND metric.type=\"logging.googleapis.com/user/search_index_sync_failures\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "2700s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 1,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "3600s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  },
+  "test": {
+    "resource": "sync-catalog",
+    "severity": "WARNING",
+    "payload": {
+      "message": "Search index sync failed",
+      "engine": "test",
+      "error": "test"
+    },
+    "count": 2
+  }
+}

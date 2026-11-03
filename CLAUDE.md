@@ -112,3 +112,16 @@ Transiciones de ECOMAPI: En Curso = 21, En revision = 31, Completado = 41.
     `env -u FIRESTORE_EMULATOR_HOST` si carga `.env` con `--env-file`: Node vuelve
     a poner la variable y el comando escribe en el emulador. Se corre el archivo
     con `npx tsx`, sin `.env`.
+  - **Páginas bilingües.** Toda página de ARQ tiene dos pestañas nativas, **Español**
+    (primera) y **English** (segunda), con el mismo contenido. Cualquier cambio —una
+    sección nueva, un comando corregido, una fila de tabla— va **en las dos pestañas,
+    en la misma versión**, cada una en su idioma: nunca texto en español dentro de
+    English ni al revés, y en la misma posición dentro de la pestaña (no al principio
+    por comodidad). English puede resumir, pero no omitir lo que cambió. Una página
+    nueva nace ya con las dos pestañas. Los títulos en español no se cambian: los
+    enlaces desde Jira y otras páginas apuntan a sus anclas. El 2 nov 2026 la sección
+    del sink de BigQuery quedó en español dentro de English y las métricas solo en
+    Español en la guía de GCP, por editar una sola pestaña.
+  - **Antes de publicar, releer la versión actual.** Si otra persona o sesión está
+    editando la misma página (la versión cambió desde que la leíste), integra su
+    cambio en las dos pestañas en vez de sobrescribirlo.

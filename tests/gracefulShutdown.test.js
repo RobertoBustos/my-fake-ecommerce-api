@@ -47,10 +47,15 @@ describe("graceful shutdown", () => {
     expect(exit).toHaveBeenCalledTimes(1);
   });
 
-  it("the real server exits with 0 on SIGTERM", async () => {
+  // NODE_ENV=production as in the Dockerfile: Apollo installs its own signal
+  // handler everywhere but under test, and it used to stall this shutdown.
+  it.each([
+    ["test", "18765"],
+    ["production", "18768"],
+  ])("the real server exits with 0 on SIGTERM (NODE_ENV=%s)", async (nodeEnv, port) => {
     // tsx runs the TypeScript sources directly, as `npm run dev` does.
     const child = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
-      env: { ...process.env, PORT: "18765", HOST: "127.0.0.1" },
+      env: { ...process.env, PORT: port, HOST: "127.0.0.1", NODE_ENV: nodeEnv },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const lines = [];

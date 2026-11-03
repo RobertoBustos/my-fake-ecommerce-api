@@ -26,17 +26,25 @@ export const writePricingSettings = async (settings: Record<string, unknown>): P
   await db.collection(SETTINGS_COLLECTION).doc(PRICING_DOC).set(settings);
 };
 
+const toStoredRate = (data: Record<string, unknown>): StoredExchangeRate => {
+  const { fetchedAt, ...rest } = data as Omit<StoredExchangeRate, "fetchedAt"> & {
+    fetchedAt: { toDate(): Date } | Date;
+  };
+  return { ...rest, fetchedAt: fetchedAt instanceof Date ? fetchedAt : fetchedAt.toDate() };
+};
+
+// Every stored rate, by its pair ("USD_MXN"). There is one document per pair
+// the catalog has needed, so the list stays short.
+export const listExchangeRates = async (): Promise<{ pair: string; rate: StoredExchangeRate }[]> =>
+  (await db.collection(RATES_COLLECTION).get()).docs.map((doc) => ({ pair: doc.id, rate: toStoredRate(doc.data()) }));
+
 export const readExchangeRate = async (
   from: string,
   to: string
 ): Promise<StoredExchangeRate | null> => {
   const doc = await db.collection(RATES_COLLECTION).doc(rateDocId(from, to)).get();
   if (!doc.exists) return null;
-  const data = doc.data() as Omit<StoredExchangeRate, "fetchedAt"> & {
-    fetchedAt: { toDate(): Date } | Date;
-  };
-  const fetchedAt = data.fetchedAt instanceof Date ? data.fetchedAt : data.fetchedAt.toDate();
-  return { ...data, fetchedAt };
+  return toStoredRate(doc.data() as Record<string, unknown>);
 };
 
 export const writeExchangeRates = async (

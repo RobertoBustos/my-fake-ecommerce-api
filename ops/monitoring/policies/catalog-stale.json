@@ -1,0 +1,39 @@
+{
+  "policy": {
+    "displayName": "Catalog source not syncing",
+    "severity": "WARNING",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "A catalog source hasn't synced in 45 minutes (sync-catalog runs every 15). The catalog index and search show that source's products as they were. The source is in the incident (source_key).\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#%C3%8Dndice-del-cat%C3%A1logo)."
+    },
+    "conditions": [
+      {
+        "displayName": "No successful sync of a source in 45 min",
+        "conditionAbsent": {
+          "filter": "resource.type=\"cloud_run_job\" AND metric.type=\"logging.googleapis.com/user/catalog_source_syncs\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "300s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM",
+              "groupByFields": [
+                "metric.label.source_key"
+              ]
+            }
+          ],
+          "duration": "2700s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "3600s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}

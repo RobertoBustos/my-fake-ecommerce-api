@@ -199,7 +199,7 @@ describe("cartService.removeFromCart", () => {
   });
 
   it("reports success when the database removes the item", async () => {
-    removeFromCartDbMock.mockResolvedValue(true);
+    removeFromCartDbMock.mockResolvedValue({ id: "cart-item-1", cartId: "cart-1", orderId: null, productId: "fs:p1", quantity: 1 });
 
     const result = await removeFromCart({ id: "cart-item-1" });
 
@@ -211,7 +211,7 @@ describe("cartService.removeFromCart", () => {
   });
 
   it("answers NOT_FOUND when the item is missing or belongs to someone else", async () => {
-    removeFromCartDbMock.mockResolvedValue(false);
+    removeFromCartDbMock.mockResolvedValue(null);
 
     await expect(removeFromCart({ id: "cart-item-1" }, "user-b")).rejects.toMatchObject({
       extensions: { code: "NOT_FOUND", invalidArgument: "id" },

@@ -1,5 +1,6 @@
 import env from "../config/env.js";
 import {
+  countInventoryTasks,
   getInventoryTask,
   inventoryTaskRef,
   listDueInventoryTasks,
@@ -8,6 +9,7 @@ import {
   type InventoryTaskStatus,
 } from "../db/inventoryTasks.js";
 import { runTransaction } from "../db/transactions.js";
+import { metrics } from "../observability/metrics.js";
 import { logger } from "../utils/logger.js";
 import { OutOfStockError, ReservationExpiredError } from "./ports.js";
 import { getCatalogSource } from "./registry.js";
@@ -82,10 +84,10 @@ export const runInventoryTask = async (id: string): Promise<InventoryTaskStatus 
     error = err;
   }
 
-  return runTransaction(async (tx) => {
+  const outcome = await runTransaction(async (tx): Promise<{ status: InventoryTaskStatus | null; done?: InventoryTask }> => {
     const current = await readInventoryTask(tx, id);
     // Another run already settled it.
-    if (!current || current.status !== "PENDING") return current?.status ?? null;
+    if (!current || current.status !== "PENDING") return { status: current?.status ?? null };
     const now = new Date();
     if (error === null) {
       tx.update(inventoryTaskRef(id), {
@@ -95,7 +97,7 @@ export const runInventoryTask = async (id: string): Promise<InventoryTaskStatus 
         lastError: null,
         updatedAt: now,
       });
-      return "DONE";
+      return { status: "DONE", done: { ...current, attempts: current.attempts + 1 } };
     }
     const attempts = current.attempts + 1;
     const message = (error as Error).message;
@@ -108,7 +110,7 @@ export const runInventoryTask = async (id: string): Promise<InventoryTaskStatus 
         updatedAt: now,
       });
       logFailure(current, attempts, message);
-      return "FAILED";
+      return { status: "FAILED" };
     }
     tx.update(inventoryTaskRef(id), {
       attempts,
@@ -123,8 +125,18 @@ export const runInventoryTask = async (id: string): Promise<InventoryTaskStatus 
       attempts,
       error: message,
     });
-    return "PENDING";
+    return { status: "PENDING" };
   });
+  // After the commit, and only from the run that settled it.
+  if (outcome.done) {
+    logger.event("inventory.task_done", {
+      action: outcome.done.action,
+      source: outcome.done.sourceKey,
+      reason: outcome.done.reason,
+      attempts: outcome.done.attempts,
+    });
+  }
+  return outcome.status;
 };
 
 // Right after the write that queued them commits, so the units move as soon
@@ -160,6 +172,14 @@ export const processInventoryTasks = async ({ now = new Date() }: { now?: Date }
     }
   }
   return counts;
+};
+
+// The queue's backlog, after a pass: tasks still waiting and tasks that need
+// a person. Recorded by process-inventory on every run (metrics.ts).
+export const measureInventoryQueue = async () => {
+  for (const status of ["PENDING", "FAILED"] as const) {
+    metrics.gauge("inventory.tasks", await countInventoryTasks(status), { status });
+  }
 };
 
 // For a person, after fixing what made a task fail: puts it back in the

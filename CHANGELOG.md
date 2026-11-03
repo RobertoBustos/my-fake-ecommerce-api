@@ -6,6 +6,77 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-02
+
+Observability in production: errors grouped in Error Reporting and linked to
+their traces, a summary line per GraphQL operation, OpenTelemetry traces and
+RED metrics, key business events exported to BigQuery, and alerts, SLOs and a
+dashboard kept as code. **No API changes:** the schema, the responses and the
+behavior seen by clients are the same as in v1.6.0.
+
+### Added
+
+- Error Reporting and trace correlation. Every log line carries the fields
+  Error Reporting and Cloud Trace read, all set in one file
+  (`src/observability/formats/gcp.ts`):
+  - errors are grouped per service (the API, `sync-catalog`,
+    `process-inventory`) and per version;
+  - a request's lines link to its trace.
+- A `GraphQL operation` summary line per request, with:
+  - the operation name and type and its root fields;
+  - the duration and the error codes the client got.
+
+  It never carries variables, the query text or the search text.
+- OpenTelemetry tracing for the API and the jobs:
+  - spans for HTTP, Express, GraphQL (without variables), Firestore (gRPC) and
+    outgoing `fetch`;
+  - one trace per request, named after its operation, and one per job run;
+  - exported over OTLP to Google's Telemetry API. The destination is
+    configuration (`OTEL_EXPORTER_OTLP_*`), and nothing starts without it.
+- Metrics over OTLP, every 60 s:
+  - `graphql.operation.duration` gives RED per operation (rate, errors by
+    code, duration);
+  - search engine latency by outcome;
+  - inventory tasks by status, catalog staleness per source, failed index
+    writes and exchange rate age.
+
+  Labels are declared and closed, so the number of series can't grow
+  unbounded.
+- Key business events, one JSON line each with `event`, `schemaVersion` and
+  `e2e`:
+  - the purchase funnel: cart, order, payment intent, completed, failed,
+    blocked, repriced and cancelled;
+  - customers, expired reservations, inventory tasks and catalog syncs.
+
+  They're written after the commit, never inside a transaction, with declared
+  fields and no personal data. A Cloud Logging sink copies them to BigQuery,
+  where `ops/analytics/funnel.sql` builds the daily funnel.
+- The Stripe webhook handles `payment_intent.payment_failed`. It records the
+  failure with Stripe's code and leaves the order as it is, so the client can
+  pay again.
+- Monitoring as code in `ops/monitoring/`, applied with
+  `scripts/applyMonitoring.ts`:
+  - an email channel and log-based metrics;
+  - a `/healthcheck` uptime check;
+  - alerts for unapplied payments, 5xx, inventory, exchange rates, search,
+    jobs, catalog sources and zero purchases;
+  - availability and latency SLOs with fast-burn alerts;
+  - the "my-fake-ecommerce-api: health" dashboard.
+
+  The zero-purchases and latency alerts are created disabled.
+
+### Changed
+
+- An error's stack is logged in `jsonPayload.stack_trace` instead of
+  `jsonPayload.stack`.
+- The image loads `dist/telemetry.js` through `NODE_OPTIONS`, so the jobs get
+  tracing too. The deploy sets `OTEL_EXPORTER_OTLP_ENDPOINT`,
+  `OTEL_RESOURCE_ATTRIBUTES` (with `cloud.region`) and `TELEMETRY_AUTH`.
+- Apollo no longer handles termination signals itself. With both handlers, a
+  second `stop()` hung and the shutdown never finished.
+- The latency histograms have a 2 s bucket, so the payment SLO's limit can be
+  measured exactly.
+
 ## [1.6.0] - 2026-10-24
 
 Product search: a `searchProducts` query with typo tolerance, prefix matching,
@@ -436,6 +507,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.7.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.3.0...v1.4.0

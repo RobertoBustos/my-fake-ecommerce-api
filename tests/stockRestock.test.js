@@ -75,13 +75,13 @@ describe("removeFromCart restock", () => {
 
     const result = await removeFromCart({ id: item.id }, "user-restock");
 
-    expect(result).toBe(true);
+    expect(result).toMatchObject({ id: item.id, cartId });
     expect(await stockOf(product.id)).toBe(STOCK);
     expect((await db.collection("cartItems").doc(item.id).get()).exists).toBe(false);
   });
 
-  it("returns false for an unknown item without touching stock", async () => {
-    expect(await removeFromCart({ id: `missing-${randomUUID()}` }, "user-restock")).toBe(false);
+  it("returns null for an unknown item without touching stock", async () => {
+    expect(await removeFromCart({ id: `missing-${randomUUID()}` }, "user-restock")).toBeNull();
   });
 });
 

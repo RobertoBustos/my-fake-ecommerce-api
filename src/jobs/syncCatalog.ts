@@ -1,5 +1,7 @@
 import { syncCatalog } from "../catalog/catalogSync.js";
+import { measureExchangeRateAges } from "../pricing/refreshRates.js";
 import { logger } from "../utils/logger.js";
+import { measure, runJob } from "./runJob.js";
 
 // The catalog sync job: pulls what changed in every switched-on source into
 // the catalog index, and reconciles each source when it is due. It feeds the
@@ -11,17 +13,21 @@ import { logger } from "../utils/logger.js";
 //   --reconcile        reconcile every selected source now
 //   --source <key>     only that source (repeatable)
 // A failure exits with 1 so the run shows as failed.
+
 const args = process.argv.slice(2);
 const sourceKeys = args.flatMap((arg, i) => (arg === "--source" && args[i + 1] ? [args[i + 1]] : []));
 
-try {
-  const { synced, failed, searchFailed } = await syncCatalog({
-    reconcile: args.includes("--reconcile"),
-    sourceKeys: sourceKeys.length > 0 ? sourceKeys : undefined,
-  });
-  logger.info("Catalog synced", { synced, failed: failed.map(({ sourceKey }) => sourceKey), searchFailed });
-  process.exit(failed.length > 0 ? 1 : 0);
-} catch (err) {
-  logger.error("Catalog sync job failed", { error: (err as Error).message });
-  process.exit(1);
-}
+await runJob("sync-catalog", async () => {
+  try {
+    const { synced, failed, searchFailed } = await syncCatalog({
+      reconcile: args.includes("--reconcile"),
+      sourceKeys: sourceKeys.length > 0 ? sourceKeys : undefined,
+    });
+    logger.info("Catalog synced", { synced, failed: failed.map(({ sourceKey }) => sourceKey), searchFailed });
+    await measure("exchange rate ages", () => measureExchangeRateAges());
+    return failed.length > 0 ? 1 : 0;
+  } catch (err) {
+    logger.error("Catalog sync job failed", { error: (err as Error).message });
+    return 1;
+  }
+});

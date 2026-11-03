@@ -1,4 +1,5 @@
-import { writeExchangeRates, type StoredExchangeRate } from "../db/pricing.js";
+import { listExchangeRates, writeExchangeRates, type StoredExchangeRate } from "../db/pricing.js";
+import { metrics } from "../observability/metrics.js";
 import { logger } from "../utils/logger.js";
 import { roundRate } from "./convert.js";
 import { getRateProvider } from "./rateProviders/registry.js";
@@ -62,4 +63,14 @@ export const refreshExchangeRates = async ({
     }
   }
   return written;
+};
+
+// How old each stored rate is, from when the rates job last confirmed it
+// (fetchedAt, the same clock as maxRateAgeHours). Recorded by sync-catalog on
+// every run, because it prices the catalog for search with these rates; the
+// rates job itself only runs once a day.
+export const measureExchangeRateAges = async ({ now = new Date() }: { now?: Date } = {}) => {
+  for (const { pair, rate } of await listExchangeRates()) {
+    metrics.gauge("pricing.exchange_rate.age", (now.getTime() - rate.fetchedAt.getTime()) / 1000, { pair });
+  }
 };

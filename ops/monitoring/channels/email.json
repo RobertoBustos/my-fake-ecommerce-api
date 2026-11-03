@@ -1,0 +1,8 @@
+{
+  "type": "email",
+  "displayName": "ECOMAPI alerts (email)",
+  "description": "Every alert policy notifies here, also outside working hours (decided 2026-10-22).",
+  "labels": {
+    "email_address": "${ALERT_EMAIL}"
+  }
+}

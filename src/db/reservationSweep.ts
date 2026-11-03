@@ -1,6 +1,7 @@
 import db from "../config/firestore.js";
 import type { OrderStatus } from "../types/models.js";
-import { queueInventoryTasks } from "./inventoryTasks.js";
+import { logger } from "../utils/logger.js";
+import { inventoryTaskId, inventoryTaskRef, queueInventoryTasks } from "./inventoryTasks.js";
 import { listExpiredHeldReservations } from "./reservations.js";
 import { runTransaction } from "./transactions.js";
 
@@ -26,8 +27,10 @@ type Expired = Awaited<ReturnType<typeof listExpiredHeldReservations>>[number];
 
 // The holder's order is read in the same transaction that queues the
 // release, so an order can't move to PAYMENT_PENDING between the check and
-// the queuing. Returns the queued task id, or null when the reservation is skipped.
-const queueRelease = (reservation: Expired): Promise<string | null> =>
+// the queuing. Returns the queued task id and whether this call queued it
+// (a release still pending from an earlier sweep is found again), or null
+// when the reservation is skipped.
+const queueRelease = (reservation: Expired): Promise<{ id: string; isNew: boolean } | null> =>
   runTransaction(async (tx) => {
     const holders = await tx.get(
       db.collection(CART_COLLECTION).where("reservationIds", "array-contains", reservation.id)
@@ -43,6 +46,7 @@ const queueRelease = (reservation: Expired): Promise<string | null> =>
     if (orders.some((doc) => PAYMENT_MAY_ARRIVE.includes(doc.get("status")))) {
       return null;
     }
+    const alreadyQueued = (await tx.get(inventoryTaskRef(inventoryTaskId("release", reservation.id)))).exists;
     const [id] = await queueInventoryTasks(tx, [
       {
         action: "release",
@@ -57,7 +61,7 @@ const queueRelease = (reservation: Expired): Promise<string | null> =>
         orderId: orders[0]?.id ?? null,
       },
     ]);
-    return id;
+    return { id, isNew: !alreadyQueued };
   });
 
 export const sweepExpiredReservations = async ({ now = new Date() }: { now?: Date } = {}) => {
@@ -66,12 +70,16 @@ export const sweepExpiredReservations = async ({ now = new Date() }: { now?: Dat
   for (;;) {
     const page = await listExpiredHeldReservations(now, PAGE_SIZE, after);
     for (const reservation of page) {
-      const taskId = await queueRelease(reservation);
-      if (taskId === null) {
+      const queued = await queueRelease(reservation);
+      if (queued === null) {
         counts.skipped += 1;
         continue;
       }
       counts.queued += 1;
+      // After the commit, and once per reservation.
+      if (queued.isNew) {
+        logger.event("reservation.expired", { source: reservation.sourceKey, quantity: reservation.quantity });
+      }
     }
     if (page.length < PAGE_SIZE) break;
     const last = page[page.length - 1];

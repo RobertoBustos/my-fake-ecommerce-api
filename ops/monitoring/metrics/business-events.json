@@ -1,0 +1,26 @@
+{
+  "name": "business_events",
+  "description": "Key business events (src/observability/events.ts), by event name and whether they came from the e2e suite. One counter for every event: the dashboard and the zero-purchases alert filter it by event.",
+  "filter": "(resource.type=\"cloud_run_revision\" OR resource.type=\"cloud_run_job\") AND jsonPayload.schemaVersion>=1 AND jsonPayload.event:*",
+  "labelExtractors": {
+    "event": "EXTRACT(jsonPayload.event)",
+    "e2e": "EXTRACT(jsonPayload.e2e)"
+  },
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "labels": [
+      {
+        "key": "event",
+        "valueType": "STRING",
+        "description": "The event name, such as order.completed."
+      },
+      {
+        "key": "e2e",
+        "valueType": "STRING",
+        "description": "\"true\" for the e2e suite's carts, \"false\" otherwise."
+      }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "policy": {
+    "displayName": "Algolia search usage above 80% of the plan",
+    "severity": "WARNING",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "Searches in the last 23 hours are above the pace that would use 80% of the Algolia Free plan (10,000 searches a month) in a month: 260 in 23 h is about 270 a day. At the limit search stops working; nothing is charged. The count is approximate: it comes from the GraphQL operation summary, and Algolia counts on its side. The window is 23 h because alert windows must stay under 24 h.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Buscador-%28Algolia%29)."
+    },
+    "conditions": [
+      {
+        "displayName": "Algolia search usage above 80% of the plan",
+        "conditionThreshold": {
+          "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/search_requests\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "82800s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 260,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "86400s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  },
+  "test": {
+    "resource": "api",
+    "severity": "INFO",
+    "payload": {
+      "message": "GraphQL operation",
+      "operationName": "OpsMonitoringTest",
+      "operationType": "query",
+      "rootFields": [
+        "searchProducts"
+      ]
+    },
+    "count": 261
+  }
+}
