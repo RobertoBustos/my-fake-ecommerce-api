@@ -11,20 +11,47 @@ with Firebase Auth, and production runs on Cloud Run behind Firebase Hosting.
 
 ## Documentation
 
-The project's documentation lives in Confluence (space **Arquitectura Backend**,
-written in Spanish) and its work is tracked in Jira (project **ECOMAPI**). Start
-with the architecture page, then the runbook.
+The project's documentation lives in Confluence (space **Arquitectura Backend**)
+and its work is tracked in Jira (project **ECOMAPI**). Every page has a Spanish
+and an English tab with the same content; the titles below are the Spanish ones.
+Start with the architecture page, then the runbook.
+
+**Understand the API**
 
 | Page | What it covers |
 |---|---|
-| [Arquitectura de la API (v1.0)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24674314) | System overview, request lifecycle, purchase and payment flow, CI/CD and releases, with diagrams |
-| [Runbook: operación en producción](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610) | Releases, rollbacks, logs and request IDs, common incidents |
-| [Guía: pruebas end to end de la API](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/25296898) | How to test the deployed API without the app or any frontend |
-| [Guía: configuración manual de GCP](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24576001) | One-time Google Cloud / Firebase setup behind the deploy pipeline |
-| [Guía: configuración manual del webhook de Stripe](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/25100294) | One-time Stripe webhook setup and secret rotation |
-| [Guía: configuración manual de Jira y GitHub](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23625729) | Jira ↔ GitHub integration, branch protection, workflow |
-| [Hallazgos técnicos](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23298055) | Technical findings from the initial code review and how each was addressed |
-| [Seguimiento en Jira](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23068673) | Sprint history, epics and the status of every task |
+| [Arquitectura de la API](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24674314) | System overview, request lifecycle, purchase and payment flow, catalog, search and observability, with diagrams |
+| [Pipeline de deploy: del commit a Cloud Run](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/33751042) | How a change reaches production end to end: branches, CI, image, deploy and why each piece is built that way |
+| [Guía: consumir la API de producción desde un frontend (web y móvil)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/35323908) | URL, authentication and every step of a purchase for a web or mobile client, including the errors |
+
+**Operate it**
+
+| Page | What it covers |
+|---|---|
+| [Runbook: operación en producción](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610) | Releases, rollbacks, logs and traces, alerts and what to do with each one, common incidents |
+| [Scripts y jobs del proyecto](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/27557891) | What every script in `scripts/` and job in `src/jobs/` does, when it runs and how to run it by hand |
+| [CI: checks de GitHub](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/26935298) | What each GitHub check verifies, why it fails and how to reproduce it locally |
+| [Guía: pruebas end to end de la API (sin frontend)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/25296898) | How to test the deployed API end to end without the app or any frontend |
+
+**One-time setup**
+
+| Page | What it covers |
+|---|---|
+| [Guía: configuración manual de GCP para el despliegue a Cloud Run](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24576001) | Google Cloud / Firebase setup behind the deploy pipeline, telemetry and monitoring |
+| [Guía: configuración manual del webhook de Stripe](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/25100294) | Stripe webhook setup and secret rotation |
+| [Guía: configuración manual de Jira y GitHub](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23625729) | Jira ↔ GitHub integration, branch protection and rulesets, workflow |
+
+**Decisions and history**
+
+| Page | What it covers |
+|---|---|
+| [Diseño: catálogo con múltiples orígenes de datos](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/26607619) | The `CatalogSource` contract, global product ids and how a new data source is added |
+| [Diseño: búsqueda de productos](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/29982722) | How product search works and the plan for its next phases |
+| [ADR: motor de búsqueda del catálogo](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/30015489) | Why Algolia is the first search engine adapter |
+| [ADR: arranques en frío y el SLO de latencia](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/34668547) | Why `minScale` stays at 0 and cold starts count inside the latency SLO |
+| [Hallazgos técnicos: my-fake-ecommerce-api](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23298055) | Findings from the initial code review and later sprints, how each was addressed, and the accepted debt |
+| [Hallazgo: cobro de Cloud Run por los jobs programados (oct 2026)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/33980454) | Why the scheduled jobs run once a week and how to investigate a billing alert |
+| [Seguimiento en Jira: my-fake-ecommerce-api](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23068673) | Sprint history, epics, releases and the status of every task |
 | [Jira project ECOMAPI](https://roberto-bustos-hernandez.atlassian.net/browse/ECOMAPI) | Backlog and board |
 
 Confluence and Jira are private: ask the project owner for access to the
