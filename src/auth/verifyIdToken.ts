@@ -25,3 +25,25 @@ export const verifyIdToken = async (
     throw unauthenticated("Invalid Firebase ID token");
   }
 };
+
+// The anonymous user's token that mergeAnonymousCart receives as an argument;
+// the request's own token is the account's. Its errors carry no http status:
+// the caller's session is fine, so the app mustn't read them as a 401.
+// checkRevoked also looks the user up, so a deleted user's token, which
+// verifyIdToken alone accepts until it expires, is refused here.
+export const verifyAnonymousIdToken = async (token: string): Promise<DecodedIdToken> => {
+  let decoded: DecodedIdToken;
+  try {
+    decoded = await getAuth(firebaseApp).verifyIdToken(token, true);
+  } catch {
+    throw new GraphQLError("Invalid anonymous ID token", {
+      extensions: { code: "UNAUTHENTICATED", invalidArgument: "anonymousIdToken" },
+    });
+  }
+  if (decoded.firebase.sign_in_provider !== "anonymous") {
+    throw new GraphQLError("The token doesn't belong to an anonymous user", {
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "anonymousIdToken" },
+    });
+  }
+  return decoded;
+};

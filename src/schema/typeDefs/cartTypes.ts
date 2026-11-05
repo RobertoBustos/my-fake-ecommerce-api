@@ -48,6 +48,29 @@ const cartTypes = /* GraphQL */ `#graphql
     success: Boolean!
     message: String!
   }
+
+  input MergeAnonymousCart {
+    "ID token of the anonymous user, obtained before signing in to the account."
+    anonymousIdToken: String!
+    "The account's cart that receives the items."
+    cartId: String!
+  }
+
+  "Units that didn't fit within the product's purchase limit and went back to stock."
+  type ReleasedCartUnits {
+    "Global id of the product (Product.id)."
+    productId: String!
+    quantity: Int!
+  }
+
+  type MergeAnonymousCartResponse implements MutationResponse {
+    code: String!
+    success: Boolean!
+    message: String!
+    "The account's free items in the cart after the merge."
+    data: [CartItem!]!
+    released: [ReleasedCartUnits!]!
+  }
 `;
 
 export default cartTypes;

@@ -10,6 +10,8 @@ export const Mutation: MutationResolvers = {
     cartService.addToCart(input, context.user.uid),
   removeFromCart: async (_, { input }, context) =>
     cartService.removeFromCart(input, context.user.uid),
+  mergeAnonymousCart: async (_, { input }, context) =>
+    cartService.mergeAnonymousCart(input, context.user.uid),
   createOrder: async (_, { input }, context) =>
     orderService.createOrder(input, context.user.uid),
   updateOrder: async (_, { input }, context) =>

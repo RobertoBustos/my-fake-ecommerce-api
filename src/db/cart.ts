@@ -333,6 +333,132 @@ export const removeFromCart = async (input: { id: string }, userId: string): Pro
   return removed.item;
 };
 
+// The free items an anonymous user holds, in any cart: what a merge would move.
+export const getFreeCartItems = async (userId: string): Promise<CartItem[]> => {
+  const snapshot = await db
+    .collection(COLLECTION)
+    .where("userId", "==", userId)
+    .where("orderId", "==", null)
+    .get();
+  return snapshot.docs.map(toCartItem);
+};
+
+export interface MergedCart {
+  // The account's free items in the cart after the merge.
+  items: CartItem[];
+  // Units given back because they didn't fit, per product.
+  released: { productId: string; quantity: number }[];
+}
+
+// Moves an anonymous user's free items to an account's cart. Moved units keep
+// their reservations, so no stock is touched and none can run out: only the
+// purchase limit caps them (maxUnits, by global product id; a product that is
+// gone has no cap, and paying for it is refused later). Sources release whole
+// reservations, so one that doesn't fit is given back entirely, and the app
+// can add the difference again.
+// A repeat finds nothing to move, so it changes nothing. The cart can only
+// hold the account's items and the free ones being moved: anything else
+// (another user's, or an order of the anonymous user) raises
+// CartNotOwnedError, because the account could never use that cart.
+export const mergeCartItems = async (
+  { anonymousUserId, userId, cartId }: { anonymousUserId: string; userId: string; cartId: string },
+  maxUnits: ReadonlyMap<string, number>
+): Promise<MergedCart> => {
+  const merged = await runTransaction(async (tx) => {
+    const cartSnapshot = await tx.get(db.collection(COLLECTION).where("cartId", "==", cartId));
+    const anonymousSnapshot = await tx.get(
+      db
+        .collection(COLLECTION)
+        .where("userId", "==", anonymousUserId)
+        .where("orderId", "==", null)
+    );
+    const isUsable = (doc: DocumentSnapshot) =>
+      doc.get("userId") === userId ||
+      (doc.get("userId") === anonymousUserId && doc.get("orderId") === null);
+    if (!cartSnapshot.docs.every(isUsable)) {
+      throw new CartNotOwnedError(cartId);
+    }
+
+    // The account's free items by product, updated as items land on them.
+    const items = new Map(
+      cartSnapshot.docs
+        .filter((doc) => doc.get("userId") === userId && doc.get("orderId") === null)
+        .map((doc) => {
+          const item = toCartItem(doc);
+          return [canonicalProductId(String(item.productId)), item] as const;
+        })
+    );
+    const writes = new Map<string, Partial<CartItem>>();
+    const deletes: string[] = [];
+    const drafts: InventoryTaskDraft[] = [];
+    const released = new Map<string, MergedCart["released"][number]>();
+
+    for (const doc of anonymousSnapshot.docs) {
+      const item = toCartItem(doc);
+      const productId = canonicalProductId(String(item.productId));
+      const target = items.get(productId);
+      const max = maxUnits.get(productId) ?? Infinity;
+      let units = target?.quantity ?? 0;
+      const kept: CartItemReservation[] = [];
+      let keptUnits = 0;
+      for (const { sourceKey, reservation } of reservationsToRelease(item)) {
+        if (units + reservation.quantity <= max) {
+          units += reservation.quantity;
+          keptUnits += reservation.quantity;
+          // Units from before reservations hold none, and stay that way.
+          kept.push(...(item.reservations ?? []).filter((r) => r.reservationId === reservation.reservationId));
+          continue;
+        }
+        drafts.push({
+          action: "release",
+          sourceKey,
+          reservation,
+          reason: "mergeAnonymousCart",
+          orderId: null,
+        });
+        released.set(productId, {
+          productId,
+          quantity: (released.get(productId)?.quantity ?? 0) + reservation.quantity,
+        });
+      }
+
+      if (keptUnits === 0) {
+        deletes.push(doc.id);
+        continue;
+      }
+      const landed: CartItem = target
+        ? {
+            ...target,
+            quantity: units,
+            subtotal: target.subtotal + item.unitPrice * keptUnits,
+            reservations: [...(target.reservations ?? []), ...kept],
+            reservationIds: [...(target.reservationIds ?? []), ...kept.map((r) => r.reservationId)],
+          }
+        : {
+            ...item,
+            cartId,
+            userId,
+            quantity: keptUnits,
+            subtotal: item.unitPrice * keptUnits,
+            reservations: kept,
+            reservationIds: kept.map((r) => r.reservationId),
+          };
+      items.set(productId, landed);
+      if (target) deletes.push(doc.id);
+      const { id, ...fields } = landed;
+      writes.set(id, fields);
+    }
+
+    const taskIds = await queueInventoryTasks(tx, drafts);
+    const ref = (id: string) => db.collection(COLLECTION).doc(id);
+    writes.forEach((fields, id) => tx.update(ref(id), fields));
+    deletes.forEach((id) => tx.delete(ref(id)));
+    return { items: [...items.values()], released: [...released.values()], taskIds };
+  });
+  await runInventoryTasks(merged.taskIds);
+  return { items: merged.items, released: merged.released };
+};
+
 const FIRESTORE_IN_QUERY_LIMIT = 30;
 
 // A single round of reads for N orderIds (vs. N queries), used by the

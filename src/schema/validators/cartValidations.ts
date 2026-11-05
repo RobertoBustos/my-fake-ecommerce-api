@@ -13,12 +13,16 @@ const addToCartSchema = z.object({
 
 const removeFromCartSchema = z.object({ id });
 
+const mergeAnonymousCartSchema = z.object({ anonymousIdToken: id, cartId: id });
+
 export type AddToCartInput = z.infer<typeof addToCartSchema>;
 export type RemoveFromCartInput = z.infer<typeof removeFromCartSchema>;
 
 export const checkAddToCart = (input: unknown) => firstInvalidField(addToCartSchema, input);
 
 export const checkRemoveFromCart = (input: unknown) => firstInvalidField(removeFromCartSchema, input);
+
+export const checkMergeAnonymousCart = (input: unknown) => firstInvalidField(mergeAnonymousCartSchema, input);
 
 // The real limit is the lesser of purchaseLimits.max and the available stock:
 // there's no point letting someone buy more than there is, even if the

@@ -1,8 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createAnonymousUser, deleteUser } from "./helpers/auth.js";
+import { createAnonymousUser, deleteUser, getIdToken } from "./helpers/auth.js";
 import { requireEnv } from "./helpers/env.js";
 import { dataOf, errorCodeOf, gql } from "./helpers/graphql.js";
-import { ADD_TO_CART, CANCEL_ORDER, CREATE_ORDER, newCartId, ORDER, type OrderNode } from "./helpers/orders.js";
+import {
+  ADD_TO_CART,
+  CANCEL_ORDER,
+  CREATE_ORDER,
+  MERGE_ANONYMOUS_CART,
+  newCartId,
+  ORDER,
+  REMOVE_FROM_CART,
+  type OrderNode,
+} from "./helpers/orders.js";
 
 // The mobile app signs in as an anonymous Firebase user, and the API accepts
 // that token only because verifyIdToken doesn't look at the provider. Without
@@ -74,5 +83,47 @@ describe("anonymous user against the deployed API", () => {
     expect(orderId).toBeDefined();
     dataOf(await gql(CANCEL_ORDER, { input: { id: orderId } }, asAnonymous()));
     expect((await getOrder())?.status).toBe("CANCELLED");
+  });
+});
+
+// Signing in to an existing account changes uid, so the app hands the API the
+// anonymous token to bring the cart along. The units keep their reservation;
+// removing the item at the end gives them back.
+describe("anonymous cart moved to an existing account", () => {
+  const productId = requireEnv("E2E_PRODUCT_ID");
+  const cartId = newCartId();
+  let idToken: string | undefined;
+  let itemId: string | undefined;
+
+  type Merged = { mergeAnonymousCart: { data: { id: string; productId: string; quantity: number }[]; released: unknown[] } };
+
+  beforeAll(async () => {
+    idToken = await createAnonymousUser();
+  });
+
+  afterAll(async () => {
+    try {
+      if (itemId) await gql(REMOVE_FROM_CART, { input: { id: itemId } });
+    } finally {
+      if (idToken) await deleteUser(idToken);
+    }
+  });
+
+  it("moves the item, and a repeat changes nothing", async () => {
+    dataOf(await gql(ADD_TO_CART, { input: { cartId, productId, quantity: 1 } }, { authorization: `Bearer ${idToken}` }));
+    const variables = { input: { anonymousIdToken: idToken, cartId } };
+    const { mergeAnonymousCart } = dataOf(await gql<Merged>(MERGE_ANONYMOUS_CART, variables));
+    expect(mergeAnonymousCart.released).toEqual([]);
+    expect(mergeAnonymousCart.data).toEqual([expect.objectContaining({ productId, quantity: 1 })]);
+    itemId = mergeAnonymousCart.data[0].id;
+
+    const again = dataOf(await gql<Merged>(MERGE_ANONYMOUS_CART, variables));
+    expect(again.mergeAnonymousCart.data).toEqual(mergeAnonymousCart.data);
+  });
+
+  it("refuses the token of an account with an email", async () => {
+    const anonymousIdToken = await getIdToken("other");
+    const result = await gql(MERGE_ANONYMOUS_CART, { input: { anonymousIdToken, cartId: newCartId() } });
+    expect(errorCodeOf(result)).toBe("BAD_USER_INPUT");
   });
 });
