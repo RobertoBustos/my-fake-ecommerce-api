@@ -232,9 +232,9 @@ export const syncCatalog = async ({
         ? await reconcileCatalogSource(source, { now })
         : await pullCatalogSource(source, { now, search });
       synced.push(result);
-      // One line per source that synced: the catalog_source_syncs metric
-      // counts them by sourceKey, so a source that stops syncing shows up
-      // even when the others still do.
+      // One line per source that synced: the catalog-staleness alert counts
+      // them by sourceKey, so a source that stops syncing shows up even when
+      // the others still do.
       logger.info("Catalog source synced", { sourceKey: source.key, mode: result.mode });
       logger.event("catalog.synced", {
         source: source.key,

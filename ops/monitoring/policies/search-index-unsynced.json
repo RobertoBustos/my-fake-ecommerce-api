@@ -5,7 +5,7 @@
     "combiner": "OR",
     "documentation": {
       "mimeType": "text/markdown",
-      "content": "Search index writes failed in a sync-catalog run. Search results fall behind the catalog until a run succeeds, and the job runs once a week, so run it by hand once the cause is fixed.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Buscador-%28Algolia%29)."
+      "content": "Search index writes failed in a sync-catalog run. Search results fall behind the catalog until a run succeeds. The job runs every hour, so the next run tries again.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Buscador-%28Algolia%29)."
     },
     "conditions": [
       {

@@ -50,7 +50,7 @@ Start with the architecture page, then the runbook.
 | [ADR: motor de búsqueda del catálogo](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/30015489) | Why Algolia is the first search engine adapter |
 | [ADR: arranques en frío y el SLO de latencia](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/34668547) | Why `minScale` stays at 0 and cold starts count inside the latency SLO |
 | [Hallazgos técnicos: my-fake-ecommerce-api](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23298055) | Findings from the initial code review and later sprints, how each was addressed, and the accepted debt |
-| [Hallazgo: cobro de Cloud Run por los jobs programados (oct 2026)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/33980454) | Why the scheduled jobs run once a week and how to investigate a billing alert |
+| [Hallazgo: cobro de Cloud Run por los jobs programados (oct 2026)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/33980454) | How often the scheduled jobs can run within the free tier and how to investigate a billing alert |
 | [Seguimiento en Jira: my-fake-ecommerce-api](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23068673) | Sprint history, epics, releases and the status of every task |
 | [Jira project ECOMAPI](https://roberto-bustos-hernandez.atlassian.net/browse/ECOMAPI) | Backlog and board |
 
@@ -324,7 +324,7 @@ The same job feeds the search index when `SEARCH_ENGINE` names one
   - The record is saved only when every search write of the run succeeded, so a
     failed reprice is tried again by the next run.
   - A rate refreshed by `rates:refresh` reaches the search index with the next
-    sync-catalog run (once a week, or run it by hand).
+    sync-catalog run, within the hour.
 
 ## Search index
 

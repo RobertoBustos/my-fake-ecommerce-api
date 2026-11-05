@@ -17,8 +17,8 @@ import { listEnabledSources } from "./registry.ts";
 // the catalog index turns them into products, the same ones the products
 // query lists (price converted by the Product field resolvers).
 //
-// The search index can be behind the catalog (the sync runs once a week,
-// and an engine may answer a repeated query from its own cache),
+// The search index can be a little behind the catalog (the sync runs every
+// hour, and an engine may answer a repeated query from its own cache),
 // so an id the catalog no longer holds is left out of the page instead of
 // failing it, and totalCount may still count it.
 
