@@ -1,0 +1,53 @@
+{
+  "policy": {
+    "displayName": "Scheduled job not running",
+    "severity": "ERROR",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "process-inventory (every 30 min) hasn't finished a run in 90 minutes, or sync-catalog (every hour) in 150 minutes. A job that doesn't run writes no error, so only this alert sees it. Check that its Cloud Scheduler trigger is enabled and that executions start.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#El-job-programado)."
+    },
+    "conditions": [
+      {
+        "displayName": "No process-inventory run in 90 min",
+        "conditionAbsent": {
+          "filter": "resource.type=\"cloud_run_job\" AND resource.label.job_name=\"process-inventory\" AND metric.type=\"run.googleapis.com/job/completed_execution_count\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "300s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "duration": "5400s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      },
+      {
+        "displayName": "No sync-catalog run in 150 min",
+        "conditionAbsent": {
+          "filter": "resource.type=\"cloud_run_job\" AND resource.label.job_name=\"sync-catalog\" AND metric.type=\"run.googleapis.com/job/completed_execution_count\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "300s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "duration": "9000s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "3600s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}
