@@ -33,6 +33,37 @@ const signIn = async (user: E2EUser): Promise<string> => {
   return body.idToken;
 };
 
+const SIGN_UP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signUp";
+const DELETE_URL = "https://identitytoolkit.googleapis.com/v1/accounts:delete";
+
+const identityToolkit = async (url: string, body: Record<string, unknown>) => {
+  const key = requireEnv("E2E_FIREBASE_WEB_API_KEY");
+  const response = await fetch(`${url}?key=${encodeURIComponent(key)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const result = (await response.json()) as { idToken?: string; error?: { message?: string } };
+  return { ok: response.ok, status: response.status, ...result };
+};
+
+// A new anonymous Firebase user, the way the mobile app signs in on launch,
+// and its ID token. Every call is a different user: the caller deletes it.
+export const createAnonymousUser = async (): Promise<string> => {
+  const { ok, status, idToken, error } = await identityToolkit(SIGN_UP_URL, { returnSecureToken: true });
+  if (!ok || !idToken) {
+    throw new Error(`Firebase anonymous sign-up failed: ${error?.message ?? status}`);
+  }
+  return idToken;
+};
+
+export const deleteUser = async (idToken: string): Promise<void> => {
+  const { ok, status, error } = await identityToolkit(DELETE_URL, { idToken });
+  if (!ok) {
+    throw new Error(`Firebase user deletion failed: ${error?.message ?? status}`);
+  }
+};
+
 export const getIdToken = (user: E2EUser = "main"): Promise<string> => {
   let token = tokens.get(user);
   if (!token) {

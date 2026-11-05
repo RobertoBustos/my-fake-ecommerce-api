@@ -32,4 +32,10 @@ describe("verifyIdToken", () => {
     const user = await verifyIdToken("Bearer good-token");
     expect(user).toEqual({ uid: "user-1", email: "a@b.com" });
   });
+
+  it("accepts an anonymous user's token, which has no email", async () => {
+    const anonymous = { uid: "anon-1", firebase: { sign_in_provider: "anonymous" } };
+    verifyIdTokenMock.mockResolvedValueOnce(anonymous);
+    await expect(verifyIdToken("Bearer anon-token")).resolves.toEqual(anonymous);
+  });
 });
