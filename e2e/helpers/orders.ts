@@ -10,6 +10,9 @@ export const ADD_TO_CART = `mutation AddToCart($input: AddToCart!) {
 export const REMOVE_FROM_CART = `mutation RemoveFromCart($input: RemoveFromCart!) {
   removeFromCart(input: $input) { success }
 }`;
+export const MERGE_ANONYMOUS_CART = `mutation MergeAnonymousCart($input: MergeAnonymousCart!) {
+  mergeAnonymousCart(input: $input) { success released { productId quantity } data { id productId quantity } }
+}`;
 export const CREATE_ORDER = `mutation CreateOrder($input: CreateOrder!) {
   createOrder(input: $input) { success data { id status } }
 }`;

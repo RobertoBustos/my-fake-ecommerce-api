@@ -242,10 +242,19 @@ Firestore, as sources without reservations do).
 6. Stripe sends `payment_intent.succeeded` to the webhook, which marks the
    order `COMPLETE` and confirms its reservations in their sources
 
+An anonymous user who signs in to an existing account changes `uid`. Before
+signing in the app keeps the anonymous ID token, and after it calls
+`mergeAnonymousCart` with the account's token in `Authorization`. The anonymous
+user's free items move to the given `cartId` with their reservations; a
+repeated product is summed. A reservation that would pass
+`purchaseLimits.max` goes back to stock and is listed in `released`. The
+anonymous user's orders don't move, and a `cartId` holding one answers
+`NOT_FOUND`, so use a new cart in that case. Repeating the call changes nothing.
+
 ## Inventory queue
 
 Confirming and releasing reservations is a saga across the catalog sources:
-the webhook, `removeFromCart` and `cancelOrder` write each confirm or release
+the webhook, `removeFromCart`, `mergeAnonymousCart` and `cancelOrder` write each confirm or release
 to `inventoryTasks` in the same transaction that changes the order or the
 item, then run it right away. What a source refuses stays queued and is
 retried with backoff (1, 2, 4… minutes, at most an hour) by the inventory job,

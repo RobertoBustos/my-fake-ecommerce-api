@@ -5,7 +5,7 @@ vi.mock("firebase-admin/auth", () => ({
   getAuth: () => ({ verifyIdToken: verifyIdTokenMock }),
 }));
 
-import { verifyIdToken } from "../src/auth/verifyIdToken.js";
+import { verifyAnonymousIdToken, verifyIdToken } from "../src/auth/verifyIdToken.js";
 
 describe("verifyIdToken", () => {
   it("without an authorization header returns UNAUTHENTICATED", async () => {
@@ -37,5 +37,27 @@ describe("verifyIdToken", () => {
     const anonymous = { uid: "anon-1", firebase: { sign_in_provider: "anonymous" } };
     verifyIdTokenMock.mockResolvedValueOnce(anonymous);
     await expect(verifyIdToken("Bearer anon-token")).resolves.toEqual(anonymous);
+  });
+});
+
+describe("verifyAnonymousIdToken", () => {
+  it("checks that the token wasn't revoked and its user still exists", async () => {
+    const anonymous = { uid: "anon-1", firebase: { sign_in_provider: "anonymous" } };
+    verifyIdTokenMock.mockResolvedValueOnce(anonymous);
+    await expect(verifyAnonymousIdToken("anon-token")).resolves.toEqual(anonymous);
+    expect(verifyIdTokenMock).toHaveBeenLastCalledWith("anon-token", true);
+  });
+
+  it("answers UNAUTHENTICATED without an http status, so the caller's session isn't blamed", async () => {
+    verifyIdTokenMock.mockRejectedValueOnce(new Error("user not found"));
+    const error = await verifyAnonymousIdToken("bad-token").catch((err) => err);
+    expect(error.extensions).toEqual({ code: "UNAUTHENTICATED", invalidArgument: "anonymousIdToken" });
+  });
+
+  it("answers BAD_USER_INPUT for an account with an email", async () => {
+    verifyIdTokenMock.mockResolvedValueOnce({ uid: "user-1", firebase: { sign_in_provider: "password" } });
+    await expect(verifyAnonymousIdToken("email-token")).rejects.toMatchObject({
+      extensions: { code: "BAD_USER_INPUT", invalidArgument: "anonymousIdToken" },
+    });
   });
 });

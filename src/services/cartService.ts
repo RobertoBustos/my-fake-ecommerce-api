@@ -1,21 +1,25 @@
 import { GraphQLError } from "graphql";
-import { getCatalogProduct } from "#src/catalog/index";
+import { verifyAnonymousIdToken } from "#src/auth/verifyIdToken";
+import { canonicalProductId, getCatalogProduct, getCatalogProducts } from "#src/catalog/index";
 import { parseProductId } from "#src/catalog/productId";
 import {
   addToCart as addToCartDb,
   CartNotOwnedError,
+  getFreeCartItems,
   getOrders,
   InsufficientStockError,
   isOrderOpen,
+  mergeCartItems,
   OrderItemLockedError,
   removeFromCart as removeFromCartDb,
 } from "#src/db/index";
 import {
   checkAddToCart,
+  checkMergeAnonymousCart,
   checkRemoveFromCart,
   validateCartQuantity,
 } from "#src/schema/validators/index";
-import type { AddToCart, RemoveFromCart } from "#src/generated/graphql";
+import type { AddToCart, MergeAnonymousCart, RemoveFromCart } from "#src/generated/graphql";
 import type { CartItem, MutationAck, MutationResult } from "#src/types/models";
 import { logger } from "#src/utils/logger";
 import {
@@ -165,5 +169,61 @@ export const removeFromCart = async (
     code: "200",
     success: true,
     message: "Item Removed",
+  };
+};
+
+// An anonymous user who signs in to an existing account changes uid, and the
+// API filters everything by uid, so the app can't move the cart by itself.
+// userId is the account's. The anonymous user's orders stay where they are.
+export const mergeAnonymousCart = async (
+  input: MergeAnonymousCart,
+  userId: string
+): Promise<MutationResult<CartItem[]> & { released: { productId: string; quantity: number }[] }> => {
+  assertValidInput(checkMergeAnonymousCart, input);
+  const { uid: anonymousUserId } = await verifyAnonymousIdToken(input.anonymousIdToken);
+  if (anonymousUserId === userId) {
+    throw new GraphQLError("The token belongs to the signed-in user", {
+      extensions: {
+        code: "BAD_USER_INPUT",
+        invalidArgument: "anonymousIdToken",
+      },
+    });
+  }
+  // Read before the transaction: a source can't join it.
+  const free = await getFreeCartItems(anonymousUserId);
+  const productIds = [...new Set(free.map((item) => canonicalProductId(String(item.productId))))];
+  const products = await withSourceRetryHint(() => getCatalogProducts(productIds));
+  const maxUnits = new Map(
+    products.flatMap((product, i) =>
+      product ? [[productIds[i], product.purchaseLimits.max] as const] : []
+    )
+  );
+  let merged: Awaited<ReturnType<typeof mergeCartItems>>;
+  try {
+    merged = await withContentionRetryHint(() =>
+      mergeCartItems({ anonymousUserId, userId, cartId: input.cartId }, maxUnits)
+    );
+  } catch (err) {
+    if (err instanceof CartNotOwnedError) {
+      throw new GraphQLError("Cart not found", {
+        extensions: {
+          code: "NOT_FOUND",
+          invalidArgument: "cartId",
+        },
+      });
+    }
+    throw err;
+  }
+  logger.event("cart.merged", {
+    cartId: input.cartId,
+    items: merged.items.length,
+    releasedUnits: merged.released.reduce((sum, r) => sum + r.quantity, 0),
+  });
+  return {
+    code: "200",
+    success: true,
+    message: "Cart merged",
+    data: merged.items,
+    released: merged.released,
   };
 };

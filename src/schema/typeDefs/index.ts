@@ -62,6 +62,7 @@ const rootTypes = /* GraphQL */ `#graphql
   type Mutation {
     addToCart(input: AddToCart!): AddToCartResponse!
     removeFromCart(input: RemoveFromCart!): RemoveFromCartResponse!
+    mergeAnonymousCart(input: MergeAnonymousCart!): MergeAnonymousCartResponse!
     createOrder(input: CreateOrder!): CreateOrderResponse!
     updateOrder(input: UpdateOrder!): UpdateOrderResponse!
     cancelOrder(input: CancelOrder!): CancelOrderResponse!
