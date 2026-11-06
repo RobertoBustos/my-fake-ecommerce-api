@@ -6,6 +6,35 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-06
+
+Sprint 9: what the API needs to connect with the mobile app, which is used
+without an account and signs in as an anonymous Firebase user. **Only additions
+for clients:** the new `mergeAnonymousCart` mutation; the rest of the schema and
+the responses are the same as in v1.7.1.
+
+### Added
+
+- `mergeAnonymousCart` moves an anonymous user's free cart items to the account
+  they sign in to, keeping their reservations; a repeated product is summed. A
+  reservation that would pass `purchaseLimits.max` goes back to stock and is
+  listed in `released`. The anonymous user's orders don't move, and a `cartId`
+  holding one answers `NOT_FOUND`. Repeating the call changes nothing.
+- The e2e suite covers anonymous ID tokens against the deployed API: the
+  catalog, a cart and an order hidden from other users, and moving a cart to an
+  account.
+
+### Changed
+
+- The scheduled jobs run often again: `process-inventory` every 30 minutes and
+  `sync-catalog` every hour, instead of once a week. Abandoned carts now
+  matter, so an expired reservation is released within 30 minutes. The schedule
+  is configuration and was applied before this release, along with the alerts
+  below.
+- The absence alerts `job-missing` and `catalog-stale` are back, with windows
+  that fit the new schedule. `search-index-unsynced` still fires on the first
+  failed write, and its message now says the next hourly run tries again.
+
 ## [1.7.1] - 2026-11-03
 
 Sprint 8: leaving the project up to date after the observability release. It
@@ -556,6 +585,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.8.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.5.0...v1.6.0
