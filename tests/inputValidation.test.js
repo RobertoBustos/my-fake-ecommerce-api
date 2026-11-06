@@ -5,6 +5,7 @@ import {
   checkCancelOrder,
   checkCreateOrder,
   checkCreateOrderPayment,
+  checkMergeAnonymousCart,
   checkRemoveFromCart,
   checkUpdateOrder,
 } from "../src/schema/validators/index.js";
@@ -53,6 +54,15 @@ describe("checkUpdateOrder", () => {
 
   it("rejects a blank id", () => {
     expect(checkUpdateOrder({ id: "  ", customer })).toBe("id");
+  });
+});
+
+describe("checkMergeAnonymousCart", () => {
+  it.each(["anonymousIdToken", "cartId"])("rejects a blank or missing %s", (field) => {
+    const input = { anonymousIdToken: "token", cartId: "cart-1" };
+    expect(checkMergeAnonymousCart({ ...input, [field]: "   " })).toBe(field);
+    expect(checkMergeAnonymousCart({ ...input, [field]: undefined })).toBe(field);
+    expect(checkMergeAnonymousCart(input)).toBeNull();
   });
 });
 

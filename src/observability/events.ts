@@ -17,6 +17,8 @@ export const EVENTS = {
   // The purchase funnel, in order.
   "cart.item_added": ["cartId", "orderId", "source", "quantity", "unitPrice", "currency"],
   "cart.item_removed": ["cartId", "orderId", "source", "quantity"],
+  // An anonymous user's items moved to the account they signed in to.
+  "cart.merged": ["cartId", "items", "releasedUnits"],
   "order.created": ["orderId", "cartId", "items", "units", "total", "currency"],
   // Customer and address are complete: the order can be paid.
   "order.ready_to_pay": ["orderId", "cartId"],

@@ -1,4 +1,9 @@
-import { checkAddToCart, checkRemoveFromCart, validateCartQuantity } from "./cartValidations.ts";
+import {
+  checkAddToCart,
+  checkMergeAnonymousCart,
+  checkRemoveFromCart,
+  validateCartQuantity,
+} from "./cartValidations.ts";
 import {
   checkCancelOrder,
   checkCreateOrder,
@@ -20,6 +25,7 @@ export {
   checkCancelOrder,
   checkCreateOrder,
   checkCreateOrderPayment,
+  checkMergeAnonymousCart,
   checkRemoveFromCart,
   checkSearchProducts,
   checkUpdateOrder,
