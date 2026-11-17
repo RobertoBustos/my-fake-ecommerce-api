@@ -33,6 +33,7 @@ import {
   searchPayment,
   searchPaymentMethod,
 } from "./payment.ts";
+import { registerPushToken, unregisterPushToken } from "./pushTokens.ts";
 import { TransactionContentionError } from "./transactions.ts";
 
 export {
@@ -58,12 +59,14 @@ export {
   OrderAlreadyCompleteError,
   OrderClosedError,
   OrderItemLockedError,
+  registerPushToken,
   removeFromCart,
   repriceOrderItems,
   searchPayment,
   searchPaymentMethod,
   setOrderPayment,
   TransactionContentionError,
+  unregisterPushToken,
   updateCartItems,
   updateOrder,
 };

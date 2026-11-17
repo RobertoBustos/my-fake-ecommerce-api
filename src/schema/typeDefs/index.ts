@@ -2,6 +2,7 @@ import cartTypes from "./cartTypes.ts";
 import orderTypes from "./orderTypes.ts";
 import paymentTypes from "./paymentTypes.ts";
 import productTypes from "./productTypes.ts";
+import pushTypes from "./pushTypes.ts";
 
 const rootTypes = /* GraphQL */ `#graphql
   # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
@@ -67,7 +68,11 @@ const rootTypes = /* GraphQL */ `#graphql
     updateOrder(input: UpdateOrder!): UpdateOrderResponse!
     cancelOrder(input: CancelOrder!): CancelOrderResponse!
     createOrderPayment(input: CreateOrderPayment!): CreateOrderPaymentResponse!
+    "Saves the device's push token under the signed-in user. Safe to call on every app start; a token registered by another user moves to this one."
+    registerPushToken(input: RegisterPushToken!): RegisterPushTokenResponse!
+    "Deletes one of the signed-in user's push tokens; call it before signing out."
+    unregisterPushToken(input: UnregisterPushToken!): UnregisterPushTokenResponse!
   }
 `;
 
-export default [rootTypes, cartTypes, productTypes, paymentTypes, orderTypes];
+export default [rootTypes, cartTypes, productTypes, paymentTypes, orderTypes, pushTypes];
