@@ -62,6 +62,7 @@ jobs:
           secrets: |
             STRIPE_SECRET_KEY=stripe-secret-key:latest
             STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest
+            EXPO_ACCESS_TOKEN=expo-access-token:latest
           flags: --allow-unauthenticated --service-account=${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
           tag: ${{ steps.release.outputs.tag }}
 

@@ -53,3 +53,18 @@ export const unregisterPushToken = (token: string, uid: string): Promise<boolean
     tx.delete(ref);
     return true;
   });
+
+// The tokens saved under uid: every device that user is signed in on.
+export const listPushTokens = async (uid: string): Promise<string[]> => {
+  const snapshot = await db.collection(COLLECTION).where("uid", "==", uid).get();
+  return snapshot.docs.map((doc) => doc.get("token") as string);
+};
+
+// Deletes tokens Expo says no longer reach a device (DeviceNotRegistered),
+// whoever they're saved under.
+export const deletePushTokens = async (tokens: string[]): Promise<void> => {
+  if (tokens.length === 0) return;
+  const batch = db.batch();
+  for (const token of tokens) batch.delete(pushTokenRef(token));
+  await batch.commit();
+};

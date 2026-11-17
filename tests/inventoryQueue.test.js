@@ -236,7 +236,7 @@ describe("the purchase saga through the queue (ECOMAPI-75)", () => {
       amountReceived: await totalOf(orderId),
     });
 
-    expect(result).toEqual({ completed: true, cartId });
+    expect(result).toEqual({ completed: true, cartId, userId: expect.any(String) });
     expect(await getInventoryTask(`${reservationId}-confirm`)).toMatchObject({ status: "DONE", orderId });
     expect((await reservationDoc(reservationId)).status).toBe("CONFIRMED");
     expect(await stockOf(id)).toBe(8);

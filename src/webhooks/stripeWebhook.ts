@@ -4,6 +4,7 @@ import stripeClient from "#src/config/stripe";
 import env from "#src/config/env";
 import { getOrders, markOrderComplete } from "#src/db/index";
 import { markEventProcessed, unmarkEventProcessed } from "#src/db/webhookEvents";
+import { notifyOrderCompleted, notifyPaymentFailed } from "#src/services/pushService";
 import { logger } from "#src/utils/logger";
 
 // H11: payment used to be confirmed only client-side (the client claimed
@@ -61,6 +62,8 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             amount: paymentIntent.amount_received,
             currency: paymentIntent.currency.toUpperCase(),
           }));
+          // Never throws, so it can't undo the event above.
+          if (result.userId) await notifyOrderCompleted(result.userId, orderId);
         }
       }
     } else if (event.type === "payment_intent.payment_failed") {
@@ -70,8 +73,8 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
       const paymentIntent = event.data.object;
       const orderId = paymentIntent.metadata?.order_id;
       if (orderId) {
-        await logger.eventFrom("payment.failed", async () => {
-          const [order] = await getOrders({ id: orderId });
+        const [order] = await getOrders({ id: orderId });
+        await logger.eventFrom("payment.failed", () => {
           const lastError = paymentIntent.last_payment_error;
           return {
             orderId,
@@ -81,6 +84,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
             failureCode: lastError?.decline_code ?? lastError?.code ?? null,
           };
         });
+        if (order?.userId) await notifyPaymentFailed(order.userId, orderId);
       }
     }
   } catch (err) {
