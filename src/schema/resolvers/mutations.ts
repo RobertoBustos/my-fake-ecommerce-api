@@ -1,5 +1,6 @@
 import * as cartService from "#src/services/cartService";
 import * as orderService from "#src/services/orderService";
+import * as pushService from "#src/services/pushService";
 import type { MutationResolvers } from "#src/generated/graphql";
 
 // Mutations only delegate to services/, which own validation and business
@@ -20,4 +21,8 @@ export const Mutation: MutationResolvers = {
     orderService.cancelOrder(input, context.user.uid),
   createOrderPayment: async (_, { input }, context) =>
     orderService.createOrderPayment(input, context.user.uid),
+  registerPushToken: async (_, { input }, context) =>
+    pushService.registerPushToken(input, context.user.uid),
+  unregisterPushToken: async (_, { input }, context) =>
+    pushService.unregisterPushToken(input, context.user.uid),
 };
