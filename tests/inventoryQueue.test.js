@@ -14,6 +14,7 @@ import {
 import { firestoreCatalogSource as fs } from "../src/catalog/sources/firestore/adapter.js";
 import { getInventoryTask, queueInventoryTasks } from "../src/db/inventoryTasks.js";
 import { markOrderComplete } from "../src/db/orders.js";
+import { cancelAbandonedOrders } from "../src/db/abandonedOrders.js";
 import { sweepExpiredReservations } from "../src/db/reservationSweep.js";
 import { runTransaction } from "../src/db/transactions.js";
 import { logger } from "../src/utils/logger.js";
@@ -332,5 +333,74 @@ describe("the purchase saga through the queue (ECOMAPI-75)", () => {
     expect(await itemData(free.itemId)).toBeDefined();
     await run(REMOVE, { input: { id: free.itemId } });
     expect(await stockOf(id)).toBe(13);
+  });
+  describe("abandoned PAYMENT_PENDING orders", () => {
+    // The reservation expires 60 minutes after addToCart; the grace period
+    // is 24 hours after that.
+    const pastGrace = () => later(60 + 24 * 60 + 5);
+    const statusOf = async (orderId) => (await db.collection("orders").doc(orderId).get()).get("status");
+    const paymentStatus = (statuses) =>
+      payment.searchPayment.mockImplementation(async (_field, id) =>
+        statuses[id] ? { id, status: statuses[id] } : null
+      );
+
+    afterEach(() => {
+      payment.searchPayment.mockReset();
+      payment.searchPayment.mockResolvedValue(null);
+    });
+
+    it("keeps an order whose reservations expired less than the grace period ago", async () => {
+      const id = await newProduct(10);
+      const paying = await cartWith(id, 2);
+      const orderId = await order(paying.cartId, "PAYMENT_PENDING");
+
+      await cancelAbandonedOrders({ now: later(60 + 23 * 60) });
+
+      expect(await statusOf(orderId)).toBe("PAYMENT_PENDING");
+      expect((await reservationDoc(paying.reservationId)).status).toBe("HELD");
+      expect(await stockOf(id)).toBe(8);
+    });
+
+    it("cancels an order without a PaymentIntent once past the grace period and gives its units back", async () => {
+      const event = vi.spyOn(logger, "event");
+      const id = await newProduct(10);
+      const paying = await cartWith(id, 2);
+      const orderId = await order(paying.cartId, "PAYMENT_PENDING");
+
+      const result = await cancelAbandonedOrders({ now: pastGrace() });
+
+      expect(result.cancelled).toBeGreaterThanOrEqual(1);
+      expect(await statusOf(orderId)).toBe("CANCELLED");
+      expect((await reservationDoc(paying.reservationId)).status).toBe("RELEASED");
+      expect(await stockOf(id)).toBe(10);
+      expect(event).toHaveBeenCalledWith("order.abandoned", { orderId, cartId: paying.cartId });
+    });
+
+    it("cancels an order whose PaymentIntent was never charged, and its PaymentIntent too", async () => {
+      paymentStatus({ pi_abandoned_unpaid: "requires_payment_method" });
+      const id = await newProduct(10);
+      const paying = await cartWith(id, 3);
+      const orderId = await order(paying.cartId, "PAYMENT_PENDING", "pi_abandoned_unpaid");
+
+      await cancelAbandonedOrders({ now: pastGrace() });
+
+      expect(await statusOf(orderId)).toBe("CANCELLED");
+      expect(payment.cancelPayment).toHaveBeenCalledWith("pi_abandoned_unpaid");
+      expect(await stockOf(id)).toBe(10);
+    });
+
+    it("keeps an order whose payment is processing, for its webhook to complete", async () => {
+      paymentStatus({ pi_abandoned_processing: "processing" });
+      const id = await newProduct(10);
+      const paying = await cartWith(id, 4);
+      const orderId = await order(paying.cartId, "PAYMENT_PENDING", "pi_abandoned_processing");
+
+      const result = await cancelAbandonedOrders({ now: pastGrace() });
+
+      expect(result.keptPaid).toBeGreaterThanOrEqual(1);
+      expect(await statusOf(orderId)).toBe("PAYMENT_PENDING");
+      expect((await reservationDoc(paying.reservationId)).status).toBe("HELD");
+      expect(await stockOf(id)).toBe(6);
+    });
   });
 });

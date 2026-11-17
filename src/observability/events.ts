@@ -23,6 +23,8 @@ export const EVENTS = {
   // Customer and address are complete: the order can be paid.
   "order.ready_to_pay": ["orderId", "cartId"],
   "order.cancelled": ["orderId", "cartId"],
+  // Cancelled by the inventory job: its checkout was left halfway.
+  "order.abandoned": ["orderId", "cartId"],
   "payment.intent_created": ["orderId", "cartId", "amount", "currency"],
   // Prices changed since the items were added; nothing was charged.
   "payment.repriced": ["orderId", "cartId", "changedItems"],
