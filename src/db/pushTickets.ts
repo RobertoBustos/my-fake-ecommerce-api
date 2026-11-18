@@ -1,3 +1,4 @@
+import { FieldPath, type Timestamp } from "firebase-admin/firestore";
 import db from "#src/config/firestore";
 
 // pushTickets/{Expo ticket id}: a notification Expo accepted, kept until the
@@ -25,5 +26,36 @@ export const savePushTickets = async (
     const ticket: PushTicket = { token, uid, createdAt: now, expiresAt: new Date(now.getTime() + TICKET_TTL_MS) };
     batch.set(db.collection(COLLECTION).doc(ticketId), ticket);
   }
+  await batch.commit();
+};
+
+// A page of the tickets sent at or before cutoff, oldest first. after is
+// the last ticket of the previous page: tickets whose receipt isn't ready
+// stay in the collection, so the next page starts after them.
+export const listPushTicketsSentBefore = async (
+  cutoff: Date,
+  { limit, after }: { limit: number; after?: { ticketId: string; createdAt: Date } }
+): Promise<({ ticketId: string } & PushTicket)[]> => {
+  let query = db
+    .collection(COLLECTION)
+    .where("createdAt", "<=", cutoff)
+    .orderBy("createdAt")
+    .orderBy(FieldPath.documentId())
+    .limit(limit);
+  if (after) query = query.startAfter(after.createdAt, after.ticketId);
+  const snapshot = await query.get();
+  return snapshot.docs.map((doc) => ({
+    ticketId: doc.id,
+    token: doc.get("token") as string,
+    uid: doc.get("uid") as string,
+    createdAt: (doc.get("createdAt") as Timestamp).toDate(),
+    expiresAt: (doc.get("expiresAt") as Timestamp).toDate(),
+  }));
+};
+
+export const deletePushTickets = async (ticketIds: string[]): Promise<void> => {
+  if (ticketIds.length === 0) return;
+  const batch = db.batch();
+  for (const ticketId of ticketIds) batch.delete(db.collection(COLLECTION).doc(ticketId));
   await batch.commit();
 };
