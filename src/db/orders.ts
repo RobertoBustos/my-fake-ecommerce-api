@@ -313,14 +313,17 @@ export const deleteOrder = async (id: string): Promise<void> => {
 // created would otherwise ship unpaid. Completing it queues the confirm of
 // every reservation in the same transaction; they run after the commit and,
 // if a source is down, from the inventory job. Returns { completed, reason }
-// and, when this call is the one that completed it, the order's cartId.
+// and, when this call is the one that completed it, the order's cartId and
+// userId.
 export const markOrderComplete = async (
   id: string,
   { paymentIntentId, amountReceived }: { paymentIntentId?: string; amountReceived?: number } = {}
-): Promise<{ completed: boolean; reason?: string; cartId?: string }> => {
+): Promise<{ completed: boolean; reason?: string; cartId?: string; userId?: string | null }> => {
   const docRef = db.collection(COLLECTION).doc(id);
   const result = await runTransaction(
-    async (tx): Promise<{ completed: boolean; reason?: string; taskIds?: string[]; cartId?: string }> => {
+    async (
+      tx
+    ): Promise<{ completed: boolean; reason?: string; taskIds?: string[]; cartId?: string; userId?: string | null }> => {
       const doc = await tx.get(docRef);
       if (!doc.exists) {
         return { completed: false, reason: "order not found" };
@@ -352,7 +355,7 @@ export const markOrderComplete = async (
         cartItems.flatMap((item) => confirmTasks(item, id))
       );
       tx.update(docRef, { status: "COMPLETE" });
-      return { completed: true, taskIds, cartId: order.cart };
+      return { completed: true, taskIds, cartId: order.cart, userId: order.userId };
     }
   );
   // A confirm that fails never undoes the order: the money was charged.
@@ -362,6 +365,6 @@ export const markOrderComplete = async (
   return {
     completed: result.completed,
     ...(result.reason ? { reason: result.reason } : {}),
-    ...(result.cartId ? { cartId: result.cartId } : {}),
+    ...(result.cartId ? { cartId: result.cartId, userId: result.userId ?? null } : {}),
   };
 };

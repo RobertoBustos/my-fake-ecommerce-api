@@ -6,6 +6,46 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-17
+
+Sprint 10: push notifications for the mobile app, plus two fixes found while
+testing it. **Only additions for clients:** the new `registerPushToken` and
+`unregisterPushToken` mutations; the rest of the schema is the same as in
+v1.8.0. One error changes: see `mergeAnonymousCart` below.
+
+### Added
+
+- `registerPushToken` saves the Expo push token of an app install under the
+  signed-in user (the app calls it on every start); a token already saved
+  under another user moves to this one, so a phone only gets the
+  notifications of whoever is signed in on it. `unregisterPushToken` deletes
+  it on sign-out, and answers `NOT_FOUND` for a token that isn't the caller's.
+- Push notifications from the Stripe webhook: "Order confirmed" when a payment
+  completes an order (once, even if Stripe repeats the event) and "Payment
+  failed" when a card is declined, to every device of the order's owner, with
+  `data.type`, `data.orderId` and `data.url` (`myapp://orders/<id>`). A push
+  that fails is logged and never changes the answer to Stripe.
+- The `check-push-receipts` job (every 30 minutes) reads Expo's receipts for
+  the notifications sent, deletes the tokens of apps that were uninstalled
+  (`DeviceNotRegistered`) and logs any other delivery error.
+
+### Changed
+
+- `process-inventory` cancels the `PAYMENT_PENDING` orders whose checkout was
+  left halfway: once every reservation expired more than
+  `ABANDONED_ORDER_GRACE_HOURS` ago (24 by default), the order is cancelled,
+  its PaymentIntent too if nothing was charged, and its stock goes back. An
+  order whose payment is processing or succeeded is left for the webhook. The
+  job now needs `STRIPE_SECRET_KEY`, added to it before this release.
+- `mergeAnonymousCart` only answers `UNAUTHENTICATED` (`invalidArgument:
+  "anonymousIdToken"`) when the anonymous token itself is invalid, expired,
+  revoked or its user deleted or disabled. A failure on the server's side
+  (Firebase Auth permissions, network) is now `INTERNAL_SERVER_ERROR` and is
+  logged with its code, instead of blaming the client's token.
+- The API needs the `EXPO_ACCESS_TOKEN` secret (`expo-access-token` in Secret
+  Manager), and the `pushTickets` collection has a TTL on `expiresAt`; both
+  were set up before this release.
+
 ## [1.8.0] - 2026-11-06
 
 Sprint 9: what the API needs to connect with the mobile app, which is used
@@ -585,6 +625,7 @@ against N+1 queries, and edge-level error handling.
 - The API requires Firestore (emulator or a real project) instead of local
   JSON files.
 
+[1.9.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/RobertoBustos/my-fake-ecommerce-api/compare/v1.6.0...v1.7.0

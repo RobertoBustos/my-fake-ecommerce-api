@@ -5,7 +5,11 @@ vi.mock("firebase-admin/auth", () => ({
   getAuth: () => ({ verifyIdToken: verifyIdTokenMock }),
 }));
 
+import { GraphQLError } from "graphql";
 import { verifyAnonymousIdToken, verifyIdToken } from "../src/auth/verifyIdToken.js";
+
+// firebase-admin's errors carry their code as "auth/<name>".
+const firebaseError = (code) => Object.assign(new Error(`Firebase: ${code}`), { code });
 
 describe("verifyIdToken", () => {
   it("without an authorization header returns UNAUTHENTICATED", async () => {
@@ -49,9 +53,38 @@ describe("verifyAnonymousIdToken", () => {
   });
 
   it("answers UNAUTHENTICATED without an http status, so the caller's session isn't blamed", async () => {
-    verifyIdTokenMock.mockRejectedValueOnce(new Error("user not found"));
+    verifyIdTokenMock.mockRejectedValueOnce(firebaseError("auth/user-not-found"));
     const error = await verifyAnonymousIdToken("bad-token").catch((err) => err);
     expect(error.extensions).toEqual({ code: "UNAUTHENTICATED", invalidArgument: "anonymousIdToken" });
+  });
+
+  it.each(["auth/argument-error", "auth/id-token-expired", "auth/id-token-revoked", "auth/user-disabled"])(
+    "answers UNAUTHENTICATED for a token refused with %s",
+    async (code) => {
+      verifyIdTokenMock.mockRejectedValueOnce(firebaseError(code));
+      await expect(verifyAnonymousIdToken("bad-token")).rejects.toMatchObject({
+        extensions: { code: "UNAUTHENTICATED", invalidArgument: "anonymousIdToken" },
+      });
+    }
+  );
+
+  it.each(["auth/insufficient-permission", "auth/internal-error"])(
+    "answers an internal error naming the code when verification fails with %s",
+    async (code) => {
+      const cause = firebaseError(code);
+      verifyIdTokenMock.mockRejectedValueOnce(cause);
+      const error = await verifyAnonymousIdToken("anon-token").catch((err) => err);
+      expect(error).not.toBeInstanceOf(GraphQLError);
+      expect(error.message).toContain(code);
+      expect(error.cause).toBe(cause);
+    }
+  );
+
+  it("answers an internal error for a failure without a code, such as the network", async () => {
+    verifyIdTokenMock.mockRejectedValueOnce(new Error("socket hang up"));
+    const error = await verifyAnonymousIdToken("anon-token").catch((err) => err);
+    expect(error).not.toBeInstanceOf(GraphQLError);
+    expect(error.message).toContain("no code");
   });
 
   it("answers BAD_USER_INPUT for an account with an email", async () => {

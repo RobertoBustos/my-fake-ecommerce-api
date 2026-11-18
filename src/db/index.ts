@@ -33,6 +33,8 @@ import {
   searchPayment,
   searchPaymentMethod,
 } from "./payment.ts";
+import { savePushTickets } from "./pushTickets.ts";
+import { deletePushTokens, listPushTokens, registerPushToken, unregisterPushToken } from "./pushTokens.ts";
 import { TransactionContentionError } from "./transactions.ts";
 
 export {
@@ -43,12 +45,14 @@ export {
   cancelPayment,
   createOrder,
   createPayment,
+  deletePushTokens,
   getCart,
   getFreeCartItems,
   listCartItemsWithoutOrder,
   getCustomer,
   listIncompleteOrders,
   listOrders,
+  listPushTokens,
   getOrderTotals,
   getOrders,
   InsufficientStockError,
@@ -58,12 +62,15 @@ export {
   OrderAlreadyCompleteError,
   OrderClosedError,
   OrderItemLockedError,
+  registerPushToken,
   removeFromCart,
   repriceOrderItems,
+  savePushTickets,
   searchPayment,
   searchPaymentMethod,
   setOrderPayment,
   TransactionContentionError,
+  unregisterPushToken,
   updateCartItems,
   updateOrder,
 };

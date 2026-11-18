@@ -176,7 +176,11 @@ export type Mutation = {
   createOrder: CreateOrderResponse;
   createOrderPayment: CreateOrderPaymentResponse;
   mergeAnonymousCart: MergeAnonymousCartResponse;
+  /** Saves the device's push token under the signed-in user. Safe to call on every app start; a token registered by another user moves to this one. */
+  registerPushToken: RegisterPushTokenResponse;
   removeFromCart: RemoveFromCartResponse;
+  /** Deletes one of the signed-in user's push tokens; call it before signing out. */
+  unregisterPushToken: UnregisterPushTokenResponse;
   updateOrder: UpdateOrderResponse;
 };
 
@@ -206,8 +210,18 @@ export type MutationMergeAnonymousCartArgs = {
 };
 
 
+export type MutationRegisterPushTokenArgs = {
+  input: RegisterPushToken;
+};
+
+
 export type MutationRemoveFromCartArgs = {
   input: RemoveFromCart;
+};
+
+
+export type MutationUnregisterPushTokenArgs = {
+  input: UnregisterPushToken;
 };
 
 
@@ -344,6 +358,10 @@ export type PurchaseLimit = {
   min: Scalars['Int']['output'];
 };
 
+export type PushPlatform =
+  | 'ANDROID'
+  | 'IOS';
+
 export type Query = {
   __typename?: 'Query';
   carts: CartItemConnection;
@@ -404,6 +422,19 @@ export type Rating = {
   rate: Scalars['Float']['output'];
 };
 
+export type RegisterPushToken = {
+  platform: PushPlatform;
+  /** Expo push token of the device, ExponentPushToken[...]. */
+  token: Scalars['String']['input'];
+};
+
+export type RegisterPushTokenResponse = MutationResponse & {
+  __typename?: 'RegisterPushTokenResponse';
+  code: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  success: Scalars['Boolean']['output'];
+};
+
 /** Units that didn't fit within the product's purchase limit and went back to stock. */
 export type ReleasedCartUnits = {
   __typename?: 'ReleasedCartUnits';
@@ -438,6 +469,17 @@ export type Totals = {
   taxes: Scalars['Int']['output'];
   total: Scalars['Int']['output'];
   units: Scalars['Int']['output'];
+};
+
+export type UnregisterPushToken = {
+  token: Scalars['String']['input'];
+};
+
+export type UnregisterPushTokenResponse = MutationResponse & {
+  __typename?: 'UnregisterPushTokenResponse';
+  code: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  success: Scalars['Boolean']['output'];
 };
 
 export type UpdateOrder = {
@@ -532,7 +574,9 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( CreateOrderPaymentResponse )
     | ( Omit<CreateOrderResponse, 'data'> & { data: _RefType['Order'] } )
     | ( Omit<MergeAnonymousCartResponse, 'data'> & { data: Array<_RefType['CartItem']> } )
+    | ( RegisterPushTokenResponse )
     | ( RemoveFromCartResponse )
+    | ( UnregisterPushTokenResponse )
     | ( Omit<UpdateOrderResponse, 'data'> & { data?: Maybe<_RefType['Order']> } )
   ;
 };
@@ -581,14 +625,19 @@ export type ResolversTypes = {
   ProductSearchConnection: ResolverTypeWrapper<Omit<ProductSearchConnection, 'edges'> & { edges: Array<ResolversTypes['ProductEdge']> }>;
   ProductSort: ProductSort;
   PurchaseLimit: ResolverTypeWrapper<PurchaseLimit>;
+  PushPlatform: PushPlatform;
   Query: ResolverTypeWrapper<Record<PropertyKey, never>>;
   Rating: ResolverTypeWrapper<Rating>;
+  RegisterPushToken: RegisterPushToken;
+  RegisterPushTokenResponse: ResolverTypeWrapper<RegisterPushTokenResponse>;
   ReleasedCartUnits: ResolverTypeWrapper<ReleasedCartUnits>;
   RemoveFromCart: RemoveFromCart;
   RemoveFromCartResponse: ResolverTypeWrapper<RemoveFromCartResponse>;
   Status: Status;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
   Totals: ResolverTypeWrapper<Totals>;
+  UnregisterPushToken: UnregisterPushToken;
+  UnregisterPushTokenResponse: ResolverTypeWrapper<UnregisterPushTokenResponse>;
   UpdateOrder: UpdateOrder;
   UpdateOrderResponse: ResolverTypeWrapper<Omit<UpdateOrderResponse, 'data'> & { data?: Maybe<ResolversTypes['Order']> }>;
 };
@@ -638,11 +687,15 @@ export type ResolversParentTypes = {
   PurchaseLimit: PurchaseLimit;
   Query: Record<PropertyKey, never>;
   Rating: Rating;
+  RegisterPushToken: RegisterPushToken;
+  RegisterPushTokenResponse: RegisterPushTokenResponse;
   ReleasedCartUnits: ReleasedCartUnits;
   RemoveFromCart: RemoveFromCart;
   RemoveFromCartResponse: RemoveFromCartResponse;
   String: Scalars['String']['output'];
   Totals: Totals;
+  UnregisterPushToken: UnregisterPushToken;
+  UnregisterPushTokenResponse: UnregisterPushTokenResponse;
   UpdateOrder: UpdateOrder;
   UpdateOrderResponse: Omit<UpdateOrderResponse, 'data'> & { data?: Maybe<ResolversParentTypes['Order']> };
 };
@@ -749,12 +802,14 @@ export type MutationResolvers<ContextType = Context, ParentType extends Resolver
   createOrder?: Resolver<ResolversTypes['CreateOrderResponse'], ParentType, ContextType, RequireFields<MutationCreateOrderArgs, 'input'>>;
   createOrderPayment?: Resolver<ResolversTypes['CreateOrderPaymentResponse'], ParentType, ContextType, RequireFields<MutationCreateOrderPaymentArgs, 'input'>>;
   mergeAnonymousCart?: Resolver<ResolversTypes['MergeAnonymousCartResponse'], ParentType, ContextType, RequireFields<MutationMergeAnonymousCartArgs, 'input'>>;
+  registerPushToken?: Resolver<ResolversTypes['RegisterPushTokenResponse'], ParentType, ContextType, RequireFields<MutationRegisterPushTokenArgs, 'input'>>;
   removeFromCart?: Resolver<ResolversTypes['RemoveFromCartResponse'], ParentType, ContextType, RequireFields<MutationRemoveFromCartArgs, 'input'>>;
+  unregisterPushToken?: Resolver<ResolversTypes['UnregisterPushTokenResponse'], ParentType, ContextType, RequireFields<MutationUnregisterPushTokenArgs, 'input'>>;
   updateOrder?: Resolver<ResolversTypes['UpdateOrderResponse'], ParentType, ContextType, RequireFields<MutationUpdateOrderArgs, 'input'>>;
 };
 
 export type MutationResponseResolvers<ContextType = Context, ParentType extends ResolversParentTypes['MutationResponse'] = ResolversParentTypes['MutationResponse']> = {
-  __resolveType: TypeResolveFn<'AddToCartResponse' | 'CancelOrderResponse' | 'CreateOrderPaymentResponse' | 'CreateOrderResponse' | 'MergeAnonymousCartResponse' | 'RemoveFromCartResponse' | 'UpdateOrderResponse', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'AddToCartResponse' | 'CancelOrderResponse' | 'CreateOrderPaymentResponse' | 'CreateOrderResponse' | 'MergeAnonymousCartResponse' | 'RegisterPushTokenResponse' | 'RemoveFromCartResponse' | 'UnregisterPushTokenResponse' | 'UpdateOrderResponse', ParentType, ContextType>;
 };
 
 export type OrderResolvers<ContextType = Context, ParentType extends ResolversParentTypes['Order'] = ResolversParentTypes['Order']> = {
@@ -862,6 +917,13 @@ export type RatingResolvers<ContextType = Context, ParentType extends ResolversP
   rate?: Resolver<ResolversTypes['Float'], ParentType, ContextType>;
 };
 
+export type RegisterPushTokenResponseResolvers<ContextType = Context, ParentType extends ResolversParentTypes['RegisterPushTokenResponse'] = ResolversParentTypes['RegisterPushTokenResponse']> = {
+  code?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  message?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
 export type ReleasedCartUnitsResolvers<ContextType = Context, ParentType extends ResolversParentTypes['ReleasedCartUnits'] = ResolversParentTypes['ReleasedCartUnits']> = {
   productId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   quantity?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
@@ -882,6 +944,13 @@ export type TotalsResolvers<ContextType = Context, ParentType extends ResolversP
   taxes?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   total?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   units?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type UnregisterPushTokenResponseResolvers<ContextType = Context, ParentType extends ResolversParentTypes['UnregisterPushTokenResponse'] = ResolversParentTypes['UnregisterPushTokenResponse']> = {
+  code?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  message?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  success?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type UpdateOrderResponseResolvers<ContextType = Context, ParentType extends ResolversParentTypes['UpdateOrderResponse'] = ResolversParentTypes['UpdateOrderResponse']> = {
@@ -924,9 +993,11 @@ export type Resolvers<ContextType = Context> = {
   PurchaseLimit?: PurchaseLimitResolvers<ContextType>;
   Query?: QueryResolvers<ContextType>;
   Rating?: RatingResolvers<ContextType>;
+  RegisterPushTokenResponse?: RegisterPushTokenResponseResolvers<ContextType>;
   ReleasedCartUnits?: ReleasedCartUnitsResolvers<ContextType>;
   RemoveFromCartResponse?: RemoveFromCartResponseResolvers<ContextType>;
   Totals?: TotalsResolvers<ContextType>;
+  UnregisterPushTokenResponse?: UnregisterPushTokenResponseResolvers<ContextType>;
   UpdateOrderResponse?: UpdateOrderResponseResolvers<ContextType>;
 };
 

@@ -10,6 +10,7 @@ import {
   checkCreateOrderPayment,
   checkUpdateOrder,
 } from "./orderValidators.ts";
+import { checkRegisterPushToken, checkUnregisterPushToken } from "./pushValidators.ts";
 import { checkSearchProducts, SEARCH_DEFAULT_PAGE_SIZE, SEARCH_MAX_PAGE_SIZE } from "./searchValidators.ts";
 
 export type { AddToCartInput, RemoveFromCartInput } from "./cartValidations.ts";
@@ -26,8 +27,10 @@ export {
   checkCreateOrder,
   checkCreateOrderPayment,
   checkMergeAnonymousCart,
+  checkRegisterPushToken,
   checkRemoveFromCart,
   checkSearchProducts,
+  checkUnregisterPushToken,
   checkUpdateOrder,
   SEARCH_DEFAULT_PAGE_SIZE,
   SEARCH_MAX_PAGE_SIZE,
