@@ -33,6 +33,7 @@
     "inventory:process": "tsx src/jobs/processInventory.ts",
     "inventory:retry": "tsx scripts/retryInventoryTask.ts",
     "catalog:sync": "tsx src/jobs/syncCatalog.ts",
+    "push:receipts": "tsx src/jobs/checkPushReceipts.ts",
     "search:configure": "tsx scripts/configureSearchIndex.ts",
     "test:search:algolia": "vitest run --config tests/contract/vitest.hosted.config.ts"
   },
