@@ -6,6 +6,14 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `check-push-receipts` runs every hour instead of every 30 minutes, to keep
+  the scheduled jobs' CPU close to Cloud Run's free tier (its first run took
+  about 90 s). Expo keeps a receipt for 24 hours, so nothing is lost. The
+  schedule is configuration and was applied on Nov 17, 2026, right after the
+  v1.9.0 deploy; the v1.9.0 entry below still says every 30 minutes.
+
 ## [1.9.0] - 2026-11-17
 
 Sprint 10: push notifications for the mobile app, plus two fixes found while
