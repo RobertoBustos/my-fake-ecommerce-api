@@ -125,3 +125,15 @@ export const notifyPaymentFailed = (uid: string, orderId: string) =>
     body: "Your card was declined. Try again from the app.",
     data: { type: "payment_failed", orderId, url: orderUrl(orderId) },
   });
+
+// Only when the inventory job cancels an order left unpaid; an order the
+// user cancels from the app gets no push. An order without a user (created
+// before sign-in was required) has nobody to tell.
+export const notifyOrderCancelled = async (order: { id: string; userId: string | null }) => {
+  if (!order.userId) return;
+  await notifyUser(order.userId, {
+    title: "Order cancelled",
+    body: "Your order expired before it was paid.",
+    data: { type: "order_cancelled", orderId: order.id, url: orderUrl(order.id) },
+  });
+};

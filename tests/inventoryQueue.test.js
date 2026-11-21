@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterAll, afterEach, beforeEach } from "vitest";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { ApolloServer } from "@apollo/server";
 import typeDefs from "../src/schema/typeDefs/index.js";
 import resolvers from "../src/schema/resolvers.js";
@@ -13,7 +13,9 @@ import {
 } from "../src/catalog/inventoryQueue.js";
 import { firestoreCatalogSource as fs } from "../src/catalog/sources/firestore/adapter.js";
 import { getInventoryTask, queueInventoryTasks } from "../src/db/inventoryTasks.js";
-import { markOrderComplete } from "../src/db/orders.js";
+import { cancelOrderOutcome, markOrderComplete } from "../src/db/orders.js";
+import { registerPushToken } from "../src/db/pushTokens.js";
+import { notifyOrderCancelled } from "../src/services/pushService.js";
 import { cancelAbandonedOrders } from "../src/db/abandonedOrders.js";
 import { sweepExpiredReservations } from "../src/db/reservationSweep.js";
 import { runTransaction } from "../src/db/transactions.js";
@@ -47,6 +49,15 @@ const { payment, flaky } = vi.hoisted(() => ({
   },
 }));
 vi.mock("../src/db/payment.js", () => payment);
+// The real client, so messages are chunked as in production; only the send
+// to Expo's servers is simulated.
+vi.mock("../src/config/expo.js", async () => {
+  const { Expo } = await import("expo-server-sdk");
+  const client = new Expo();
+  client.sendPushNotificationsAsync = vi.fn();
+  return { default: client };
+});
+const expoClient = (await import("../src/config/expo.js")).default;
 vi.mock("../src/catalog/registry.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -401,6 +412,134 @@ describe("the purchase saga through the queue (ECOMAPI-75)", () => {
       expect(await statusOf(orderId)).toBe("PAYMENT_PENDING");
       expect((await reservationDoc(paying.reservationId)).status).toBe("HELD");
       expect(await stockOf(id)).toBe(6);
+    });
+    describe("push to the order's user", () => {
+      const tokens = [];
+      const okTickets = (messages) => messages.map(() => ({ status: "ok", id: `ticket-${randomUUID()}` }));
+      // Messages about one order: the sweep may also cancel other tests' orders.
+      const sentFor = (orderId) =>
+        expoClient.sendPushNotificationsAsync.mock.calls
+          .flatMap(([messages]) => messages)
+          .filter((message) => message.data.orderId === orderId);
+      // An abandoned order of a user of its own, with `devices` signed-in devices.
+      const abandonedOrder = async ({ devices = 0, userId = `abandoned-${randomUUID()}` } = {}) => {
+        const id = await newProduct(10);
+        const paying = await cartWith(id, 1);
+        const orderId = await order(paying.cartId, "PAYMENT_PENDING");
+        await db.collection("orders").doc(orderId).update({ userId });
+        const deviceTokens = [];
+        for (let i = 0; i < devices; i++) {
+          const token = `ExponentPushToken[${randomUUID()}]`;
+          tokens.push(token);
+          deviceTokens.push(token);
+          await registerPushToken({ token, platform: "ANDROID" }, userId);
+        }
+        return { orderId, deviceTokens };
+      };
+
+      beforeEach(() => {
+        expoClient.sendPushNotificationsAsync.mockImplementation(async (messages) => okTickets(messages));
+      });
+      afterEach(() => {
+        vi.restoreAllMocks();
+        expoClient.sendPushNotificationsAsync.mockReset();
+      });
+      afterAll(async () => {
+        await Promise.all(
+          tokens.map((token) => db.collection("pushTokens").doc(createHash("sha256").update(token).digest("hex")).delete())
+        );
+        const tickets = await db.collection("pushTickets").get();
+        await Promise.all(tickets.docs.filter((doc) => tokens.includes(doc.get("token"))).map((doc) => doc.ref.delete()));
+      });
+
+      it("tells every device of the user that the order was cancelled", async () => {
+        const { orderId, deviceTokens } = await abandonedOrder({ devices: 2 });
+
+        await cancelAbandonedOrders({ now: pastGrace(), onCancelled: notifyOrderCancelled });
+
+        expect(await statusOf(orderId)).toBe("CANCELLED");
+        const sent = sentFor(orderId);
+        expect(sent.map((message) => message.to).sort()).toEqual([...deviceTokens].sort());
+        for (const message of sent) {
+          expect(message).toMatchObject({
+            title: "Order cancelled",
+            body: "Your order expired before it was paid.",
+            data: { type: "order_cancelled", orderId, url: `myapp://orders/${orderId}` },
+            channelId: "orders",
+          });
+        }
+      });
+
+      it("sends nothing to a user without devices, or for an order without a user", async () => {
+        const withoutDevices = await abandonedOrder();
+        const withoutUser = await abandonedOrder({ userId: null });
+
+        await cancelAbandonedOrders({ now: pastGrace(), onCancelled: notifyOrderCancelled });
+
+        expect(await statusOf(withoutDevices.orderId)).toBe("CANCELLED");
+        expect(await statusOf(withoutUser.orderId)).toBe("CANCELLED");
+        expect(sentFor(withoutDevices.orderId)).toEqual([]);
+        expect(sentFor(withoutUser.orderId)).toEqual([]);
+      });
+
+      it("sends nothing when the user cancels the order from the app", async () => {
+        const { orderId } = await abandonedOrder({ devices: 1 });
+        const userId = (await db.collection("orders").doc(orderId).get()).get("userId");
+
+        const response = await new ApolloServer({ typeDefs, resolvers }).executeOperation(
+          { query: `mutation ($input: CancelOrder!) { cancelOrder(input: $input) { success } }`, variables: { input: { id: orderId } } },
+          { contextValue: { user: { uid: userId }, loaders: createLoaders() } }
+        );
+
+        expect(response.body.singleResult.data.cancelOrder.success).toBe(true);
+        expect(await statusOf(orderId)).toBe("CANCELLED");
+        expect(expoClient.sendPushNotificationsAsync).not.toHaveBeenCalled();
+      });
+
+      it("tells its own cancellation apart from an earlier one, so a push goes only for the sweep's own", async () => {
+        const { orderId } = await abandonedOrder();
+
+        expect(await cancelOrderOutcome({ id: orderId })).toBe("cancelled");
+        expect(await cancelOrderOutcome({ id: orderId })).toBe("alreadyCancelled");
+        expect(await cancelOrderOutcome({ id: `missing-${randomUUID()}` })).toBe("notFound");
+      });
+
+      it("keeps sweeping when Expo is down, and logs the failure without the token", async () => {
+        expoClient.sendPushNotificationsAsync.mockRejectedValue(new Error("connect ECONNREFUSED"));
+        const error = vi.spyOn(logger, "error");
+        const first = await abandonedOrder({ devices: 1 });
+        const second = await abandonedOrder({ devices: 1 });
+
+        await cancelAbandonedOrders({ now: pastGrace(), onCancelled: notifyOrderCancelled });
+
+        expect(await statusOf(first.orderId)).toBe("CANCELLED");
+        expect(await statusOf(second.orderId)).toBe("CANCELLED");
+        expect(error).toHaveBeenCalledWith("Push notification failed", {
+          type: "order_cancelled",
+          error: "connect ECONNREFUSED",
+        });
+        expect(JSON.stringify(error.mock.calls)).not.toContain(first.deviceTokens[0]);
+      });
+
+      it("keeps sweeping when the callback itself throws", async () => {
+        const first = await abandonedOrder();
+        const second = await abandonedOrder();
+        const error = vi.spyOn(logger, "error");
+
+        await cancelAbandonedOrders({
+          now: pastGrace(),
+          onCancelled: async () => {
+            throw new Error("callback broke");
+          },
+        });
+
+        expect(await statusOf(first.orderId)).toBe("CANCELLED");
+        expect(await statusOf(second.orderId)).toBe("CANCELLED");
+        expect(error).toHaveBeenCalledWith("Abandoned order callback failed", {
+          orderId: first.orderId,
+          error: "callback broke",
+        });
+      });
     });
   });
 });

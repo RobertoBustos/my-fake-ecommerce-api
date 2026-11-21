@@ -311,10 +311,19 @@ one `gcloud run services update`, in the Runbook ("Un cliente en bucle").
 
 The app registers its Expo push token with `registerPushToken` on every start
 and deletes it with `unregisterPushToken` on sign-out; a token belongs to
-whoever is signed in on the device. The webhook sends the notifications
-through Expo's push service (`expo-server-sdk`, with `EXPO_ACCESS_TOKEN`; the
-APNs and FCM credentials live in EAS, never in the API). A notification that
-fails is logged and never changes the webhook's answer to Stripe.
+whoever is signed in on the device. Notifications go through Expo's push
+service (`expo-server-sdk`, with `EXPO_ACCESS_TOKEN`; the APNs and FCM
+credentials live in EAS, never in the API):
+
+| `data.type` | Sent by | When |
+|---|---|---|
+| `order_completed` | Stripe webhook | The payment went through |
+| `payment_failed` | Stripe webhook | The card was declined |
+| `order_cancelled` | `process-inventory` job | The job cancelled an order left unpaid (not when the user cancels it) |
+
+Each carries `orderId` and `url` (`myapp://orders/<orderId>`). A notification
+that fails is logged and never changes the webhook's answer to Stripe nor
+stops the job's sweep.
 
 Expo answers each send with a ticket, kept in `pushTickets` (with a TTL of two
 days). The `check-push-receipts` job reads each ticket's receipt about 15
@@ -342,7 +351,9 @@ their units, except for orders that are `PAYMENT_PENDING` or `COMPLETE`. A
 reservation expired more than `ABANDONED_ORDER_GRACE_HOURS` ago (24 by
 default): its PaymentIntent is cancelled too if nothing was charged, and its
 stock goes back. An order whose payment is processing or succeeded is left for
-the webhook. That step talks to Stripe, so the job needs `STRIPE_SECRET_KEY`.
+the webhook. That step talks to Stripe, so the job needs `STRIPE_SECRET_KEY`;
+it also tells the order's user with a push, so it needs `EXPO_ACCESS_TOKEN`
+too.
 
 ```bash
 npm run inventory:process              # one pass of the job: sweep, cancel abandoned orders, run due tasks

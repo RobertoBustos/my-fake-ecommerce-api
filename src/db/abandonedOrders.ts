@@ -3,7 +3,7 @@ import db from "#src/config/firestore";
 import type { CartItem, Order } from "#src/types/models";
 import { logger } from "#src/utils/logger";
 import { getCart } from "./cart.ts";
-import { cancelOrder, OrderAlreadyCompleteError } from "./orders.ts";
+import { cancelOrderOutcome, OrderAlreadyCompleteError } from "./orders.ts";
 
 // The sweep never releases the units of a PAYMENT_PENDING order, because a
 // payment may be on its way. Nothing else ends an order whose checkout was
@@ -14,6 +14,9 @@ import { cancelOrder, OrderAlreadyCompleteError } from "./orders.ts";
 // succeeded keeps the order, which waits for its webhook. Otherwise the
 // order is cancelled, its units released and its PaymentIntent cancelled;
 // a payment that still arrives is refused by the webhook and logged.
+// onCancelled runs for each order this sweep cancelled (not one already
+// cancelled, say by its user meanwhile); the job sends the push from it. It
+// can't stop the sweep: a failure is logged and the next order goes on.
 
 // Must match COLLECTION in db/orders.ts.
 const ORDERS_COLLECTION = "orders";
@@ -36,7 +39,10 @@ const isAbandoned = (items: CartItem[], cutoff: Date) => {
   );
 };
 
-export const cancelAbandonedOrders = async ({ now = new Date() }: { now?: Date } = {}) => {
+export const cancelAbandonedOrders = async ({
+  now = new Date(),
+  onCancelled,
+}: { now?: Date; onCancelled?: (order: Order) => Promise<void> } = {}) => {
   const cutoff = new Date(now.getTime() - abandonedOrderGraceMs());
   const counts = { cancelled: 0, keptPaid: 0 };
   let after: string | undefined;
@@ -52,11 +58,16 @@ export const cancelAbandonedOrders = async ({ now = new Date() }: { now?: Date }
       const order = { id: doc.id, ...doc.data() } as Order;
       if (!isAbandoned(await getCart({ orderId: order.id }), cutoff)) continue;
       try {
-        // false only if the order is gone, and true even if it was cancelled
-        // meanwhile; either way there is nothing left to hold.
-        if (await cancelOrder({ id: order.id })) {
+        // Gone, or cancelled meanwhile: either way nothing is left to hold.
+        const outcome = await cancelOrderOutcome({ id: order.id });
+        if (outcome !== "notFound") {
           counts.cancelled += 1;
           logger.event("order.abandoned", { orderId: order.id, cartId: order.cart });
+        }
+        if (outcome === "cancelled" && onCancelled) {
+          await onCancelled(order).catch((err: Error) =>
+            logger.error("Abandoned order callback failed", { orderId: order.id, error: err.message })
+          );
         }
       } catch (err) {
         if (!(err instanceof OrderAlreadyCompleteError)) throw err;
