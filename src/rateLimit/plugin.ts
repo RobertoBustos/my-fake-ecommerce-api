@@ -5,6 +5,7 @@ import type { Context } from "#src/context";
 import { rootFieldsOf } from "#src/observability/operationSummary";
 import { logger } from "#src/utils/logger";
 import { MAX_TRACKED_KEYS, OPERATION_CLASSES, REPLAY_MS, type OperationClassName } from "./limits.ts";
+import { EmergencyBrake } from "./emergencyBrake.ts";
 import { BoundedMap, RateLimiter } from "./limiter.ts";
 
 // How long a repeated request waits for the identical one already running
@@ -19,12 +20,11 @@ const CLASS_BY_FIELD = new Map<string, OperationClassName>(
 
 // The class a request is charged to: the most restrictive among its root
 // fields. Idempotent only if every root field is.
-const classify = (requestContext: GraphQLRequestContext<Context>) => {
-  const { operation, document } = requestContext;
-  if (!operation || !document || operation.operation !== "mutation") {
+const classify = (requestContext: GraphQLRequestContext<Context>, rootFields: Set<string>) => {
+  if (requestContext.operation?.operation !== "mutation") {
     return { operationClass: "query" as const, idempotent: false };
   }
-  const classes = [...rootFieldsOf(operation.selectionSet, document)].map(
+  const classes = [...rootFields].map(
     (field) => CLASS_BY_FIELD.get(field) ?? "mutation"
   );
   const operationClass = classes.reduce<OperationClassName>(
@@ -75,11 +75,27 @@ const replayOf = (result: FormattedExecutionResult) => ({
 // share one execution, and an idempotent one repeated within REPLAY_MS is
 // answered with the previous result. Only /graphql goes through Apollo: the
 // Stripe webhook and /healthcheck aren't limited.
-export const rateLimitPlugin = ({ limiter = new RateLimiter(), now = Date.now } = {}): ApolloServerPlugin<Context> => {
+// The emergency brake (emergencyBrake.ts) goes first, so a blocked request
+// isn't charged to any budget nor answered from a replay.
+export const rateLimitPlugin = ({
+  limiter = new RateLimiter(),
+  brake = EmergencyBrake.fromEnv(),
+  now = Date.now,
+} = {}): ApolloServerPlugin<Context> => {
   const inFlight = new Map<string, Promise<FormattedExecutionResult>>();
   const replays = new BoundedMap<string, { result: FormattedExecutionResult; until: number }>(MAX_TRACKED_KEYS);
 
   return {
+    async serverWillStart() {
+      if (brake.engaged) {
+        // Operation names aren't personal; uids are, so only their count.
+        logger.warn("Emergency brake engaged", {
+          blockedOperations: [...brake.blockedOperations],
+          blockedUids: brake.blockedUids.size,
+        });
+      }
+    },
+
     async requestDidStart() {
       let key: string | undefined;
       let idempotent = false;
@@ -88,7 +104,11 @@ export const rateLimitPlugin = ({ limiter = new RateLimiter(), now = Date.now } 
       return {
         async didResolveOperation(requestContext) {
           const { uid } = requestContext.contextValue.user;
-          const classified = classify(requestContext);
+          const { operation, document } = requestContext;
+          const rootFields = operation && document ? rootFieldsOf(operation.selectionSet, document) : new Set<string>();
+          const braked = brake.check({ uid, operationName: requestContext.operationName, rootFields });
+          if (braked) throw braked;
+          const classified = classify(requestContext, rootFields);
           idempotent = classified.idempotent;
           const decision = limiter.check({
             uid,

@@ -1,0 +1,10 @@
+{
+  "name": "rate_limited_requests",
+  "description": "GraphQL requests the rate limiter answered RATE_LIMITED (HTTP 429), from the operation summary log.",
+  "filter": "resource.type=\"cloud_run_revision\" AND jsonPayload.message=\"GraphQL operation\" AND jsonPayload.errorCodes=\"RATE_LIMITED\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1"
+  }
+}

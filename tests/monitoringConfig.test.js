@@ -122,11 +122,15 @@ describe("ops/monitoring/ config", () => {
       "api-down",
       "catalog-stale",
       "exchange-rate-unavailable",
+      "firestore-reads-high",
+      "firestore-writes-high",
       "http-5xx",
       "inventory-task-failed",
       "job-failed",
       "job-missing",
       "payment-not-applied",
+      "rate-limit-quarantine",
+      "rate-limited-requests",
       "search-engine-down",
       "search-index-unsynced",
       "slo-availability-burn",
@@ -149,11 +153,14 @@ describe("ops/monitoring/ config", () => {
   it("has a test log for every policy that a log can fire", () => {
     const { policies } = loadMonitoringConfig(ROOT);
     const withoutTest = Object.keys(policies).filter((id) => !policies[id].test);
-    // These watch Google's own metrics (5xx responses, uptime, job runs), an
-    // SLO's budget or the absence of a log, which no test log can produce.
+    // These watch Google's own metrics (5xx responses, uptime, job runs,
+    // Firestore usage), an SLO's budget or the absence of a log, which no test
+    // log can produce.
     expect(withoutTest.sort()).toEqual([
       "api-down",
       "catalog-stale",
+      "firestore-reads-high",
+      "firestore-writes-high",
       "http-5xx",
       "job-failed",
       "job-missing",
@@ -324,11 +331,13 @@ describe("applying the monitoring config", () => {
       "graphql_requests",
       "graphql_server_errors",
       "order_amounts",
+      "rate_limit_quarantines",
+      "rate_limited_requests",
       "search_engine_failures",
       "search_index_sync_failures",
       "search_requests",
     ]);
-    expect(api.state.policies).toHaveLength(14);
+    expect(api.state.policies).toHaveLength(18);
     for (const policy of api.state.policies) {
       expect(policy.notificationChannels).toEqual([api.state.channels[0].name]);
       expect(policy.userLabels.managed_by).toBe("ops-monitoring");
@@ -511,7 +520,7 @@ describe("applying the monitoring config", () => {
     });
 
     expect(waits).toEqual([60_000, 60_000]);
-    expect(api.state.policies).toHaveLength(14);
+    expect(api.state.policies).toHaveLength(18);
   });
 
   it("applies the other policies when one fails, then lists the failure", async () => {
@@ -521,7 +530,7 @@ describe("applying the monitoring config", () => {
 
     await expect(result).rejects.toThrow(MonitoringApplyError);
     await expect(result).rejects.toThrow(/algolia-usage: Field alertPolicy.conditions\[0\] is invalid/);
-    expect(api.state.policies).toHaveLength(13);
+    expect(api.state.policies).toHaveLength(17);
   });
 
   it("gives up after the last retry", async () => {
@@ -538,7 +547,7 @@ describe("applying the monitoring config", () => {
     });
 
     await expect(result).rejects.toThrow(/algolia-usage: Cannot find metric/);
-    expect(api.state.policies).toHaveLength(13);
+    expect(api.state.policies).toHaveLength(17);
   });
 
   it("builds the test logs where the real ones would land, marked as tests", () => {

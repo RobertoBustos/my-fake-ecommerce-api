@@ -280,11 +280,32 @@ is rejected on everything for 10 minutes. Two identical requests (same user,
 document and variables) in flight run once, and a repeated `registerPushToken`
 or `unregisterPushToken` within 5 seconds gets the previous answer. The
 counters are in memory per instance, so the effective limit is the instance
-count times higher. `/healthcheck` and the Stripe webhook aren't limited.
+count times higher; the deploy caps the service at 5 instances
+(`--max-instances=5` in `deploy.yml`). `/healthcheck` and the Stripe webhook
+aren't limited.
 
 The client's IP comes from `X-Forwarded-For`: Express trusts
 `TRUSTED_PROXY_HOPS` proxies (default 2, Firebase Hosting and Cloud Run's
 front end).
+
+### Emergency brake
+
+Two optional environment variables, read once at startup, switch things off
+without a build or a PR:
+
+| Variable | Value | Answer |
+|---|---|---|
+| `BLOCKED_OPERATIONS` | Comma-separated root fields (`registerPushToken`) or operation names | `OPERATION_DISABLED` with `retryable: false`, HTTP 200 |
+| `BLOCKED_UIDS` | Comma-separated uids | `FORBIDDEN`, HTTP 403 |
+
+They're checked before the rate limiter and before any Firestore call, and
+the startup log says when the brake is engaged (the operations, and how many
+uids). A blocked operation answers HTTP 200: a brake put on purpose shouldn't
+count against the availability SLO or fire the 5xx alert, and most clients
+retry a 5xx as a network error, which would feed the loop. Its code is its own,
+not `SERVICE_UNAVAILABLE` (a dependency down, worth retrying), so the client
+should show the operation as unavailable and not retry it. Setting or removing them in production is
+one `gcloud run services update`, in the Runbook ("Un cliente en bucle").
 
 ## Push notifications
 

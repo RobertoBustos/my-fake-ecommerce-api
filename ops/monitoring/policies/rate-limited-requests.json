@@ -1,0 +1,54 @@
+{
+  "policy": {
+    "displayName": "Over 200 RATE_LIMITED answers in 10 minutes",
+    "severity": "WARNING",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "More than 200 GraphQL requests got RATE_LIMITED (HTTP 429) in 10 minutes. Normal traffic stays far below every budget, so a client is retrying without waiting for Retry-After, or a budget is too low for a real use. The operation summary logs (\"GraphQL operation\" with errorCodes RATE_LIMITED) say which operation.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Un-cliente-en-bucle-%28desde-el-20-nov-2026%29)."
+    },
+    "conditions": [
+      {
+        "displayName": "RATE_LIMITED above 200 in 10 min",
+        "conditionThreshold": {
+          "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/rate_limited_requests\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "600s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 200,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "1800s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  },
+  "test": {
+    "resource": "api",
+    "severity": "WARNING",
+    "payload": {
+      "message": "GraphQL operation",
+      "operationName": "OpsMonitoringTest",
+      "operationType": "mutation",
+      "rootFields": [
+        "registerPushToken"
+      ],
+      "errorCodes": [
+        "RATE_LIMITED"
+      ]
+    },
+    "count": 201
+  }
+}
