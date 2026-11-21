@@ -9,7 +9,9 @@ import { GraphQLError } from "graphql";
 // nothing per request and never reads Firestore.
 //
 // BLOCKED_OPERATIONS: comma-separated root fields (registerPushToken) or
-//   operation names (Register); a match answers SERVICE_UNAVAILABLE.
+//   operation names (Register); a match answers OPERATION_DISABLED, its own
+//   code so logs and the app can tell it apart from SERVICE_UNAVAILABLE (a
+//   dependency down, worth retrying).
 // BLOCKED_UIDS: comma-separated uids; their requests answer FORBIDDEN.
 
 const listOf = (value: string | undefined) =>
@@ -20,14 +22,15 @@ const listOf = (value: string | undefined) =>
       .filter(Boolean)
   );
 
-// Answered with HTTP 200, like any other GraphQL error from a resolver: a
-// brake put on purpose shouldn't count as 5xx against the availability SLO
-// or fire the 5xx alert.
-const rejection = (message: string, code: "SERVICE_UNAVAILABLE" | "FORBIDDEN") =>
+// A blocked operation answers HTTP 200, like any other GraphQL error from a
+// resolver: a brake put on purpose shouldn't count as 5xx against the
+// availability SLO or fire the 5xx alert, and most clients retry a 5xx as a
+// network error, which would feed the loop being stopped.
+const rejection = (message: string, code: "OPERATION_DISABLED" | "FORBIDDEN") =>
   new GraphQLError(message, {
     extensions: {
       code,
-      ...(code === "SERVICE_UNAVAILABLE" && { retryable: false }),
+      ...(code === "OPERATION_DISABLED" && { retryable: false }),
       http: { status: code === "FORBIDDEN" ? 403 : 200, headers: new HeaderMap() },
     },
   });
@@ -55,6 +58,6 @@ export class EmergencyBrake {
     const blocked =
       (operationName && this.blockedOperations.has(operationName)) ||
       [...rootFields].some((field) => this.blockedOperations.has(field));
-    return blocked ? rejection("This operation is switched off for now", "SERVICE_UNAVAILABLE") : undefined;
+    return blocked ? rejection("This operation is switched off for now", "OPERATION_DISABLED") : undefined;
   }
 }

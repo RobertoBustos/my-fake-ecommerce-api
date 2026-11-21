@@ -25,10 +25,10 @@ describe("EmergencyBrake", () => {
     const brake = new EmergencyBrake({ blockedOperations: "registerPushToken,Checkout" });
 
     expect(brake.check({ uid: "u", operationName: "Any", rootFields: ["registerPushToken"] })?.extensions.code).toBe(
-      "SERVICE_UNAVAILABLE"
+      "OPERATION_DISABLED"
     );
     expect(brake.check({ uid: "u", operationName: "Checkout", rootFields: ["createOrderPayment"] })?.extensions.code).toBe(
-      "SERVICE_UNAVAILABLE"
+      "OPERATION_DISABLED"
     );
     expect(brake.check({ uid: "u", operationName: "Cart", rootFields: ["cart"] })).toBeUndefined();
   });
@@ -74,14 +74,14 @@ describe("emergency brake on /graphql", () => {
     );
   });
 
-  it("answers a blocked operation with SERVICE_UNAVAILABLE without touching Firestore", async () => {
+  it("answers a blocked operation with OPERATION_DISABLED without touching Firestore", async () => {
     const app = await newApp({ BLOCKED_OPERATIONS: "registerPushToken" });
     const spies = spyOnFirestore();
 
     const response = await register(app, `blocked-op-${randomUUID()}`);
 
     expect(response.status).toBe(200);
-    expect(response.body.errors[0].extensions).toEqual({ code: "SERVICE_UNAVAILABLE", retryable: false });
+    expect(response.body.errors[0].extensions).toEqual({ code: "OPERATION_DISABLED", retryable: false });
     expect(response.body.data).toBeUndefined();
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
   });

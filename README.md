@@ -295,13 +295,16 @@ without a build or a PR:
 
 | Variable | Value | Answer |
 |---|---|---|
-| `BLOCKED_OPERATIONS` | Comma-separated root fields (`registerPushToken`) or operation names | `SERVICE_UNAVAILABLE` with `retryable: false`, HTTP 200 |
+| `BLOCKED_OPERATIONS` | Comma-separated root fields (`registerPushToken`) or operation names | `OPERATION_DISABLED` with `retryable: false`, HTTP 200 |
 | `BLOCKED_UIDS` | Comma-separated uids | `FORBIDDEN`, HTTP 403 |
 
 They're checked before the rate limiter and before any Firestore call, and
 the startup log says when the brake is engaged (the operations, and how many
-uids). A blocked operation answers HTTP 200 so a brake put on purpose doesn't
-count against the availability SLO. Setting or removing them in production is
+uids). A blocked operation answers HTTP 200: a brake put on purpose shouldn't
+count against the availability SLO or fire the 5xx alert, and most clients
+retry a 5xx as a network error, which would feed the loop. Its code is its own,
+not `SERVICE_UNAVAILABLE` (a dependency down, worth retrying), so the client
+should show the operation as unavailable and not retry it. Setting or removing them in production is
 one `gcloud run services update`, in the Runbook ("Un cliente en bucle").
 
 ## Push notifications
