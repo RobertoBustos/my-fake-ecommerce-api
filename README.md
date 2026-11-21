@@ -258,6 +258,34 @@ repeated product is summed. A reservation that would pass
 anonymous user's orders don't move, and a `cartId` holding one answers
 `NOT_FOUND`, so use a new cart in that case. Repeating the call changes nothing.
 
+## Rate limits
+
+Every `/graphql` request is charged, before it runs, to its user and to the
+client's IP. Past the budget the API answers HTTP 429 with a `Retry-After`
+header and a `RATE_LIMITED` error whose `extensions.retryAfter` holds the same
+number of seconds: **the client must wait that long before sending the request
+again**, never retry it right away. The limits live in
+`src/rateLimit/limits.ts`:
+
+| Class | Per user, per minute | Root fields |
+|---|---|---|
+| `pushToken` | 3 | `registerPushToken`, `unregisterPushToken` |
+| `payment` | 5 | `createOrderPayment` |
+| `mutation` | 30 | any other mutation |
+| `query` | 120 | any query |
+
+An IP gets four times each budget, since a looping app can create a new
+anonymous user on every start. A user or IP rejected 20 times within a minute
+is rejected on everything for 10 minutes. Two identical requests (same user,
+document and variables) in flight run once, and a repeated `registerPushToken`
+or `unregisterPushToken` within 5 seconds gets the previous answer. The
+counters are in memory per instance, so the effective limit is the instance
+count times higher. `/healthcheck` and the Stripe webhook aren't limited.
+
+The client's IP comes from `X-Forwarded-For`: Express trusts
+`TRUSTED_PROXY_HOPS` proxies (default 2, Firebase Hosting and Cloud Run's
+front end).
+
 ## Push notifications
 
 The app registers its Expo push token with `registerPushToken` on every start
