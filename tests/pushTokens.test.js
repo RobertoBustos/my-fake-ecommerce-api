@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi } from "vitest";
 import { createHash, randomUUID } from "crypto";
 import { ApolloServer } from "@apollo/server";
 import typeDefs from "../src/schema/typeDefs/index.js";
@@ -15,6 +15,8 @@ const run = async (uid, query, variables) => {
   return response.body.singleResult;
 };
 const errorOf = (result) => result.errors?.[0]?.extensions;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
 
 const REGISTER = `mutation ($input: RegisterPushToken!) {
   registerPushToken(input: $input) { code success message }
@@ -53,7 +55,7 @@ describe("registerPushToken", () => {
     expect(doc.get("createdAt").toMillis()).toBe(doc.get("lastSeenAt").toMillis());
   });
 
-  it("registering the same token again keeps one document and only refreshes lastSeenAt", async () => {
+  it("registering the same token again within a day writes nothing", async () => {
     const token = newToken();
     await register("push-user-a", token);
     const first = await docOf(token);
@@ -62,10 +64,32 @@ describe("registerPushToken", () => {
 
     expect(result.data.registerPushToken.success).toBe(true);
     const second = await docOf(token);
-    expect(second.get("createdAt").toMillis()).toBe(first.get("createdAt").toMillis());
-    expect(second.get("lastSeenAt").toMillis()).toBeGreaterThanOrEqual(first.get("lastSeenAt").toMillis());
+    expect(second.updateTime.isEqual(first.updateTime)).toBe(true);
     const all = await db.collection("pushTokens").where("token", "==", token).get();
     expect(all.size).toBe(1);
+  });
+
+  it("refreshes lastSeenAt once it's more than a day old, keeping createdAt", async () => {
+    const token = newToken();
+    await register("push-user-a", token);
+    const ref = db.collection("pushTokens").doc(createHash("sha256").update(token).digest("hex"));
+    const old = new Date(Date.now() - 25 * HOUR);
+    await ref.update({ createdAt: old, lastSeenAt: old });
+
+    await register("push-user-a", token);
+
+    const doc = await docOf(token);
+    expect(doc.get("createdAt").toMillis()).toBe(old.getTime());
+    expect(doc.get("lastSeenAt").toMillis()).toBeGreaterThan(Date.now() - HOUR);
+  });
+
+  it("updates the platform when it changes", async () => {
+    const token = newToken();
+    await register("push-user-a", token, "IOS");
+
+    await register("push-user-a", token, "ANDROID");
+
+    expect((await docOf(token)).get("platform")).toBe("ANDROID");
   });
 
   it("moves a token registered by another user to the one now signed in on the device", async () => {
@@ -76,6 +100,50 @@ describe("registerPushToken", () => {
 
     expect(result.data.registerPushToken.success).toBe(true);
     expect((await docOf(token)).get("uid")).toBe("push-user-b");
+  });
+
+  it("parallel registrations of one token all succeed, with no CONFLICT", async () => {
+    const token = newToken();
+
+    const results = await Promise.all(Array.from({ length: 20 }, () => register("push-user-a", token)));
+
+    expect(results.map((result) => result.errors)).toEqual(Array(20).fill(undefined));
+    expect((await docOf(token)).get("uid")).toBe("push-user-a");
+  });
+
+  it("keeps a token that keeps changing user under its current one, and logs it without the token", async () => {
+    const token = newToken();
+    await register("push-user-a", token);
+    for (const uid of ["push-user-b", "push-user-a", "push-user-b"]) await register(uid, token);
+    const lines = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+      lines.push(...String(chunk).split("\n").filter((line) => line.startsWith("{")));
+      return true;
+    });
+
+    const result = await register("push-user-a", token);
+
+    vi.restoreAllMocks();
+    expect(result.data.registerPushToken.success).toBe(true);
+    expect((await docOf(token)).get("uid")).toBe("push-user-b");
+    const warnings = lines.map((line) => JSON.parse(line)).filter((entry) => entry.severity === "WARNING");
+    expect(warnings).toContainEqual(
+      expect.objectContaining({ message: "Push token changed user too often, kept under its current user" })
+    );
+    expect(lines.join("\n")).not.toContain(token);
+  });
+
+  it("lets the token move again once the last changes are older than ten minutes", async () => {
+    const token = newToken();
+    await register("push-user-a", token);
+    for (const uid of ["push-user-b", "push-user-a", "push-user-b"]) await register(uid, token);
+    const ref = db.collection("pushTokens").doc(createHash("sha256").update(token).digest("hex"));
+    const longAgo = new Date(Date.now() - 11 * MINUTE);
+    await ref.update({ ownerChanges: [longAgo, longAgo, longAgo] });
+
+    await register("push-user-a", token);
+
+    expect((await docOf(token)).get("uid")).toBe("push-user-a");
   });
 
   it("rejects a token that isn't an Expo push token with BAD_USER_INPUT", async () => {

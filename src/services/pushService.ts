@@ -14,15 +14,20 @@ import type { MutationAck } from "#src/types/models";
 import { logger } from "#src/utils/logger";
 import { assertValidInput, withContentionRetryHint } from "./errors.ts";
 
-// The app registers its token on every start, so a repeated call only
-// refreshes lastSeenAt.
+// The app registers its token on every start, so a repeated call usually
+// writes nothing. A token kept under its current user still answers success:
+// an error would only make a looping app retry harder.
 export const registerPushToken = async (input: RegisterPushToken, userId: string): Promise<MutationAck> => {
   assertValidInput(checkRegisterPushToken, input);
-  const { movedFromAnotherUser } = await withContentionRetryHint(() =>
-    registerPushTokenDb({ token: input.token.trim(), platform: input.platform }, userId)
-  );
-  if (movedFromAnotherUser) {
+  const result = await registerPushTokenDb({ token: input.token.trim(), platform: input.platform }, userId);
+  if (result === "moved") {
     logger.info("Push token moved to another user", { platform: input.platform });
+  } else if (result === "kept") {
+    // Never the token: it's enough to send to the device.
+    logger.warn("Push token changed user too often, kept under its current user", {
+      platform: input.platform,
+      uid: userId.slice(0, 8),
+    });
   }
   return {
     code: "200",
