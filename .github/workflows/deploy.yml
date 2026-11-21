@@ -63,7 +63,11 @@ jobs:
             STRIPE_SECRET_KEY=stripe-secret-key:latest
             STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest
             EXPO_ACCESS_TOKEN=expo-access-token:latest
-          flags: --allow-unauthenticated --service-account=${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+          # At most 5 instances: normal traffic uses 1 (5 at the busiest, Nov
+          # 2026), and the rate limiter counts per instance, so its real limit
+          # is 5 times the budget, not 20 (the Nov 20 client loop filled all
+          # 20). Also caps the Cloud Run bill.
+          flags: --allow-unauthenticated --service-account=${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }} --max-instances=5
           tag: ${{ steps.release.outputs.tag }}
 
       # A rollback pins traffic to an older revision; without this, new deploys would get no traffic.

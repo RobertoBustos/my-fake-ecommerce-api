@@ -1,0 +1,38 @@
+{
+  "policy": {
+    "displayName": "Firestore reads above 10,000 in 5 minutes",
+    "severity": "ERROR",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "More than 10,000 Firestore document reads in 5 minutes (about 2,000 a minute). In the 30 days before Nov 21, 2026 the busiest 5 minutes had 3,193; the Nov 20 client loop read about 16,000 a minute. Usually a client stuck in a loop, or a query or job reading whole collections.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Un-cliente-en-bucle-%28desde-el-20-nov-2026%29)."
+    },
+    "conditions": [
+      {
+        "displayName": "Firestore reads above 10,000 in 5 min",
+        "conditionThreshold": {
+          "filter": "resource.type=\"firestore_instance\" AND metric.type=\"firestore.googleapis.com/document/read_count\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "300s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 10000,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "1800s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "policy": {
+    "displayName": "Rate limiter quarantined a user or IP",
+    "severity": "WARNING",
+    "combiner": "OR",
+    "documentation": {
+      "mimeType": "text/markdown",
+      "content": "The rate limiter put a user or an IP in quarantine: it went over its budget 20 times in a minute and is rejected on everything for 10 minutes. Clients don't notice a working limiter, so this is how we know one is looping. The log entry (\"Rate limit quarantine started\") has 8 characters of the uid or the IP prefix, and the operation.\n\nWhat to do: [Runbook](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/24772610#Un-cliente-en-bucle-%28desde-el-20-nov-2026%29)."
+    },
+    "conditions": [
+      {
+        "displayName": "A quarantine started in the last 10 min",
+        "conditionThreshold": {
+          "filter": "resource.type=\"cloud_run_revision\" AND metric.type=\"logging.googleapis.com/user/rate_limit_quarantines\"",
+          "aggregations": [
+            {
+              "alignmentPeriod": "600s",
+              "perSeriesAligner": "ALIGN_DELTA",
+              "crossSeriesReducer": "REDUCE_SUM"
+            }
+          ],
+          "comparison": "COMPARISON_GT",
+          "thresholdValue": 0,
+          "duration": "0s",
+          "trigger": {
+            "count": 1
+          }
+        }
+      }
+    ],
+    "alertStrategy": {
+      "autoClose": "3600s"
+    },
+    "notificationChannels": [
+      "email"
+    ]
+  },
+  "test": {
+    "resource": "api",
+    "severity": "WARNING",
+    "payload": {
+      "message": "Rate limit quarantine started",
+      "scope": "user",
+      "uid": "opstest0",
+      "operationClass": "pushToken",
+      "operationName": "OpsMonitoringTest",
+      "seconds": 600
+    },
+    "count": 1
+  }
+}

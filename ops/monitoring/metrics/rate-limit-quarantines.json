@@ -1,0 +1,10 @@
+{
+  "name": "rate_limit_quarantines",
+  "description": "Users or IPs the rate limiter put in quarantine (rejected on everything for 10 minutes).",
+  "filter": "resource.type=\"cloud_run_revision\" AND jsonPayload.message=\"Rate limit quarantine started\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1"
+  }
+}
