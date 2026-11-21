@@ -7,7 +7,7 @@ import { runJob } from "./runJob.ts";
 // the device, and deletes the tokens of apps that were uninstalled
 // (services/pushReceipts.ts). It ships in the same image as the API, so a
 // Cloud Run job runs it with `node dist/jobs/checkPushReceipts.js` (Cloud
-// Scheduler starts it every 30 minutes); locally, `npm run push:receipts`.
+// Scheduler starts it every hour); locally, `npm run push:receipts`.
 // A failure exits with 1 so the run shows as failed.
 
 await runJob("check-push-receipts", async () => {

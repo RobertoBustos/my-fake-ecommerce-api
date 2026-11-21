@@ -1,8 +1,9 @@
 # my-fake-ecommerce-api
 
 GraphQL API (Apollo Server 5 on Express) for a practice online store: products,
-cart, orders and Stripe payments. Data lives in Firestore, users authenticate
-with Firebase Auth, and production runs on Cloud Run behind Firebase Hosting.
+cart, orders, Stripe payments and push notifications for the mobile app (Expo).
+Data lives in Firestore, users authenticate with Firebase Auth, and production
+runs on Cloud Run behind Firebase Hosting.
 
 - **Production:** `https://my-fake-ecommerce-150b2.web.app/graphql`
 - **Health check:** `GET /healthcheck` → `{"status":"ok"}`
@@ -49,6 +50,8 @@ Start with the architecture page, then the runbook.
 | [Diseño: búsqueda de productos](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/29982722) | How product search works and the plan for its next phases |
 | [ADR: motor de búsqueda del catálogo](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/30015489) | Why Algolia is the first search engine adapter |
 | [ADR: arranques en frío y el SLO de latencia](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/34668547) | Why `minScale` stays at 0 and cold starts count inside the latency SLO |
+| [ADR: retención de usuarios anónimos](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/37650433) | Why no anonymous Firebase user is deleted for now, and what would change that |
+| [Investigación: menos usuarios anónimos en Firebase](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/39256065) | How the app could create fewer anonymous users, and the proposed work |
 | [Hallazgos técnicos: my-fake-ecommerce-api](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23298055) | Findings from the initial code review and later sprints, how each was addressed, and the accepted debt |
 | [Hallazgo: cobro de Cloud Run por los jobs programados (oct 2026)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/33980454) | How often the scheduled jobs can run within the free tier and how to investigate a billing alert |
 | [Seguimiento en Jira: my-fake-ecommerce-api](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/23068673) | Sprint history, epics, releases and the status of every task |
@@ -240,7 +243,11 @@ Firestore, as sources without reservations do).
    An item whose reservation expired answers `BAD_USER_INPUT` with
    `expiredItemIds`: remove it and add it again to reserve its units anew
 6. Stripe sends `payment_intent.succeeded` to the webhook, which marks the
-   order `COMPLETE` and confirms its reservations in their sources
+   order `COMPLETE`, confirms its reservations in their sources and sends the
+   owner an "Order confirmed" push notification (only once, even if Stripe
+   repeats the event). A declined card arrives as
+   `payment_intent.payment_failed`: the order doesn't change, so the client can
+   try again, and the owner gets a "Payment failed" notification
 
 An anonymous user who signs in to an existing account changes `uid`. Before
 signing in the app keeps the anonymous ID token, and after it calls
@@ -250,6 +257,83 @@ repeated product is summed. A reservation that would pass
 `purchaseLimits.max` goes back to stock and is listed in `released`. The
 anonymous user's orders don't move, and a `cartId` holding one answers
 `NOT_FOUND`, so use a new cart in that case. Repeating the call changes nothing.
+
+## Rate limits
+
+Every `/graphql` request is charged, before it runs, to its user and to the
+client's IP. Past the budget the API answers HTTP 429 with a `Retry-After`
+header and a `RATE_LIMITED` error whose `extensions.retryAfter` holds the same
+number of seconds: **the client must wait that long before sending the request
+again**, never retry it right away. The limits live in
+`src/rateLimit/limits.ts`:
+
+| Class | Per user, per minute | Root fields |
+|---|---|---|
+| `pushToken` | 3 | `registerPushToken`, `unregisterPushToken` |
+| `payment` | 5 | `createOrderPayment` |
+| `mutation` | 30 | any other mutation |
+| `query` | 120 | any query |
+
+An IP gets four times each budget, since a looping app can create a new
+anonymous user on every start. A user or IP rejected 20 times within a minute
+is rejected on everything for 10 minutes. Two identical requests (same user,
+document and variables) in flight run once, and a repeated `registerPushToken`
+or `unregisterPushToken` within 5 seconds gets the previous answer. The
+counters are in memory per instance, so the effective limit is the instance
+count times higher; the deploy caps the service at 5 instances
+(`--max-instances=5` in `deploy.yml`). `/healthcheck` and the Stripe webhook
+aren't limited.
+
+The client's IP comes from `X-Forwarded-For`: Express trusts
+`TRUSTED_PROXY_HOPS` proxies (default 2, Firebase Hosting and Cloud Run's
+front end).
+
+### Emergency brake
+
+Two optional environment variables, read once at startup, switch things off
+without a build or a PR:
+
+| Variable | Value | Answer |
+|---|---|---|
+| `BLOCKED_OPERATIONS` | Comma-separated root fields (`registerPushToken`) or operation names | `OPERATION_DISABLED` with `retryable: false`, HTTP 200 |
+| `BLOCKED_UIDS` | Comma-separated uids | `FORBIDDEN`, HTTP 403 |
+
+They're checked before the rate limiter and before any Firestore call, and
+the startup log says when the brake is engaged (the operations, and how many
+uids). A blocked operation answers HTTP 200: a brake put on purpose shouldn't
+count against the availability SLO or fire the 5xx alert, and most clients
+retry a 5xx as a network error, which would feed the loop. Its code is its own,
+not `SERVICE_UNAVAILABLE` (a dependency down, worth retrying), so the client
+should show the operation as unavailable and not retry it. Setting or removing them in production is
+one `gcloud run services update`, in the Runbook ("Un cliente en bucle").
+
+## Push notifications
+
+The app registers its Expo push token with `registerPushToken` on every start
+and deletes it with `unregisterPushToken` on sign-out; a token belongs to
+whoever is signed in on the device. Notifications go through Expo's push
+service (`expo-server-sdk`, with `EXPO_ACCESS_TOKEN`; the APNs and FCM
+credentials live in EAS, never in the API):
+
+| `data.type` | Sent by | When |
+|---|---|---|
+| `order_completed` | Stripe webhook | The payment went through |
+| `payment_failed` | Stripe webhook | The card was declined |
+| `order_cancelled` | `process-inventory` job | The job cancelled an order left unpaid (not when the user cancels it) |
+
+Each carries `orderId` and `url` (`myapp://orders/<orderId>`). A notification
+that fails is logged and never changes the webhook's answer to Stripe nor
+stops the job's sweep.
+
+Expo answers each send with a ticket, kept in `pushTickets` (with a TTL of two
+days). The `check-push-receipts` job reads each ticket's receipt about 15
+minutes later to learn whether it reached the device, deletes the tokens of
+apps that were uninstalled (`DeviceNotRegistered`) and logs any other delivery
+error. In production it runs every hour.
+
+```bash
+npm run push:receipts                  # one pass of the receipts job
+```
 
 ## Inventory queue
 
@@ -262,10 +346,17 @@ up to `INVENTORY_TASK_MAX_ATTEMPTS` attempts (8 by default). A task out of
 attempts is `FAILED` and logged as an error; a paid order stays `COMPLETE`.
 
 The same job sweeps reservations that expired in abandoned carts and releases
-their units, except for orders that are `PAYMENT_PENDING` or `COMPLETE`.
+their units, except for orders that are `PAYMENT_PENDING` or `COMPLETE`. A
+`PAYMENT_PENDING` order whose checkout was left halfway is cancelled once every
+reservation expired more than `ABANDONED_ORDER_GRACE_HOURS` ago (24 by
+default): its PaymentIntent is cancelled too if nothing was charged, and its
+stock goes back. An order whose payment is processing or succeeded is left for
+the webhook. That step talks to Stripe, so the job needs `STRIPE_SECRET_KEY`;
+it also tells the order's user with a push, so it needs `EXPO_ACCESS_TOKEN`
+too.
 
 ```bash
-npm run inventory:process              # one pass of the job: sweep, then run due tasks
+npm run inventory:process              # one pass of the job: sweep, cancel abandoned orders, run due tasks
 npm run inventory:retry -- <taskId>    # put a FAILED task back and run it
 ```
 
@@ -504,7 +595,11 @@ release. Details are in the runbook.
 ## Branches and commits
 
 - All development goes into `dev` through pull requests; `main` only receives
-  releases (`release/sprint-<n>`) and hotfixes (`hotfix/ECOMAPI-<n>-<slug>`).
+  releases (`release/sprint-<n>`, or `release/v<x.y.z>` outside a sprint) and
+  hotfixes (`hotfix/ECOMAPI-<n>-<slug>`).
+- Tasks are squashed into `dev`. `main` only accepts merge commits, and so does
+  the pull request that brings `main` back into `dev` after a release: that
+  keeps `main` an ancestor of `dev`.
 - `dev` and `main` are protected: a pull request and green `lint`, `test`,
   `gitleaks`, `docker-build` and `typecheck` checks are required to merge (`main` also
   requires `branch-guard`).

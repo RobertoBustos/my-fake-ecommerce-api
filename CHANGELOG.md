@@ -6,6 +6,53 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-21
+
+Sprint 11: the API protects itself from a client stuck in a loop, after a
+development build of the iOS app called `registerPushToken` in a loop on Nov
+20, 2026, filled Cloud Run's 20 instances and drove up Firestore usage. Plus
+one new push notification. **For clients:** no schema change, but three new
+error answers (`RATE_LIMITED`, `OPERATION_DISABLED` and `FORBIDDEN` for a
+blocked user), and a new `order_cancelled` notification.
+
+### Added
+
+- Rate limits on `/graphql`, per user and per client IP, checked before any
+  resolver runs: `registerPushToken`/`unregisterPushToken` 3 a minute,
+  `createOrderPayment` 5, other mutations 30 and queries 120 (four times that
+  per IP). Over the budget the answer is HTTP 429 with `Retry-After` and a
+  `RATE_LIMITED` error with `extensions.retryAfter`; the client must wait that
+  long. A user or IP rejected 20 times within a minute is rejected on
+  everything for 10 minutes. Identical requests in flight run once, and a
+  repeated push token registration within 5 seconds gets the previous answer.
+  The client IP comes from `X-Forwarded-For` (`TRUSTED_PROXY_HOPS`, default 2).
+- An emergency brake through environment variables, read at startup:
+  `BLOCKED_OPERATIONS` answers `OPERATION_DISABLED` (`retryable: false`, HTTP
+  200) and `BLOCKED_UIDS` answers `FORBIDDEN` (HTTP 403), without reaching
+  Firestore. Switched on and off with `gcloud run services update`, without a
+  build; see the Runbook.
+- An "Order cancelled" push when `process-inventory` cancels an abandoned
+  order (`data.type: order_cancelled`, `orderId`, `url`). Not sent when the
+  user cancels the order from the app. The job now needs `EXPO_ACCESS_TOKEN`,
+  added to it before this release.
+- Alerts: Firestore writes above 2,500 or reads above 10,000 in 5 minutes, any
+  rate limiter quarantine, and more than 200 `RATE_LIMITED` answers in 10
+  minutes, with two new log-based metrics.
+
+### Changed
+
+- `registerPushToken` no longer uses a transaction and doesn't write when the
+  token is already saved the same way and was seen in the last day, so a
+  repeated call costs one read. A token that changes owner more than 3 times in
+  10 minutes stays with its current owner and logs a warning.
+- The deploy caps the service at 5 Cloud Run instances (it was 20, set by
+  hand). Normal traffic uses 1.
+- `check-push-receipts` runs every hour instead of every 30 minutes, to keep
+  the scheduled jobs' CPU close to Cloud Run's free tier (its first run took
+  about 90 s). Expo keeps a receipt for 24 hours, so nothing is lost. The
+  schedule is configuration and was applied on Nov 17, 2026, right after the
+  v1.9.0 deploy; the v1.9.0 entry below still says every 30 minutes.
+
 ## [1.9.0] - 2026-11-17
 
 Sprint 10: push notifications for the mobile app, plus two fixes found while

@@ -206,7 +206,14 @@ const CHARGED_PAYMENT_STATUSES = new Set(["processing", "succeeded"]);
 // transaction as the status change, so it happens exactly once: a second
 // cancel finds the order already CANCELLED and changes nothing. A COMPLETE order was paid, so its
 // stock is sold and it can't be cancelled here.
-export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
+// "cancelled" only when this call changed the status, so a caller can tell
+// its own cancellation from one that happened before.
+export type CancelOutcome = "cancelled" | "alreadyCancelled" | "notFound";
+
+export const cancelOrder = async (input: { id: string }): Promise<boolean> =>
+  (await cancelOrderOutcome(input)) !== "notFound";
+
+export const cancelOrderOutcome = async (input: { id: string }): Promise<CancelOutcome> => {
   const docRef = db.collection(COLLECTION).doc(input.id);
 
   // A payment that went through before its webhook arrived still counts as paid.
@@ -248,7 +255,7 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
   });
 
   if (!outcome.found) {
-    return false;
+    return "notFound";
   }
   // Run right away; what the source refuses now stays queued for the job.
   if (outcome.changed) {
@@ -266,7 +273,7 @@ export const cancelOrder = async (input: { id: string }): Promise<boolean> => {
       });
     });
   }
-  return true;
+  return outcome.changed ? "cancelled" : "alreadyCancelled";
 };
 
 // The price each item of an order is paid at, by cart item id.
