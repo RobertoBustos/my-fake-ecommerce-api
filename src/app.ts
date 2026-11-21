@@ -7,6 +7,7 @@ import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHt
 import { createContext } from "./context.ts";
 import { requestId } from "./middleware/requestId.ts";
 import { operationSummaryPlugin } from "./observability/operationSummary.ts";
+import { rateLimitPlugin } from "./rateLimit/plugin.ts";
 import { validationRules } from "./schema/depthLimit.ts";
 import { errorLoggingPlugin } from "./schema/errorLogging.ts";
 import { formatError } from "./schema/formatError.ts";
@@ -52,12 +53,20 @@ export const createApp = async () => {
         httpServer,
         stopGracePeriodMillis: SHUTDOWN_GRACE_PERIOD_MS,
       }),
+      rateLimitPlugin(),
       errorLoggingPlugin,
       operationSummaryPlugin,
     ],
   });
 
   await server.start();
+
+  // Requests reach the container through Firebase Hosting and then Cloud
+  // Run's front end, and each appends the address it saw to X-Forwarded-For,
+  // so the client is two hops back. Called on the run.app URL directly there
+  // is one hop, and Express falls back to the furthest address. The rate
+  // limiter keys on req.ip.
+  app.set("trust proxy", Number(process.env.TRUSTED_PROXY_HOPS ?? 2));
 
   // First, so every route (and every log line it writes) has a request ID.
   app.use(requestId);

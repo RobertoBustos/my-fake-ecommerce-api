@@ -25,7 +25,7 @@ const errorCodeLabel = boundedLabel(20);
 
 // The root fields an operation asked for, by name (aliases are the client's
 // own words). Fragments at the root are followed.
-const rootFieldsOf = (selectionSet: SelectionSetNode, document: DocumentNode, seen = new Set<string>()) => {
+export const rootFieldsOf = (selectionSet: SelectionSetNode, document: DocumentNode, seen = new Set<string>()) => {
   const fields = new Set<string>();
   for (const selection of selectionSet.selections) {
     if (selection.kind === Kind.FIELD) {
