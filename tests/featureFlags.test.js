@@ -8,15 +8,15 @@ import { defineFlags, expiredFlags, flags, overrideVariable, registryProblems } 
 
 // A registry of its own, so the tests don't depend on which real flags exist.
 const testFlags = defineFlags({
-  newCheckout: {
+  new_checkout: {
     owner: "release",
     defaultValue: false,
     description: "Test release flag",
     responsible: "tests",
     removeBy: "2099-01-01",
   },
-  cartItemLimit: { owner: "ops", defaultValue: 50, description: "Test ops flag", responsible: "tests" },
-  bannerText: { owner: "ops", defaultValue: "hello", description: "Test string flag", responsible: "tests" },
+  cart_item_limit: { owner: "ops", defaultValue: 50, description: "Test ops flag", responsible: "tests" },
+  banner_text: { owner: "ops", defaultValue: "hello", description: "Test string flag", responsible: "tests" },
 });
 const { isOn, valueOf } = createFlags(testFlags);
 
@@ -43,9 +43,9 @@ describe("feature flags", () => {
   it("answers with the registry default when nothing overrides it", async () => {
     await setupFlags({ env: {} });
 
-    expect(await isOn("newCheckout", signedInUser)).toBe(false);
-    expect(await valueOf("cartItemLimit", signedInUser)).toBe(50);
-    expect(await valueOf("bannerText", signedInUser)).toBe("hello");
+    expect(await isOn("new_checkout", signedInUser)).toBe(false);
+    expect(await valueOf("cart_item_limit", signedInUser)).toBe(50);
+    expect(await valueOf("banner_text", signedInUser)).toBe("hello");
   });
 
   it("FLAG_<KEY> overrides a flag of each type", async () => {
@@ -53,26 +53,26 @@ describe("feature flags", () => {
       env: { FLAG_NEW_CHECKOUT: "true", FLAG_CART_ITEM_LIMIT: "10", FLAG_BANNER_TEXT: "sale" },
     });
 
-    expect(await isOn("newCheckout", signedInUser)).toBe(true);
-    expect(await valueOf("cartItemLimit", signedInUser)).toBe(10);
-    expect(await valueOf("bannerText", signedInUser)).toBe("sale");
+    expect(await isOn("new_checkout", signedInUser)).toBe(true);
+    expect(await valueOf("cart_item_limit", signedInUser)).toBe(10);
+    expect(await valueOf("banner_text", signedInUser)).toBe("sale");
   });
 
   it("the override wins over the domain's tool, and the tool answers when there's no override", async () => {
     await setupFlags({
       env: { FLAG_NEW_CHECKOUT: "false" },
-      providers: { release: [remote({ newCheckout: true })], ops: [remote({ cartItemLimit: 99 })] },
+      providers: { release: [remote({ new_checkout: true })], ops: [remote({ cart_item_limit: 99 })] },
     });
 
-    expect(await isOn("newCheckout", signedInUser)).toBe(false);
-    expect(await valueOf("cartItemLimit", signedInUser)).toBe(99);
+    expect(await isOn("new_checkout", signedInUser)).toBe(false);
+    expect(await valueOf("cart_item_limit", signedInUser)).toBe(99);
   });
 
   it("asks only the flag owner's tool", async () => {
     // The ops tool knows a key with the release flag's name; it must not answer it.
-    await setupFlags({ env: {}, providers: { ops: [remote({ newCheckout: true })] } });
+    await setupFlags({ env: {}, providers: { ops: [remote({ new_checkout: true })] } });
 
-    expect(await isOn("newCheckout", signedInUser)).toBe(false);
+    expect(await isOn("new_checkout", signedInUser)).toBe(false);
   });
 
   it.each([
@@ -82,8 +82,8 @@ describe("feature flags", () => {
     const writes = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     await setupFlags({ env: { [variable]: value } });
 
-    expect(await isOn("newCheckout", signedInUser)).toBe(false);
-    expect(await valueOf("cartItemLimit", signedInUser)).toBe(50);
+    expect(await isOn("new_checkout", signedInUser)).toBe(false);
+    expect(await valueOf("cart_item_limit", signedInUser)).toBe(50);
 
     const warning = writes.mock.calls
       .map(([line]) => JSON.parse(line))
@@ -99,12 +99,12 @@ describe("feature flags", () => {
   });
 
   it("answers with the defaults before setup has run", async () => {
-    expect(await isOn("newCheckout", signedInUser)).toBe(false);
-    expect(await valueOf("cartItemLimit", signedInUser)).toBe(50);
+    expect(await isOn("new_checkout", signedInUser)).toBe(false);
+    expect(await valueOf("cart_item_limit", signedInUser)).toBe(50);
   });
 
   it("starts on the defaults when a provider takes longer than the wait", async () => {
-    const slow = remote({ cartItemLimit: 99 });
+    const slow = remote({ cart_item_limit: 99 });
     slow.initialize = () => new Promise((resolve) => setTimeout(resolve, 500));
     const writes = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
@@ -123,11 +123,11 @@ describe("evaluation context", () => {
   });
 
   it("passes that context to the tool", async () => {
-    const tool = remote({ newCheckout: true });
+    const tool = remote({ new_checkout: true });
     const resolve = vi.spyOn(tool, "resolveBooleanEvaluation");
     await setupFlags({ env: {}, providers: { release: [tool] } });
 
-    await isOn("newCheckout", anonymousUser);
+    await isOn("new_checkout", anonymousUser);
 
     expect(resolve.mock.calls[0][2]).toMatchObject({ targetingKey: "anon-1", id: "anon-1", anonymous: true });
   });
@@ -145,12 +145,12 @@ describe("override variable names", () => {
 
   it("reads only its own variable", async () => {
     const provider = new EnvOverrideProvider({ FLAG_OTHER: "true" });
-    await expect(provider.resolveBooleanEvaluation("newCheckout")).rejects.toMatchObject({ code: "FLAG_NOT_FOUND" });
+    await expect(provider.resolveBooleanEvaluation("new_checkout")).rejects.toMatchObject({ code: "FLAG_NOT_FOUND" });
   });
 });
 
 describe("the registry", () => {
-  it("has no problems: release flags have a removeBy and no two keys share an override variable", () => {
+  it("has no problems: snake_case keys, release flags with a removeBy, no two keys sharing an override variable", () => {
     expect(registryProblems(flags)).toEqual([]);
   });
 
@@ -161,16 +161,19 @@ describe("the registry", () => {
 
   it("catches what the checks above look for", () => {
     const bad = {
-      oldRollout: { owner: "release", defaultValue: false, description: "", responsible: "", removeBy: "2026-01-01" },
-      noDate: { owner: "release", defaultValue: false, description: "", responsible: "" },
+      old_rollout: { owner: "release", defaultValue: false, description: "", responsible: "", removeBy: "2026-01-01" },
+      no_date: { owner: "release", defaultValue: false, description: "", responsible: "" },
+      isPaymentRequired: { owner: "ops", defaultValue: true, description: "", responsible: "" },
       "new-checkout": { owner: "ops", defaultValue: false, description: "", responsible: "" },
-      newCheckout: { owner: "ops", defaultValue: false, description: "", responsible: "" },
+      new_checkout: { owner: "ops", defaultValue: false, description: "", responsible: "" },
     };
 
-    expect(expiredFlags(bad, "2026-11-23")).toEqual(["oldRollout"]);
+    expect(expiredFlags(bad, "2026-11-23")).toEqual(["old_rollout"]);
     expect(registryProblems(bad)).toEqual([
-      "noDate: a release flag needs removeBy as YYYY-MM-DD",
-      "newCheckout and new-checkout share the override variable FLAG_NEW_CHECKOUT",
+      "no_date: a release flag needs removeBy as YYYY-MM-DD",
+      'isPaymentRequired: keys are snake_case (a-z, 0-9 and "_"), as Remote Config requires',
+      'new-checkout: keys are snake_case (a-z, 0-9 and "_"), as Remote Config requires',
+      "new_checkout and new-checkout share the override variable FLAG_NEW_CHECKOUT",
     ]);
   });
 });

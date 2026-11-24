@@ -10,4 +10,5 @@ import { flags } from "./registry.ts";
 export const { isOn, valueOf } = createFlags(flags);
 export { flagContext, UnknownFlagError } from "./evaluate.ts";
 export { setupFlags, closeFlags } from "./setup.ts";
+export { productionProviders } from "./production.ts";
 export type { FlagKey } from "./registry.ts";
