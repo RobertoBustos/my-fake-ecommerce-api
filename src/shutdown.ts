@@ -1,4 +1,5 @@
 import type { ApolloServer } from "@apollo/server";
+import { closeFlags } from "./flags/index.ts";
 import { shutdownTelemetry } from "./observability/lifecycle.ts";
 import { logger } from "./utils/logger.ts";
 
@@ -29,6 +30,8 @@ export const createShutdown = (
       logger.info("Shutting down", { signal });
       try {
         await server.stop();
+        // Stops the flag providers' background refreshes.
+        await closeFlags().catch((err: Error) => logger.warn("Could not close the feature flag providers", { error: err.message }));
         await flushTraces();
         logger.info("Shutdown complete");
         exit(0);

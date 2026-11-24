@@ -54,6 +54,18 @@ const telemetryImports = {
   ],
 };
 
+// Feature flags: only src/flags/ may use the OpenFeature, GrowthBook or
+// Remote Config SDKs. The rest of the API reads flags through isOn/valueOf
+// from #src/flags, so a flag can move between tools without touching it.
+const flagSdkImports = {
+  patterns: [
+    {
+      regex: "^@openfeature/|^@growthbook/growthbook$|^firebase-admin/remote-config$",
+      message: "Only src/flags/ may use a feature flag SDK; read flags with isOn/valueOf from #src/flags.",
+    },
+  ],
+};
+
 export default tseslint.config(
   { ignores: ["dist/", "coverage/", "src/generated/"] },
   js.configs.recommended,
@@ -84,24 +96,30 @@ export default tseslint.config(
   // telemetry patterns instead of losing them.
   {
     files: ["src/**/*.ts", "scripts/**/*.ts"],
-    ignores: ["src/search/adapters/**", "src/observability/**"],
+    ignores: ["src/search/adapters/**", "src/observability/**", "src/flags/**"],
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [...searchEngineImports.patterns, ...telemetryImports.patterns] },
+        { patterns: [...searchEngineImports.patterns, ...telemetryImports.patterns, ...flagSdkImports.patterns] },
       ],
     },
   },
   {
     files: ["src/observability/**/*.ts"],
     rules: {
-      "no-restricted-imports": ["error", searchEngineImports],
+      "no-restricted-imports": ["error", { patterns: [...searchEngineImports.patterns, ...flagSdkImports.patterns] }],
     },
   },
   {
     files: ["src/search/adapters/**/*.ts"],
     rules: {
-      "no-restricted-imports": ["error", telemetryImports],
+      "no-restricted-imports": ["error", { patterns: [...telemetryImports.patterns, ...flagSdkImports.patterns] }],
+    },
+  },
+  {
+    files: ["src/flags/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [...searchEngineImports.patterns, ...telemetryImports.patterns] }],
     },
   },
   {
@@ -115,6 +133,7 @@ export default tseslint.config(
             ...dataLayerImports.patterns,
             ...searchEngineImports.patterns,
             ...telemetryImports.patterns,
+            ...flagSdkImports.patterns,
           ],
         },
       ],
@@ -131,6 +150,7 @@ export default tseslint.config(
             ...databaseClientImports.patterns,
             ...searchEngineImports.patterns,
             ...telemetryImports.patterns,
+            ...flagSdkImports.patterns,
           ],
         },
       ],

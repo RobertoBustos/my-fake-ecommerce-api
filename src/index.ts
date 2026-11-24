@@ -1,10 +1,15 @@
 import env from "./config/env.ts";
 import { createApp } from "./app.ts";
+import { setupFlags } from "./flags/index.ts";
 import { createShutdown } from "./shutdown.ts";
 import { logger } from "./utils/logger.ts";
 
 const PORT = env.PORT;
 const HOST = env.HOST;
+
+// Feature flags first: waits at most a couple of seconds for the providers,
+// then the API starts on the registry defaults if they aren't ready.
+await setupFlags();
 
 const { httpServer, server } = await createApp();
 
