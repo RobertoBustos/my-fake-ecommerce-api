@@ -72,9 +72,26 @@ install.
 ## Run locally
 
 ```bash
-cp .env.example .env        # then set STRIPE_SECRET_KEY
+cp .env.example .env        # then set STRIPE_SECRET_KEY (a test key)
 npm ci
+npm run dev:local
+```
 
+`npm run dev:local` starts the Firestore (port 8080) and Auth (port 9099)
+emulators, waits until they answer, loads the sample catalog and starts the
+API on port 4000, restarting it whenever a source file changes. Ctrl+C stops
+all of it, emulators included.
+
+It only ever runs against the emulators: it sets the demo project, the
+emulator hosts and `SEARCH_ENGINE=memory` itself, and those win over `.env`, so
+a `.env` pointing at a real project can't make it write there. It refuses a
+live Stripe key. `HOST` and `PORT` come from the shell, then `.env`, then
+`localhost:4000`.
+
+To run the pieces by hand instead (for example to keep the emulators up while
+restarting the API):
+
+```bash
 # Terminal 1: Firestore (port 8080) and Auth (port 9099) emulators
 npx firebase emulators:start --only firestore,auth --project demo-ecommerce-api
 
@@ -83,8 +100,9 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm run seed
 npm run dev
 ```
 
-`npm run dev` runs the TypeScript sources directly with `tsx`. To run what
-production runs, compile first: `npm run build && npm start` (`dist/index.js`).
+`npm run dev` runs the TypeScript sources directly with `tsx` and reads
+whatever `.env` says, real project included. To run what production runs,
+compile first: `npm run build && npm start` (`dist/index.js`).
 
 Use `npm ci` to install exactly what `package-lock.json` pins. Don't pass
 `--legacy-peer-deps` when adding or updating a dependency: the lock file has to
@@ -100,7 +118,7 @@ UNAUTHENTICATED`. Locally, the token comes from the Auth emulator (the
 `.env.example` values already point the API at it):
 
 ```bash
-# Terminal 3: prints an ID token for dev@example.com (created on first run)
+# In another terminal: prints an ID token for dev@example.com (created on first run)
 TOKEN=$(npm run -s token:local)
 curl -s http://localhost:4000/graphql -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
