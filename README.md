@@ -33,6 +33,7 @@ Start with the architecture page, then the runbook.
 | [Scripts y jobs del proyecto](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/27557891) | What every script in `scripts/` and job in `src/jobs/` does, when it runs and how to run it by hand |
 | [CI: checks de GitHub](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/26935298) | What each GitHub check verifies, why it fails and how to reproduce it locally |
 | [Guía: pruebas end to end de la API (sin frontend)](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/25296898) | How to test the deployed API end to end without the app or any frontend |
+| [Guía: la app real contra la laptop](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/45776897) | How to run the mobile app on a phone against the API on your laptop, with emulator data and Stripe test keys |
 
 **One-time setup**
 
@@ -87,6 +88,20 @@ emulator hosts and `SEARCH_ENGINE=memory` itself, and those win over `.env`, so
 a `.env` pointing at a real project can't make it write there. It refuses a
 live Stripe key. `HOST` and `PORT` come from the shell, then `.env`, then
 `localhost:4000`.
+
+**From a phone running the app.** The app signs in with the real Firebase
+project and can't use the Auth emulator, so pass that project's id:
+
+```bash
+STRIPE_WEBHOOK_SECRET=whsec_... npm run dev:local -- --auth-project <app-project-id>
+```
+
+The API then verifies that project's ID tokens instead of the emulator's and
+listens on the network (`0.0.0.0` unless `HOST` says otherwise), printing the
+`EXPO_PUBLIC_API_URL` for the app. Firestore stays on the emulator, search in
+memory, and the Stripe key must still be a test key. The step-by-step guide
+(Wi-Fi or a tunnel, `stripe listen`, the test purchase) is
+[Guía: la app real contra la laptop](https://roberto-bustos-hernandez.atlassian.net/wiki/spaces/ARQ/pages/45776897).
 
 To run the pieces by hand instead (for example to keep the emulators up while
 restarting the API):
