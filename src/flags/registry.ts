@@ -8,8 +8,12 @@
 // - "ops": Firebase Remote Config. Operational switches that stay (kill
 //   switches, limits), changed from the Firebase console.
 //
-// Until a provider is wired for an owner, a flag answers with its
-// defaultValue, unless FLAG_<KEY> overrides it (see providers/envOverride.ts).
+// Keys are snake_case: Remote Config only accepts letters, digits and "_",
+// and a key the mobile app also reads is spelled the same in both registries.
+//
+// A flag answers with its defaultValue when its tool doesn't have it (or
+// isn't wired yet, or is down), unless FLAG_<KEY> overrides it (see
+// providers/envOverride.ts).
 
 export type FlagOwner = "release" | "ops";
 export type FlagValue = boolean | string | number;
@@ -39,27 +43,39 @@ export type FlagRegistry = Record<string, FlagDefinition>;
 // checked where it's read.
 export const defineFlags = <R extends FlagRegistry>(registry: R): R => registry;
 
-export const flags = defineFlags({});
+export const flags = defineFlags({
+  checkout_banner: {
+    owner: "ops",
+    defaultValue: "",
+    description:
+      "Notice shown at checkout; empty shows none. The mobile app reads the same key from its own Remote Config template.",
+    responsible: "RobertoBustos",
+  },
+});
 
 export type Flags = typeof flags;
 export type FlagKey = keyof Flags & string;
 
 // The environment variable that overrides a flag: upper case, words split
 // at camelCase boundaries, anything else that isn't a letter or digit
-// turned into "_". isPaymentRequired -> FLAG_IS_PAYMENT_REQUIRED,
-// new-checkout -> FLAG_NEW_CHECKOUT.
+// turned into "_". checkout_banner -> FLAG_CHECKOUT_BANNER,
+// isPaymentRequired -> FLAG_IS_PAYMENT_REQUIRED.
 export const overrideVariable = (key: string) =>
   `FLAG_${key
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .replace(/[^A-Za-z0-9]+/g, "_")
     .toUpperCase()}`;
 
-// What's wrong with a registry, if anything: release flags without a valid
-// removeBy, and keys that map to the same override variable.
+const SNAKE_CASE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+
+// What's wrong with a registry, if anything: keys that aren't snake_case,
+// release flags without a valid removeBy, and keys that map to the same
+// override variable.
 export const registryProblems = (registry: FlagRegistry): string[] => {
   const problems: string[] = [];
   const variables = new Map<string, string>();
   for (const [key, flag] of Object.entries(registry)) {
+    if (!SNAKE_CASE.test(key)) problems.push(`${key}: keys are snake_case (a-z, 0-9 and "_"), as Remote Config requires`);
     if (flag.owner === "release" && !/^\d{4}-\d{2}-\d{2}$/.test(flag.removeBy ?? "")) {
       problems.push(`${key}: a release flag needs removeBy as YYYY-MM-DD`);
     }
